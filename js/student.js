@@ -141,6 +141,30 @@ window.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Khởi tạo điều khiển Bảng câu hỏi trên Mobile (Bottom Sheet Drawer)
+  const btnTogglePalette = document.getElementById("btnToggleMobilePalette");
+  const paletteCol = document.getElementById("examPaletteCol");
+  const paletteBackdrop = document.getElementById("paletteBackdrop");
+  const btnClosePalette = document.getElementById("btnCloseMobilePalette");
+
+  if (btnTogglePalette) {
+    btnTogglePalette.addEventListener("click", () => {
+      if (paletteCol && paletteCol.classList.contains("is-open-mobile")) {
+        closeMobilePalette();
+      } else {
+        openMobilePalette();
+      }
+    });
+  }
+
+  if (btnClosePalette) {
+    btnClosePalette.addEventListener("click", closeMobilePalette);
+  }
+
+  if (paletteBackdrop) {
+    paletteBackdrop.addEventListener("click", closeMobilePalette);
+  }
 });
 
 function formatDob(raw) {
@@ -610,16 +634,17 @@ function renderStudentMcCard(q, qId) {
 function renderStudentTfCard(q, qId) {
   const subItems = q.y || [];
   let html = `
-    <table class="student-tf-table">
-      <thead>
-        <tr>
-          <th>Ý</th>
-          <th>Nội dung nhận định</th>
-          <th style="width: 70px; text-align: center;">Đúng</th>
-          <th style="width: 70px; text-align: center;">Sai</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div class="student-tf-table-wrap">
+      <table class="student-tf-table">
+        <thead>
+          <tr>
+            <th style="width: 38px;">Ý</th>
+            <th>Nội dung nhận định</th>
+            <th style="width: 70px; text-align: center;">Đúng</th>
+            <th style="width: 70px; text-align: center;">Sai</th>
+          </tr>
+        </thead>
+        <tbody>
   `;
 
   subItems.forEach(sub => {
@@ -637,7 +662,7 @@ function renderStudentTfCard(q, qId) {
     `;
   });
 
-  html += `</tbody></table>`;
+  html += `</tbody></table></div>`;
   return html;
 }
 
@@ -713,6 +738,23 @@ function attachStudentAnswerEvents() {
 // ============================================================================
 // 5. BẢNG ĐIỀU HƯỚNG CÂU HỎI (PALETTE)
 // ============================================================================
+// Quản lý Drawer Bảng câu hỏi trên thiết bị di động (Mobile Bottom Sheet)
+function openMobilePalette() {
+  const paletteCol = document.getElementById("examPaletteCol");
+  const paletteBackdrop = document.getElementById("paletteBackdrop");
+  if (paletteCol) paletteCol.classList.add("is-open-mobile");
+  if (paletteBackdrop) paletteBackdrop.classList.add("is-open");
+  document.body.classList.add("palette-modal-open");
+}
+
+function closeMobilePalette() {
+  const paletteCol = document.getElementById("examPaletteCol");
+  const paletteBackdrop = document.getElementById("paletteBackdrop");
+  if (paletteCol) paletteCol.classList.remove("is-open-mobile");
+  if (paletteBackdrop) paletteBackdrop.classList.remove("is-open");
+  document.body.classList.remove("palette-modal-open");
+}
+
 function renderQuestionPalette(questions, essayData) {
   const grid = document.getElementById("paletteGrid");
   grid.innerHTML = "";
@@ -737,6 +779,7 @@ function renderQuestionPalette(questions, essayData) {
       btn.id = `palette_btn_${qId}`;
       btn.textContent = qId;
       btn.addEventListener("click", () => {
+        closeMobilePalette();
         const targetCard = document.getElementById(`q_card_${qId}`);
         if (targetCard) targetCard.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -760,6 +803,7 @@ function renderQuestionPalette(questions, essayData) {
       btn.id = `palette_btn_${qId}`;
       btn.textContent = qId;
       btn.addEventListener("click", () => {
+        closeMobilePalette();
         const targetCard = document.getElementById(`q_card_${qId}`);
         if (targetCard) targetCard.scrollIntoView({ behavior: "smooth", block: "start" });
       });
@@ -783,6 +827,7 @@ function renderQuestionPalette(questions, essayData) {
       btn.textContent = `TL ${essayId}`;
       btn.title = `Câu tự luận số ${essayId}`;
       btn.addEventListener("click", () => {
+        closeMobilePalette();
         const targetCard = document.getElementById(`essay_card_${essayId}`);
         if (targetCard) {
           targetCard.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -827,6 +872,11 @@ function updatePaletteProgress() {
   const progressEl = document.getElementById("answeredCountText");
   if (progressEl) {
     progressEl.textContent = `Đã làm: ${totalAnswered} / ${total} câu`;
+  }
+
+  const mobileBadge = document.getElementById("mobileAnsweredBadge");
+  if (mobileBadge) {
+    mobileBadge.textContent = `${totalAnswered}/${total}`;
   }
 }
 

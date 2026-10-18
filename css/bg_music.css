@@ -449,3 +449,21 @@
   right: 18px !important;
   z-index: 999995 !important;
 }
+
+/* ==========================================================================
+   RESPONSIVE MUSIC POPOVER CHO ĐIỆN THOẠI
+   ========================================================================== */
+@media (max-width: 480px) {
+  .nav-music-popover {
+    position: fixed !important;
+    top: 56px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.35) !important;
+  }
+  .nav-music-popover::before {
+    display: none !important;
+  }
+}

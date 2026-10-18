@@ -124,25 +124,40 @@
         <span class="exam-active-code" id="roomExamCode">DE_001</span>
       </div>
 
-      <!-- ĐỒNG HỒ ĐẾM NGƯỢC (COUNTDOWN TIMER) -->
-      <div class="countdown-timer-box" id="timerBox">
-        <svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
-        <div class="timer-numbers">
-          <span id="timerMinutes">45</span>:<span id="timerSeconds">00</span>
+      <div class="exam-sticky-actions">
+        <!-- ĐỒNG HỒ ĐẾM NGƯỢC (COUNTDOWN TIMER) -->
+        <div class="countdown-timer-box" id="timerBox">
+          <svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <div class="timer-numbers">
+            <span id="timerMinutes">45</span>:<span id="timerSeconds">00</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Nút Nộp Bài -->
-      <button type="button" class="btn-submit-exam" id="btnSubmitExam">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        <span>Nộp Bài Thi</span>
-      </button>
+        <!-- Nút mở Bảng Câu Hỏi trên Mobile -->
+        <button type="button" class="btn-mobile-palette-toggle" id="btnToggleMobilePalette" title="Bảng câu hỏi">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+          <span class="mobile-pal-text">Bảng câu</span>
+          <span class="badge-mobile-answered" id="mobileAnsweredBadge">0/0</span>
+        </button>
+
+        <!-- Nút Nộp Bài -->
+        <button type="button" class="btn-submit-exam" id="btnSubmitExam">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>Nộp Bài</span>
+        </button>
+      </div>
     </header>
+
+    <!-- Backdrop nền mờ cho Mobile Palette Drawer -->
+    <div class="palette-mobile-backdrop" id="paletteBackdrop"></div>
 
     <!-- Nội dung Đề thi (2 Cột: Đề thi bên trái, Bảng câu hỏi bên phải) -->
     <div class="exam-room-layout">
@@ -153,10 +168,15 @@
       </div>
 
       <!-- Cột Phải: Bảng điều hướng câu hỏi (Palette) -->
-      <aside class="exam-palette-col">
+      <aside class="exam-palette-col" id="examPaletteCol">
         <div class="palette-card">
-          <h3 class="palette-title">Bảng Câu Hỏi</h3>
-          <p class="palette-subtitle">Bấm vào số câu để di chuyển nhanh</p>
+          <div class="palette-card-header">
+            <div class="palette-header-info">
+              <h3 class="palette-title">Bảng Câu Hỏi</h3>
+              <p class="palette-subtitle">Bấm vào số câu để chuyển nhanh</p>
+            </div>
+            <button type="button" class="btn-close-palette-mobile" id="btnCloseMobilePalette" aria-label="Đóng bảng câu hỏi">✕</button>
+          </div>
           
           <div class="palette-grid" id="paletteGrid">
             <!-- Render các nút số câu hỏi 1, 2, 3... -->
