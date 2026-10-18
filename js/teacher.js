@@ -1143,7 +1143,18 @@ function extractAnswerKeysFromDocument(fullText) {
     }
   }
 
-  return { mcAnswers, tfAnswers };
+  // 6. Trích xuất đáp án / hướng dẫn chấm tự luận nếu có
+  const essayAnswers = {};
+  const essayAnsMatches = textToScan.matchAll(/(?:^|\n|\r)[ \t\u00A0]*(?:Câu|Bài|\bQ)\s*(\d+)[\s:.-]+([\s\S]*?)(?=(?:^|\n|\r)[ \t\u00A0]*(?:Câu|Bài|\bQ)\s*\d+|$)/gi);
+  for (const eMatch of essayAnsMatches) {
+    const qNum = parseInt(eMatch[1]);
+    const body = eMatch[2].trim();
+    if (body && !mcAnswers[qNum] && !tfAnswers[qNum]) {
+      essayAnswers[qNum] = body;
+    }
+  }
+
+  return { mcAnswers, tfAnswers, essayAnswers };
 }
 
 // ============================================================================
@@ -1512,13 +1523,25 @@ function smartParseQuestions(rawText) {
           .replace(/^\s*(?:Câu|Bài|\bQ)\s*\d+(?:\s*\([^\)]*\))?[:.-]*\s*/i, "")
           .replace(/(?:\[|\()[0-9]+(?:[.,][0-9]+)?\s*(?:điểm|đ|pt|pts)(?:\]|\))/i, "");
 
+        let essayAns = "";
+        const ansSplit = prompt.split(/(?:^|\n|\r|\s{2,})(?:Đáp\s*án|Lời\s*giải|Hướng\s*dẫn\s*giải|Hướng\s*dẫn\s*chấm|Gợi\s*ý\s*trả\s*lời)[:：]/i);
+        if (ansSplit.length > 1) {
+          prompt = ansSplit[0];
+          essayAns = ansSplit.slice(1).join("\n").trim();
+        }
+
         prompt = cleanQuestionPrompt(prompt);
 
         if (prompt.length > 5 && !isGarbageOrHeaderBlock(prompt)) {
+          const qId = essayList.length + 1;
+          if (!essayAns && answerKeys && answerKeys.essayAnswers && answerKeys.essayAnswers[qId]) {
+            essayAns = answerKeys.essayAnswers[qId];
+          }
           essayList.push({
-            id: essayList.length + 1,
+            id: qId,
             noiDung: prompt,
-            diem: itemDiem
+            diem: itemDiem,
+            dapAn: essayAns
           });
         }
       });
@@ -1529,10 +1552,13 @@ function smartParseQuestions(rawText) {
         .filter(p => p.length > 15 && !isGarbageOrHeaderBlock(p));
 
       paragraphs.forEach((pText) => {
+        const qId = essayList.length + 1;
+        const essayAns = (answerKeys && answerKeys.essayAnswers && answerKeys.essayAnswers[qId]) ? answerKeys.essayAnswers[qId] : "";
         essayList.push({
-          id: essayList.length + 1,
+          id: qId,
           noiDung: pText,
-          diem: p3DefaultDiem
+          diem: p3DefaultDiem,
+          dapAn: essayAns
         });
       });
     }
@@ -1713,7 +1739,17 @@ function renderEssayQuestionsEditor() {
           <span>Xóa câu này</span>
         </button>
       </div>
-      <textarea class="form-textarea essay-content-input" data-index="${idx}" rows="2" placeholder="Nhập nội dung câu hỏi tự luận ${eq.id}..." style="font-size: 0.9rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 8px;">${escapeHtml(eq.noiDung || '')}</textarea>
+      <div style="margin-bottom: 0.5rem;">
+        <label style="font-size: 0.78rem; font-weight: 700; color: #475569; display: block; margin-bottom: 0.2rem;">Nội dung đề bài tự luận ${eq.id}:</label>
+        <textarea class="form-textarea essay-content-input" data-index="${idx}" rows="2" placeholder="Nhập nội dung đề bài câu hỏi tự luận ${eq.id}..." style="font-size: 0.9rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 8px;">${escapeHtml(eq.noiDung || '')}</textarea>
+      </div>
+      <div style="margin-top: 0.5rem; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 8px; padding: 0.6rem 0.85rem;">
+        <label style="font-size: 0.8rem; font-weight: 700; color: #065f46; display: flex; align-items: center; gap: 5px; margin-bottom: 0.25rem;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Đáp án đúng / Lời giải mẫu (hiện khi học sinh ôn tập, học bài):</span>
+        </label>
+        <textarea class="form-textarea essay-answer-input" data-index="${idx}" rows="2" placeholder="Nhập đáp án chuẩn, gợi ý trả lời hoặc lời giải chi tiết cho câu tự luận ${eq.id}..." style="font-size: 0.88rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 6px; border: 1px solid #6ee7b7; color: #064e3b; font-weight: 500; line-height: 1.45;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</textarea>
+      </div>
     `;
 
     container.appendChild(item);
@@ -1744,6 +1780,20 @@ function renderEssayQuestionsEditor() {
     });
   });
 
+  // Bắt sự kiện chỉnh sửa đáp án tự luận
+  container.querySelectorAll(".essay-answer-input").forEach(tx => {
+    tx.addEventListener("input", (e) => {
+      const idx = parseInt(e.target.dataset.index);
+      if (parsedEssayQuestions[idx]) {
+        parsedEssayQuestions[idx].dapAn = e.target.value;
+        const rightPreview = document.querySelector(`.q-essay-answer-editable[data-index="${idx}"]`);
+        if (rightPreview && rightPreview.innerText !== e.target.value) {
+          rightPreview.innerText = e.target.value;
+        }
+      }
+    });
+  });
+
   container.querySelectorAll(".btn-delete-essay-item").forEach(btn => {
     btn.addEventListener("click", () => {
       const idx = parseInt(btn.dataset.index);
@@ -1755,12 +1805,13 @@ function renderEssayQuestionsEditor() {
   });
 }
 
-function addNewEssayQuestion(promptText = "", points = 1) {
+function addNewEssayQuestion(promptText = "", points = 1, answerText = "") {
   const newId = parsedEssayQuestions.length + 1;
   parsedEssayQuestions.push({
     id: newId,
     noiDung: promptText || `Câu hỏi và yêu cầu bài làm tự luận ${newId}...`,
-    diem: points
+    diem: points,
+    dapAn: answerText || ""
   });
 
   renderEssayQuestionsEditor();
@@ -1909,8 +1960,19 @@ function renderQuestionsPreview(questions) {
           <button type="button" class="btn-delete-preview-essay" data-index="${eqIdx}" style="background: none; border: none; color: #ef4444; font-size: 0.8rem; font-weight: 700; cursor: pointer;">Xóa câu này</button>
         </div>
 
-        <div class="q-prompt-editable q-essay-prompt" contenteditable="true" data-index="${eqIdx}" style="min-height: 48px; background: #ffffff; padding: 0.6rem 0.85rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-          ${escapeHtml(eq.noiDung)}
+        <div style="margin-bottom: 0.5rem;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; margin-bottom: 0.2rem;">Đề bài tự luận:</div>
+          <div class="q-prompt-editable q-essay-prompt" contenteditable="true" data-index="${eqIdx}" style="min-height: 48px; background: #ffffff; padding: 0.6rem 0.85rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            ${escapeHtml(eq.noiDung)}
+          </div>
+        </div>
+
+        <div style="margin-top: 0.5rem; background: #f0fdf4; border: 1.5px dashed #86efac; border-radius: 8px; padding: 0.55rem 0.85rem;">
+          <div style="font-size: 0.8rem; font-weight: 700; color: #166534; margin-bottom: 0.3rem; display: flex; align-items: center; gap: 4px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Đáp án câu tự luận đúng (Học sinh xem lại khi ôn tập):</span>
+          </div>
+          <div class="q-essay-answer-editable" contenteditable="true" data-index="${eqIdx}" placeholder="Nhập đáp án chuẩn hoặc lời giải chi tiết..." style="min-height: 38px; background: #ffffff; padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #bbf7d0; font-size: 0.88rem; color: #166534; line-height: 1.45;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</div>
         </div>
       `;
 
@@ -2094,6 +2156,19 @@ function attachPreviewEvents() {
         // Đồng bộ sang editor bên trái
         const leftTx = document.querySelector(`.essay-content-input[data-index="${eqIdx}"]`);
         if (leftTx) leftTx.value = parsedEssayQuestions[eqIdx].noiDung;
+      }
+    });
+  });
+
+  // 1.2 Sửa đáp án câu hỏi tự luận trên bản xem trước
+  document.querySelectorAll(".q-essay-answer-editable").forEach(el => {
+    el.addEventListener("blur", (e) => {
+      const eqIdx = parseInt(e.target.dataset.index);
+      if (parsedEssayQuestions[eqIdx]) {
+        parsedEssayQuestions[eqIdx].dapAn = e.target.innerText.trim();
+        // Đồng bộ sang editor bên trái
+        const leftTx = document.querySelector(`.essay-answer-input[data-index="${eqIdx}"]`);
+        if (leftTx) leftTx.value = parsedEssayQuestions[eqIdx].dapAn;
       }
     });
   });
@@ -2545,9 +2620,12 @@ function openExamForEditing(maDe) {
   if (essayLinkInput) essayLinkInput.value = tuLuan.linkForm || "";
 
   if (Array.isArray(tuLuan.danhSachCauHoi) && tuLuan.danhSachCauHoi.length > 0) {
-    parsedEssayQuestions = JSON.parse(JSON.stringify(tuLuan.danhSachCauHoi));
+    parsedEssayQuestions = JSON.parse(JSON.stringify(tuLuan.danhSachCauHoi)).map(eq => ({
+      ...eq,
+      dapAn: eq.dapAn || eq.dapAnDung || ""
+    }));
   } else if (tuLuan.noiDung && String(tuLuan.noiDung).trim().length > 0) {
-    parsedEssayQuestions = [{ id: 1, noiDung: tuLuan.noiDung, diem: 1 }];
+    parsedEssayQuestions = [{ id: 1, noiDung: tuLuan.noiDung, diem: 1, dapAn: tuLuan.dapAn || tuLuan.dapAnDung || "" }];
   } else {
     parsedEssayQuestions = [];
   }

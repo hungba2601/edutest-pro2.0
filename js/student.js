@@ -58,6 +58,16 @@ function showToast(title, message, type = "info", duration = 4000) {
   }, duration);
 }
 
+function escapeHtml(text) {
+  if (!text) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // Trạng thái cục bộ thí sinh và bài thi
 let currentStudent = null;
 let availableExams = [];
@@ -1051,22 +1061,16 @@ function gradeExamLocally(exam, userAnswers) {
     }
   });
 
-  // Tính điểm tổng chuẩn xác:
-  // Nếu đề thi đã được phân bổ điểm theo thang 10 (tổng điểm trắc nghiệm <= 10.05, ví dụ 0.25đ, 0.5đ, 1.0đ):
-  // Giữ nguyên điểm thực tế học sinh đạt được (totalScore), KHÔNG chia tỷ lệ để tránh bị lệch và ra điểm số lẻ vô lý!
-  // Chỉ quy đổi về thang 10 nếu tổng điểm thô > 10.
-  let finalScore = totalScore;
-  if (maxPossibleScore > 10.05) {
-    finalScore = (totalScore / maxPossibleScore) * 10;
-  } else {
-    finalScore = totalScore;
-  }
-  const finalScore10 = Math.round(finalScore * 100) / 100;
+  // Tính điểm tổng trắc nghiệm:
+  const diemTracNghiem = Math.round(totalScore * 100) / 100;
+  const tongDiemTracNghiem = Math.round(maxPossibleScore * 100) / 100;
   const isAllowReview = (exam.choXemLaiBai !== false);
 
   return {
     success: true,
-    diemTong: finalScore10,
+    diemTong: diemTracNghiem,
+    diemTracNghiem: diemTracNghiem,
+    tongDiemTracNghiem: tongDiemTracNghiem,
     soCauDung: correctCount,
     tongSoCau: questions.length,
     soCauDungSai: `${correctCount}/${questions.length} câu đúng`,
@@ -1074,7 +1078,8 @@ function gradeExamLocally(exam, userAnswers) {
     choXemLaiBai: isAllowReview,
     chiTietKetQua: isAllowReview ? detailedResults : [],
     linkTuLuan: (exam.tuLuan && exam.tuLuan.linkForm) ? exam.tuLuan.linkForm : "",
-    baiLamTuLuan: studentEssayAnswers
+    baiLamTuLuan: studentEssayAnswers,
+    danhSachCauHoiTuLuan: (exam.tuLuan && exam.tuLuan.danhSachCauHoi) ? exam.tuLuan.danhSachCauHoi : []
   };
 }
 
@@ -1100,11 +1105,41 @@ function showExamResultScreen(result) {
     document.body.scrollTop = 0;
   }, 80);
 
-  const rawScore = Number(result.diemTong || 0);
+  const rawScore = (result.diemTracNghiem !== undefined && result.diemTracNghiem !== null)
+    ? Number(result.diemTracNghiem)
+    : Number(result.diemTong || 0);
   const displayScore = Math.round(rawScore * 100) / 100;
+
+  // Tính tổng điểm phần trắc nghiệm
+  let maxTracNghiemScore = 0;
+  if (result.tongDiemTracNghiem !== undefined && result.tongDiemTracNghiem !== null && Number(result.tongDiemTracNghiem) > 0) {
+    maxTracNghiemScore = Math.round(Number(result.tongDiemTracNghiem) * 100) / 100;
+  } else if (activeExam && Array.isArray(activeExam.cauHoi) && activeExam.cauHoi.length > 0) {
+    maxTracNghiemScore = activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0);
+    maxTracNghiemScore = Math.round(maxTracNghiemScore * 100) / 100;
+  } else {
+    maxTracNghiemScore = 10;
+  }
 
   document.getElementById("resultGreeting").textContent = `Thí sinh ${currentStudent.hoTen || currentStudent.username} (${currentStudent.lop}) đã hoàn thành bài thi!`;
   document.getElementById("resultScore").textContent = displayScore;
+
+  const scoreMaxEl = document.getElementById("resultScoreMax");
+  if (scoreMaxEl) {
+    scoreMaxEl.textContent = `/ ${maxTracNghiemScore} điểm`;
+  }
+
+  const essayList = getExamEssayQuestions(activeExam?.tuLuan);
+  const hasEssay = essayList.length > 0 || !!(activeExam?.tuLuan && activeExam.tuLuan.linkForm);
+  const noteEl = document.getElementById("resultScoreNote");
+  if (noteEl) {
+    if (hasEssay) {
+      noteEl.innerHTML = `📝 <strong>Lưu ý:</strong> Điểm số trên là <strong>Điểm phần trắc nghiệm</strong> (${displayScore}/${maxTracNghiemScore} điểm). Phần tự luận giáo viên sẽ tự chấm và tổng kết điểm sau.`;
+    } else {
+      noteEl.innerHTML = `📝 <strong>Điểm phần trắc nghiệm:</strong> ${displayScore}/${maxTracNghiemScore} điểm.`;
+    }
+  }
+
   document.getElementById("resultCorrectStats").textContent = `${result.soCauDung || 0} / ${result.tongSoCau || 0} câu`;
   document.getElementById("resultSubmitTime").textContent = result.thoiGianNop || UtilitiesFormatTime();
 
@@ -1133,7 +1168,7 @@ function showExamResultScreen(result) {
     if (lockedNotice) lockedNotice.style.display = "block";
   }
 
-  showToast("Thành công", `Bài thi của bạn đạt: ${displayScore} điểm!`, "success", 5000);
+  showToast("Thành công", `Điểm phần trắc nghiệm của bạn: ${displayScore}/${maxTracNghiemScore} điểm!`, "success", 5000);
 }
 
 // ============================================================================
@@ -1150,10 +1185,24 @@ function openExamReviewModal() {
   const modalScoreStats = document.getElementById("reviewModalScoreStats");
   const modalBody = document.getElementById("reviewModalBody");
 
-  const displayReviewScore = Math.round(Number(lastExamResult.diemTong || 0) * 100) / 100;
+  const rawReviewScore = (lastExamResult.diemTracNghiem !== undefined && lastExamResult.diemTracNghiem !== null)
+    ? Number(lastExamResult.diemTracNghiem)
+    : Number(lastExamResult.diemTong || 0);
+  const displayReviewScore = Math.round(rawReviewScore * 100) / 100;
+
+  let maxTracNghiemScore = 0;
+  if (lastExamResult.tongDiemTracNghiem !== undefined && lastExamResult.tongDiemTracNghiem !== null && Number(lastExamResult.tongDiemTracNghiem) > 0) {
+    maxTracNghiemScore = Math.round(Number(lastExamResult.tongDiemTracNghiem) * 100) / 100;
+  } else if (activeExam && Array.isArray(activeExam.cauHoi) && activeExam.cauHoi.length > 0) {
+    maxTracNghiemScore = activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0);
+    maxTracNghiemScore = Math.round(maxTracNghiemScore * 100) / 100;
+  } else {
+    maxTracNghiemScore = 10;
+  }
+
   if (modalTitle) modalTitle.textContent = `Chi Tiết Bài Làm: ${activeExam.tenKyThi || activeExam.maDe}`;
   if (modalScoreStats) {
-    modalScoreStats.innerHTML = `Điểm số: <strong style="color: #2563eb;">${displayReviewScore} / 10</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Chế độ: <strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
+    modalScoreStats.innerHTML = `Điểm phần trắc nghiệm: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} điểm</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: <strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
   }
 
   modalBody.innerHTML = "";
@@ -1205,7 +1254,7 @@ function openExamReviewModal() {
     p3Hdr.innerHTML = `
       <div class="section-hdr-left">
         <div class="section-hdr-title">PHẦN III: BÀI LÀM TỰ LUẬN</div>
-        <div class="section-hdr-desc">Bài làm tự luận của bạn sẽ được giáo viên chấm thủ công</div>
+        <div class="section-hdr-desc">Bài làm tự luận của bạn sẽ được giáo viên chấm thủ công. Bên dưới có hiển thị đáp án đúng để bạn ôn tập, học bài.</div>
       </div>
       <div class="section-hdr-badge">${essayList.length} câu</div>
     `;
@@ -1215,15 +1264,56 @@ function openExamReviewModal() {
 
     essayList.forEach((item, idx) => {
       const essayId = item.id || (idx + 1);
-      const studentAnsText = (studentSavedEssays && studentSavedEssays[essayId]) ? String(studentSavedEssays[essayId]).trim() : "";
+      let studentAnsText = "";
+      if (studentSavedEssays) {
+        if (Array.isArray(studentSavedEssays)) {
+          const found = studentSavedEssays.find(e => (e.id || 0) == essayId);
+          if (found) studentAnsText = found.baiLam || found.traLoi || "";
+        } else if (typeof studentSavedEssays === "object") {
+          studentAnsText = studentSavedEssays[essayId] || studentSavedEssays[String(essayId)] || "";
+        }
+      }
+      studentAnsText = String(studentAnsText || "").trim();
+
+      // Tìm đáp án tự luận chuẩn để học sinh ôn tập, học bài
+      let correctModelAns = item.dapAn || item.dapAnDung || "";
+      if (!correctModelAns && Array.isArray(lastExamResult?.baiLamTuLuan)) {
+        const found = lastExamResult.baiLamTuLuan.find(e => (e.id || 0) == essayId);
+        if (found && (found.dapAn || found.dapAnDung)) correctModelAns = found.dapAn || found.dapAnDung;
+      }
+      if (!correctModelAns && Array.isArray(lastExamResult?.danhSachCauHoiTuLuan)) {
+        const found = lastExamResult.danhSachCauHoiTuLuan.find(e => (e.id || 0) == essayId);
+        if (found && (found.dapAn || found.dapAnDung)) correctModelAns = found.dapAn || found.dapAnDung;
+      }
+      if (!correctModelAns && activeExam?.tuLuan?.danhSachCauHoi) {
+        const found = activeExam.tuLuan.danhSachCauHoi.find(e => (e.id || 0) == essayId);
+        if (found && (found.dapAn || found.dapAnDung)) correctModelAns = found.dapAn || found.dapAnDung;
+      }
 
       const card = document.createElement("div");
       card.className = "review-essay-card";
-      card.style.marginBottom = "1rem";
+      card.style.marginBottom = "1.25rem";
 
       const pointBadge = (item.diem !== undefined && item.diem !== null && Number(item.diem) > 0)
         ? `<span class="q-badge-points" style="background: #ecfdf5; color: #047857; border-color: #a7f3d0;">${item.diem} điểm</span>`
         : '';
+
+      const modelAnswerHtml = correctModelAns ? `
+        <div class="review-essay-correct-ans-box">
+          <div class="review-essay-correct-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Đáp án câu tự luận đúng (Dành cho ôn tập & học bài):</span>
+          </div>
+          <div class="review-essay-correct-content">${escapeHtml(correctModelAns)}</div>
+        </div>
+      ` : `
+        <div class="review-essay-correct-ans-box" style="background: #f8fafc; border-color: #e2e8f0;">
+          <div class="review-essay-correct-title" style="color: #64748b;">
+            <span>💡 Đáp án câu tự luận đúng:</span>
+          </div>
+          <div style="font-size: 0.88rem; color: #94a3b8; font-style: italic;">Giáo viên chưa cập nhật đáp án mẫu cho câu tự luận này.</div>
+        </div>
+      `;
 
       card.innerHTML = `
         <div class="review-q-header">
@@ -1231,13 +1321,14 @@ function openExamReviewModal() {
             <span style="font-weight: 800; font-size: 0.95rem; color: #064e3b;">Câu ${essayId} (Tự luận)</span>
             ${pointBadge}
           </div>
-          <span class="review-badge-status" style="background: #f0fdf4; color: #047857; border: 1px solid #a7f3d0;">📝 Chờ GV chấm</span>
+          <span class="review-badge-status" style="background: #f0fdf4; color: #047857; border: 1px solid #a7f3d0;">📝 Tự luận - Chờ GV chấm</span>
         </div>
-        <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; line-height: 1.5;">${item.noiDung || "Chưa có đề bài."}</div>
-        <div style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 0.35rem;">Bài làm của bạn:</div>
+        <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; line-height: 1.5;">${escapeHtml(item.noiDung || "Chưa có đề bài.")}</div>
+        <div style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 0.35rem;">✍️ Bài làm của bạn:</div>
         <div class="review-essay-student-ans">
-          ${studentAnsText ? studentAnsText : '<em style="color: #94a3b8;">(Thí sinh chưa nhập câu trả lời cho câu hỏi này)</em>'}
+          ${studentAnsText ? escapeHtml(studentAnsText) : '<em style="color: #94a3b8;">(Thí sinh chưa nhập câu trả lời cho câu hỏi này)</em>'}
         </div>
+        ${modelAnswerHtml}
       `;
       modalBody.appendChild(card);
     });

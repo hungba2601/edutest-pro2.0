@@ -212,9 +212,18 @@
       <h2 class="result-title">Hoàn Thành Bài Kiểm Tra!</h2>
       <p class="result-subtitle" id="resultGreeting">Chúc mừng bạn đã nộp bài thành công.</p>
 
-      <div class="result-score-circle">
-        <span class="score-number" id="resultScore">0.0</span>
-        <span class="score-max">/ 10 điểm</span>
+      <div class="result-score-container">
+        <div class="result-score-badge">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>ĐIỂM PHẦN TRẮC NGHIỆM</span>
+        </div>
+        <div class="result-score-circle">
+          <span class="score-number" id="resultScore">0.0</span>
+          <span class="score-max" id="resultScoreMax">/ 7 điểm</span>
+        </div>
+        <div class="result-score-note" id="resultScoreNote">
+          📝 <strong>Lưu ý:</strong> Điểm số trên là <strong>Điểm phần trắc nghiệm</strong>. Phần tự luận giáo viên sẽ tự chấm và tổng kết điểm sau.
+        </div>
       </div>
 
       <div class="result-details-grid">

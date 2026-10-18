@@ -985,6 +985,18 @@ function handleGetStudentExams(payload) {
           return safeQ;
         });
 
+        const rawTuLuan = duLieuDeParsed.tuLuan || {};
+        const safeTuLuan = {
+          linkForm: rawTuLuan.linkForm || "",
+          noiDung: rawTuLuan.noiDung || "",
+          danhSachCauHoi: (rawTuLuan.danhSachCauHoi || []).map((eq, eqIdx) => ({
+            id: eq.id || (eqIdx + 1),
+            noiDung: eq.noiDung,
+            diem: eq.diem !== undefined ? eq.diem : 1
+            // Không gửi đáp án trước khi nộp bài để đảm bảo bảo mật phòng thi
+          }))
+        };
+
         availableExams.push({
           maDe: String(row[0]),
           tenKyThi: String(row[1]),
@@ -995,7 +1007,7 @@ function handleGetStudentExams(payload) {
           soCauHoi: safeQuestions.length,
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
-          tuLuan: duLieuDeParsed.tuLuan || {}
+          tuLuan: safeTuLuan
         });
       }
     }
@@ -1134,17 +1146,9 @@ function handleSubmitExam(payload) {
     }
   });
 
-  // Tính điểm tổng chuẩn xác:
-  // Nếu đề thi đã được giáo viên phân bổ điểm theo thang 10 (tổng điểm trắc nghiệm <= 10.05, ví dụ 0.25đ, 0.5đ, 1.0đ):
-  // Giữ nguyên điểm thực tế học sinh đạt được (totalScore), TUYỆT ĐỐI KHÔNG chia tỷ lệ để tránh bị lệch và ra điểm số lẻ vô lý!
-  // Chỉ quy đổi về thang 10 nếu tổng điểm thô > 10 (ví dụ 40 câu mỗi câu 1 điểm = 40 điểm).
-  let finalScore = totalScore;
-  if (maxPossibleScore > 10.05) {
-    finalScore = (totalScore / maxPossibleScore) * 10;
-  } else {
-    finalScore = totalScore;
-  }
-  const finalScore10 = Math.round(finalScore * 100) / 100;
+  // Tính điểm phần trắc nghiệm chuẩn xác (Ví dụ 5.6/7)
+  const diemTracNghiem = Math.round(totalScore * 100) / 100;
+  const tongDiemTracNghiem = Math.round(maxPossibleScore * 100) / 100;
   const soCauDungSaiText = `${correctCount}/${questions.length} câu đúng (${incorrectCount} câu chưa chuẩn)`;
 
   // 3. XỬ LÝ PHẦN TỰ LUẬN (GHI VÀO DATA_TULUAN VÀ ĐÓNG GÓI)
@@ -1163,7 +1167,9 @@ function handleSubmitExam(payload) {
     }
   }
 
+  const choXemLaiBai = (originalExamData.choXemLaiBai !== false);
   const essayDetailsForStudent = [];
+
   if (essayCount > 0) {
     try {
       const sheetTuLuan = ensureTuLuanSheet(ss, essayCount);
@@ -1193,11 +1199,14 @@ function handleSubmitExam(payload) {
         rowTuLuan.push(ansText);
 
         const qObj = essayQuestions[qNum - 1] || {};
+        const essayAnsKey = (qObj.dapAn || qObj.dapAnDung || "");
+
         essayDetailsForStudent.push({
           id: qNum,
           noiDung: qObj.noiDung || (qNum === 1 && examTuLuan.noiDung ? examTuLuan.noiDung : `Câu hỏi tự luận ${qNum}`),
           diem: qObj.diem !== undefined ? qObj.diem : 0,
-          baiLam: ansText
+          baiLam: ansText,
+          dapAn: choXemLaiBai ? essayAnsKey : ""
         });
       }
 
@@ -1228,18 +1237,18 @@ function handleSubmitExam(payload) {
     thoiGianVaoThi || thoiGianNop,
     maDe,
     usernameGV,
-    finalScore10,
+    diemTracNghiem,
     soCauDungSaiText,
     thoiGianNop,
     JSON.stringify(fullDetailObject)
   ]);
 
-  const choXemLaiBai = (originalExamData.choXemLaiBai !== false);
-
   return createJsonResponse({
     success: true,
     message: "Nộp bài thành công!",
-    diemTong: finalScore10,
+    diemTong: diemTracNghiem,
+    diemTracNghiem: diemTracNghiem,
+    tongDiemTracNghiem: tongDiemTracNghiem,
     soCauDung: correctCount,
     tongSoCau: questions.length,
     soCauDungSai: soCauDungSaiText,
@@ -1247,6 +1256,7 @@ function handleSubmitExam(payload) {
     choXemLaiBai: choXemLaiBai,
     chiTietKetQua: choXemLaiBai ? detailedResults : [],
     baiLamTuLuan: essayDetailsForStudent,
+    danhSachCauHoiTuLuan: choXemLaiBai ? essayQuestions : [],
     linkTuLuan: (originalExamData.tuLuan && originalExamData.tuLuan.linkForm) ? originalExamData.tuLuan.linkForm : ""
   });
 }
