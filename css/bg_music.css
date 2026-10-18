@@ -1,0 +1,451 @@
+/* ==========================================================================
+   TOP-RIGHT SPEAKER ICON & POPUP MUSIC PLAYER - EDUTEST PRO 2.0
+   Nhạc nền du dương "Love Story" (Âm lượng 30%)
+   ========================================================================== */
+
+/* Khung chứa nút Loa trên Navbar (Phía trên bên phải) */
+.nav-music-widget-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* Nút Icon Hình Cái Loa Nhỏ trên Navbar */
+.btn-nav-speaker {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #f0f9ff;
+  border: 1.5px solid #bae6fd;
+  color: #0284c7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.12);
+}
+
+.btn-nav-speaker:hover {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+}
+
+.btn-nav-speaker:active {
+  transform: translateY(0);
+}
+
+/* SVG Icon Loa */
+.btn-nav-speaker svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.2s ease;
+}
+
+/* Hiệu ứng khi nhạc đang phát: viền phát sáng & chấm sóng âm xanh lá */
+.nav-music-widget-wrapper.is-playing .btn-nav-speaker {
+  border-color: #38bdf8;
+  background: #e0f2fe;
+  color: #0369a1;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
+}
+
+.btn-nav-speaker:hover svg {
+  transform: scale(1.1);
+}
+
+/* Chấm đèn tín hiệu phát sóng âm góc nhỏ trên icon loa */
+.speaker-pulse-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 1.5px solid #ffffff;
+  display: none;
+}
+
+.nav-music-widget-wrapper.is-playing .speaker-pulse-dot {
+  display: block;
+  animation: pulseDot 1.8s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0% { transform: scale(0.9); opacity: 0.8; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.9); opacity: 0.8; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Khi đang đợi tương tác người dùng do Autoplay bị chặn */
+.nav-music-widget-wrapper.waiting-interaction .btn-nav-speaker {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #d97706;
+  animation: waitingShake 2.5s infinite ease-in-out;
+}
+
+@keyframes waitingShake {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); box-shadow: 0 0 14px rgba(245, 158, 11, 0.5); }
+}
+
+/* ==========================================================================
+   DROPDOWN POPUP HIỂN THỊ ĐẦY ĐỦ TÍNH NĂNG KHI NHẤP VÀO ICON LOA
+   ========================================================================== */
+
+.nav-music-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 320px;
+  background: #ffffff;
+  border: 1.5px solid #bae6fd;
+  border-radius: 16px;
+  box-shadow: 0 20px 45px -10px rgba(15, 23, 42, 0.28), 0 0 20px rgba(2, 132, 199, 0.15);
+  padding: 1.15rem 1.25rem;
+  z-index: 999999;
+  display: none; /* Mặc định ẩn, hiện khi có class .is-open */
+  flex-direction: column;
+  gap: 0.85rem;
+  transform-origin: top right;
+  animation: popoverDrop 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-sizing: border-box;
+}
+
+.nav-music-popover.is-open {
+  display: flex !important;
+}
+
+@keyframes popoverDrop {
+  0% { opacity: 0; transform: scale(0.9) translateY(-8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Mũi tên chỉ ngược lên nút Loa */
+.nav-music-popover::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  right: 14px;
+  width: 12px;
+  height: 12px;
+  background: #ffffff;
+  border-top: 1.5px solid #bae6fd;
+  border-left: 1.5px solid #bae6fd;
+  transform: rotate(45deg);
+}
+
+/* Header Popover: Đĩa than + Tên bài hát + Sóng âm + Nút đóng */
+.popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.75rem;
+}
+
+.popover-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+/* Đĩa than xoay trong Popup */
+.popover-vinyl-disc {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #334155 0%, #0f172a 65%, #020617 100%);
+  border: 1.5px solid #bae6fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: transform 0.3s ease;
+}
+
+.nav-music-widget-wrapper.is-playing .popover-vinyl-disc {
+  animation: spinVinylPop 6s linear infinite;
+}
+
+@keyframes spinVinylPop {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.popover-vinyl-center {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0284c7, #38bdf8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.popover-track-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.popover-track-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.popover-track-sub {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0284c7;
+  white-space: nowrap;
+}
+
+/* Cột sóng âm Equalizer */
+.popover-eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  margin-left: auto;
+}
+
+.popover-eq-bar {
+  width: 2.5px;
+  height: 4px;
+  background: linear-gradient(to top, #0284c7, #38bdf8);
+  border-radius: 1.5px;
+  transition: height 0.2s ease;
+}
+
+.nav-music-widget-wrapper.is-playing .popover-eq-bar.b-1 {
+  animation: popEqJump 0.8s ease-in-out infinite alternate;
+}
+.nav-music-widget-wrapper.is-playing .popover-eq-bar.b-2 {
+  animation: popEqJump 0.95s ease-in-out 0.2s infinite alternate;
+}
+.nav-music-widget-wrapper.is-playing .popover-eq-bar.b-3 {
+  animation: popEqJump 0.7s ease-in-out 0.4s infinite alternate;
+}
+.nav-music-widget-wrapper.is-playing .popover-eq-bar.b-4 {
+  animation: popEqJump 1.1s ease-in-out 0.1s infinite alternate;
+}
+
+@keyframes popEqJump {
+  0% { height: 3px; }
+  50% { height: 14px; }
+  100% { height: 5px; }
+}
+
+.btn-close-popover {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.2rem 0.35rem;
+  line-height: 1;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-close-popover:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+/* Thân Popover: Nút Play / Pause & Mute */
+.popover-main-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.btn-popover-play {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-popover-play:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(2, 132, 199, 0.4);
+}
+
+.btn-popover-play svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-popover-mute {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-popover-mute:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.btn-popover-mute svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Thanh trượt điều chỉnh âm lượng */
+.popover-volume-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  background: #f8fafc;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.volume-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #475569;
+  font-weight: 700;
+}
+
+.popover-vol-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: #cbd5e1;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.popover-vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #0284c7;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(2, 132, 199, 0.5);
+  transition: transform 0.15s ease;
+}
+
+.popover-vol-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+.popover-vol-slider::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(2, 132, 199, 0.5);
+}
+
+/* Các nút nấc âm lượng nhanh: 15%, 30%, 50%, 80% */
+.popover-vol-presets {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+
+.btn-vol-preset {
+  flex: 1;
+  padding: 0.25rem 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-vol-preset:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+.btn-vol-preset.is-active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+}
+
+/* Gợi ý nhỏ ở chân Popover */
+.popover-footer-tip {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.4;
+  text-align: center;
+  margin: 0;
+  padding-top: 0.2rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+/* Khi không tìm thấy .nav-user (dự phòng vị trí nổi cố định phía trên bên phải) */
+.nav-music-widget-wrapper.fallback-fixed {
+  position: fixed !important;
+  top: 14px !important;
+  right: 18px !important;
+  z-index: 999995 !important;
+}

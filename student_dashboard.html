@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTest Pro 2.0 - Phòng Thi Trực Tuyến</title>
+  <meta name="description" content="Phòng thi trực tuyến với đồng hồ đếm ngược, làm bài trắc nghiệm 4 lựa chọn, đúng/sai và tự luận.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Style CSS -->
+  <link rel="stylesheet" href="css/style.css?v=2.3">
+  <link rel="stylesheet" href="css/student.css?v=3.2">
+  <link rel="stylesheet" href="css/bg_music.css?v=2.0">
+</head>
+<body>
+
+  <!-- Ambient Dynamic Background -->
+  <div class="bg-blobs" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- Top Navigation Bar (Dành cho Học Sinh) -->
+  <nav class="student-navbar">
+    <div class="nav-brand">
+      <div class="brand-badge-sm student-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+          <path d="M6 6h10"/><path d="M6 10h10"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title-app">EduTest Pro 2.0</span>
+        <span class="brand-role-tag student-tag">Thí Sinh</span>
+      </div>
+    </div>
+
+    <!-- User Profile & Logout -->
+    <div class="nav-user">
+      <div class="user-meta">
+        <span class="user-fullname" id="hsFullName">Đang tải...</span>
+        <span class="user-sub" id="hsClassSchool">Lớp: -- | Trường: --</span>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Đăng xuất">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" x2="9" y1="12" y2="12"/>
+        </svg>
+        <span>Đăng xuất</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ====================================================================
+       VIEW 1: DANH SÁCH BÀI KIỂM TRA ĐANG MỞ
+       ==================================================================== -->
+  <main class="student-main" id="viewExamList">
+    
+    <!-- Welcome Candidate Card -->
+    <div class="candidate-profile-card">
+      <div class="candidate-avatar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div class="candidate-details">
+        <h1 class="candidate-name" id="profileName">Xin chào Thí sinh!</h1>
+        <div class="candidate-meta-chips">
+          <span class="meta-chip">Mã HS: <strong id="profileUsername">--</strong></span>
+          <span class="meta-chip">Lớp: <strong id="profileClass">--</strong></span>
+          <span class="meta-chip">Ngày sinh: <strong id="profileDob">--</strong></span>
+          <span class="meta-chip">Giới tính: <strong id="profileGender">--</strong></span>
+          <span class="meta-chip">Trường: <strong id="profileSchool">--</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danh sách kỳ thi đang mở -->
+    <div class="exam-section-header">
+      <div>
+        <h2 class="section-title">Kỳ Thi Đang Mở Cho Lớp Bạn</h2>
+        <p class="section-subtitle">Chỉ hiển thị các đề thi đang ở trạng thái <strong>"Mở"</strong> và cho phép lớp của bạn tham gia.</p>
+      </div>
+      <button type="button" id="btnRefreshStudentExams" class="btn-refresh-exams">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+          <path d="M16 21h5v-5"/>
+        </svg>
+        <span>Làm mới danh sách</span>
+      </button>
+    </div>
+
+    <!-- Grid chứa các bài thi -->
+    <div class="exams-grid" id="studentExamsGrid">
+      <div class="loading-state-card">
+        <div class="spinner" style="display: block; width: 30px; height: 30px; margin: 0 auto 1rem;"></div>
+        <p>Đang tải danh sách bài kiểm tra phù hợp với lớp của bạn...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ====================================================================
+       VIEW 2: PHÒNG THI TẬP TRUNG (EXAM ROOM)
+       ==================================================================== -->
+  <div class="exam-room-wrapper" id="viewExamRoom" style="display: none;">
+    
+    <!-- Floating Header: Timer & Actions -->
+    <header class="exam-sticky-header">
+      <div class="exam-info-head">
+        <span class="exam-active-tag">🔴 Đang Thi</span>
+        <h2 class="exam-active-title" id="roomExamTitle">Tên Kỳ Kiểm Tra</h2>
+        <span class="exam-active-code" id="roomExamCode">DE_001</span>
+      </div>
+
+      <!-- ĐỒNG HỒ ĐẾM NGƯỢC (COUNTDOWN TIMER) -->
+      <div class="countdown-timer-box" id="timerBox">
+        <svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <div class="timer-numbers">
+          <span id="timerMinutes">45</span>:<span id="timerSeconds">00</span>
+        </div>
+      </div>
+
+      <!-- Nút Nộp Bài -->
+      <button type="button" class="btn-submit-exam" id="btnSubmitExam">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        <span>Nộp Bài Thi</span>
+      </button>
+    </header>
+
+    <!-- Nội dung Đề thi (2 Cột: Đề thi bên trái, Bảng câu hỏi bên phải) -->
+    <div class="exam-room-layout">
+      
+      <!-- Cột Trái: Danh sách câu hỏi Trắc nghiệm & Tự luận -->
+      <div class="exam-questions-col" id="examQuestionsContainer">
+        <!-- Render các câu hỏi trắc nghiệm & tự luận -->
+      </div>
+
+      <!-- Cột Phải: Bảng điều hướng câu hỏi (Palette) -->
+      <aside class="exam-palette-col">
+        <div class="palette-card">
+          <h3 class="palette-title">Bảng Câu Hỏi</h3>
+          <p class="palette-subtitle">Bấm vào số câu để di chuyển nhanh</p>
+          
+          <div class="palette-grid" id="paletteGrid">
+            <!-- Render các nút số câu hỏi 1, 2, 3... -->
+          </div>
+
+          <div class="palette-legend">
+            <div class="legend-item">
+              <span class="legend-dot answered"></span>
+              <span>Đã làm</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot unanswered"></span>
+              <span>Chưa làm</span>
+            </div>
+          </div>
+
+          <div class="palette-footer">
+            <span id="answeredCountText">Đã làm: 0 / 0 câu</span>
+          </div>
+        </div>
+      </aside>
+
+    </div>
+
+  </div>
+
+  <!-- ====================================================================
+       VIEW 3: MÀN HÌNH KẾT QUẢ THI
+       ==================================================================== -->
+  <div class="exam-result-wrapper" id="viewExamResult" style="display: none;">
+    <div class="result-modal-card">
+      <div class="result-trophy-icon">🏆</div>
+      <h2 class="result-title">Hoàn Thành Bài Kiểm Tra!</h2>
+      <p class="result-subtitle" id="resultGreeting">Chúc mừng bạn đã nộp bài thành công.</p>
+
+      <div class="result-score-circle">
+        <span class="score-number" id="resultScore">0.0</span>
+        <span class="score-max">/ 10 điểm</span>
+      </div>
+
+      <div class="result-details-grid">
+        <div class="res-item">
+          <span class="res-label">Số câu đúng</span>
+          <span class="res-value" id="resultCorrectStats">--</span>
+        </div>
+        <div class="res-item">
+          <span class="res-label">Thời gian nộp</span>
+          <span class="res-value" id="resultSubmitTime">--</span>
+        </div>
+      </div>
+
+      <!-- Banner Tự luận nếu có Google Form -->
+      <div id="resultEssayNotice" class="result-essay-card" style="display: none;">
+        <h4>📝 Phần Tự Luận của bạn:</h4>
+        <p>Nếu bạn chưa hoàn thành phần Tự luận trên Google Form, hãy bấm nút bên dưới để mở Form làm bài:</p>
+        <a id="resultEssayLink" href="#" target="_blank" rel="noopener" class="btn-open-googleform">
+          Mở Google Form Làm Tự Luận ↗
+        </a>
+      </div>
+
+      <!-- Thông báo khi kỳ thi KHÓA xem lại bài (Thi chính thức) -->
+      <div id="resultReviewLockedNotice" class="review-locked-card" style="display: none; background: #fffbeb; border: 1.5px solid #fde68a; border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-top: 1.25rem; text-align: left;">
+        <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+          <div style="font-size: 1.4rem; line-height: 1;">🔒</div>
+          <div>
+            <strong style="color: #92400e; font-size: 0.95rem; display: block; margin-bottom: 0.25rem;">Kỳ thi này đã khóa tính năng xem lại bài</strong>
+            <p style="margin: 0; font-size: 0.85rem; color: #b45309; line-height: 1.5;">
+              Giáo viên đã đặt chế độ <strong>"Thi / Kiểm tra chính thức"</strong>. Để đảm bảo tính bảo mật và công bằng cho các ca thi, hệ thống không mở xem lại câu hỏi và đáp án chi tiết.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Khối các nút hành động -->
+      <div class="result-actions" style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1.5rem;">
+        <button type="button" id="btnReviewExamDetail" class="btn-review-exam-detail" style="display: none; padding: 0.85rem 1.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #ffffff; border: none; border-radius: var(--radius-md); font-size: 0.95rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span>Xem Lại Bài Làm & Đáp Án</span>
+        </button>
+        <button type="button" id="btnBackToHome" class="btn-primary-home" style="margin: 0; width: auto; padding: 0.85rem 1.75rem;">
+          Quay Về Danh Sách Kỳ Thi
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL XEM LẠI BÀI LÀM & ĐÁP ÁN CHI TIẾT (CHO CHẾ ĐỘ ÔN TẬP)
+       ==================================================================== -->
+  <div class="modal-backdrop" id="reviewExamModal" style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.7) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;" aria-hidden="true">
+    <div class="modal-card review-modal-card" style="width: 100%; max-width: 900px; max-height: 90vh; display: flex; flex-direction: column; background: #ffffff; border-radius: var(--radius-lg); box-shadow: 0 20px 40px rgba(0,0,0,0.3); overflow: hidden;">
+      <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; background: #f8fafc; border-bottom: 1.5px solid #e2e8f0;">
+        <div>
+          <h3 style="font-size: 1.2rem; font-weight: 800; color: #0f172a; margin: 0;" id="reviewModalExamTitle">Xem Lại Bài Làm & Đáp Án Chi Tiết</h3>
+          <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #64748b;" id="reviewModalScoreStats">Điểm số: -- | Đúng: -- câu</p>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseReviewModal" style="background: none; border: none; font-size: 1.5rem; color: #64748b; cursor: pointer; padding: 0.25rem 0.5rem; line-height: 1;">✕</button>
+      </div>
+
+      <div class="review-modal-body" id="reviewModalBody" style="flex: 1; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; background: #f8fafc;">
+        <!-- Danh sách câu hỏi, câu trả lời của học sinh và đáp án đúng được render ở đây -->
+      </div>
+
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; padding: 1rem 1.5rem; background: #ffffff; border-top: 1.5px solid #e2e8f0;">
+        <button type="button" id="btnCloseReviewFooter" style="padding: 0.65rem 1.5rem; font-size: 0.9rem; font-weight: 700; border-radius: var(--radius-md); background: #2563eb; color: #ffffff; border: none; cursor: pointer;">
+          Đóng Xem Lại
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copyright Footer (Luôn nằm ở cuối trang) -->
+  <footer class="app-footer">
+    <p>© 2026 EduTest Pro 2.0 • Made by <strong>Nguyễn Phi Hùng</strong></p>
+  </footer>
+
+  <!-- Background Music (Love Story 30%) -->
+  <script src="js/bg_music.js?v=2.1"></script>
+  <!-- JavaScript logic Student -->
+  <script src="js/student.js?v=3.5"></script>
+</body>
+</html>

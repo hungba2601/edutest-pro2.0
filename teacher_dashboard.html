@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduTest Pro 2.0 - Bảng Điều Khiển Giáo Viên</title>
+  <meta name="description" content="Giao diện quản lý tạo đề thi trắc nghiệm bằng AI Gemini và thống kê kết quả học sinh.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- SheetJS for Excel Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Mammoth.js for Word .docx client parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <!-- PDF.js for PDF client text extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Cấu hình PDF.js worker
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+
+  <!-- Style CSS -->
+  <link rel="stylesheet" href="css/style.css?v=2.2">
+  <link rel="stylesheet" href="css/teacher.css?v=3.9">
+  <link rel="stylesheet" href="css/bg_music.css?v=2.0">
+</head>
+<body>
+
+  <!-- Ambient Dynamic Background -->
+  <div class="bg-blobs" aria-hidden="true">
+    <div class="blob blob-1" style="background: #6366f1;"></div>
+    <div class="blob blob-2" style="background: #9333ea;"></div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- Top Navigation Bar -->
+  <nav class="teacher-navbar">
+    <div class="nav-brand">
+      <div class="brand-badge-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title-app">EduTest Pro 2.0</span>
+        <span class="brand-role-tag">Cổng Giáo Viên</span>
+      </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="nav-tabs" role="tablist">
+      <button class="nav-tab-btn active" id="tabBtnCreate" data-tab="tabCreate" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+        </svg>
+        <span>Tạo & Quản Lý Đề Thi</span>
+      </button>
+      <button class="nav-tab-btn" id="tabBtnResults" data-tab="tabResults" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+        </svg>
+        <span>Xem Kết Quả & Thống Kê</span>
+      </button>
+      <button class="nav-tab-btn" id="tabBtnStudents" data-tab="tabStudents" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span>Quản Lý Học Sinh</span>
+      </button>
+    </div>
+
+    <!-- User Profile & Logout -->
+    <div class="nav-user">
+      <div class="user-meta">
+        <span class="user-fullname" id="gvFullName">Thầy/Cô</span>
+        <span class="user-sub" id="gvClasses">Lớp: --</span>
+      </div>
+      <button class="btn-logout" id="btnLogout" title="Đăng xuất">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" x2="9" y1="12" y2="12"/>
+        </svg>
+        <span>Đăng xuất</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Workspace -->
+  <main class="teacher-main">
+
+    <!-- ====================================================================
+         TAB 1: TẠO VÀ QUẢN LÝ ĐỀ THI
+         ==================================================================== -->
+    <section class="tab-content active" id="tabCreate" role="tabpanel">
+      
+      <!-- Top Section: Cấu hình Trợ lý Gemini AI Banner -->
+      <div class="gemini-key-card">
+        <div class="gemini-info">
+          <div class="gemini-badge" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+            </svg>
+            <span>Trợ Lý AI Gemini</span>
+          </div>
+          <p class="gemini-desc">
+            Trạng thái API Key: <strong id="currentKeyStatusText" style="color: #0284c7;">Chưa cấu hình</strong> | 
+            Mô hình AI: <strong id="currentSelectedModelText" style="color: #1d4ed8;">Gemini 3 Flash Preview</strong>
+          </p>
+        </div>
+        <div class="gemini-input-group">
+          <button type="button" id="btnOpenGeminiModal" class="btn-config-gemini-main" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span>Cấu hình Trợ Lý AI</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="create-grid">
+        <!-- LEFT COLUMN: Form cấu hình đề & AI Uploader -->
+        <div class="create-form-col">
+          <div class="panel-card">
+            <h2 class="panel-title">
+              <span class="step-num">1</span>
+              <span id="formPanelHeading">Cấu hình chung kỳ kiểm tra</span>
+            </h2>
+
+            <!-- Banner thông báo khi đang trong chế độ chỉnh sửa đề đã tạo -->
+            <div id="editingBanner" style="display: none; background: #fffbeb; border: 1.5px solid #f59e0b; border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.25rem; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 0.5rem; color: #b45309; font-size: 0.9rem;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                <span>Đang chỉnh sửa đề: <strong id="editingExamCodeDisplay" style="color: #92400e;">DE_...</strong></span>
+              </div>
+              <button type="button" id="btnCancelEdit" class="btn-secondary-sm" style="background: #ffffff; border: 1px solid #cbd5e1; color: #1e293b; padding: 0.3rem 0.75rem; font-size: 0.8rem;">
+                ✕ Hủy / Soạn đề mới
+              </button>
+            </div>
+
+            <div class="form-group">
+              <label for="examTitle" class="form-label required">Tên kỳ kiểm tra</label>
+              <input type="text" id="examTitle" class="form-input" placeholder="VD: Kiểm tra 1 tiết Đại số chương 2" required>
+              <div id="examTitleErrorMsg" style="display: none; color: #dc2626; font-size: 0.825rem; font-weight: 700; margin-top: 0.4rem; align-items: center; gap: 5px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Chưa nhập tên kỳ kiểm tra! Bạn không thể lưu đề thi khi để trống mục này.</span>
+              </div>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label for="examDuration" class="form-label required">Thời gian làm bài (phút)</label>
+                <input type="number" id="examDuration" class="form-input" min="5" max="180" value="45" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Trạng thái kỳ thi</label>
+                <div class="toggle-status-wrap">
+                  <label class="switch">
+                    <input type="checkbox" id="examStatusToggle" checked>
+                    <span class="slider round"></span>
+                  </label>
+                  <span class="status-text" id="statusTextDisplay">Đang MỞ cho học sinh thi</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- CẤU HÌNH CHẾ ĐỘ XEM LẠI BÀI & ĐÁP ÁN (DÀNH CHO HỌC SINH) -->
+            <div class="form-group review-mode-group" style="margin-top: 1rem; margin-bottom: 1.25rem;">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #1e293b;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Chế độ xem lại bài & đáp án (Học sinh)
+                </span>
+                <span class="badge-review-mode-active" id="badgeReviewMode">📖 ÔN TẬP (ĐƯỢC XEM BÀI)</span>
+              </label>
+
+              <div class="exam-mode-cards-grid">
+                <label class="mode-card-option selected" id="optModeReview">
+                  <input type="radio" name="examReviewMode" id="radioAllowReview" value="true" checked>
+                  <div class="mode-card-inner">
+                    <div class="mode-icon-title">
+                      <span class="mode-emoji">📖</span>
+                      <strong>Ôn tập / Luyện tập</strong>
+                    </div>
+                    <p class="mode-explanation">Cho phép học sinh xem lại bài làm, câu đúng/sai và xem đáp án đúng sau khi nộp.</p>
+                  </div>
+                </label>
+
+                <label class="mode-card-option" id="optModeExam">
+                  <input type="radio" name="examReviewMode" id="radioDisallowReview" value="false">
+                  <div class="mode-card-inner">
+                    <div class="mode-icon-title">
+                      <span class="mode-emoji">🔒</span>
+                      <strong>Thi / Kiểm tra chính thức</strong>
+                    </div>
+                    <p class="mode-explanation">Khóa xem lại bài làm & đáp án (chỉ biết điểm tổng). Đảm bảo tính bảo mật và công bằng cho ca thi.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label required">Lớp được phép thi</label>
+              <div class="class-selector" id="classSelectorContainer">
+                <!-- Checkboxes danh sách lớp được render động theo giáo viên -->
+              </div>
+              <span class="input-hint">Học sinh thuộc các lớp này mới nhìn thấy bài kiểm tra khi ở trạng thái "Mở".</span>
+            </div>
+          </div>
+
+          <!-- PHẦN TRẮC NGHIỆM TÍCH HỢP AI -->
+          <div class="panel-card">
+            <h2 class="panel-title">
+              <span class="step-num">2</span>
+              <span>Phần Trắc nghiệm (Bóc tách bằng AI Gemini)</span>
+            </h2>
+
+            <!-- File Upload Dropzone -->
+            <div class="upload-dropzone" id="uploadDropzone">
+              <input type="file" id="examFileInput" accept=".docx,.pdf,.txt" style="display: none;">
+              <div class="dropzone-content">
+                <div class="upload-icon-circle">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" x2="12" y1="3" y2="15"/>
+                  </svg>
+                </div>
+                <div class="dropzone-texts">
+                  <p class="dropzone-title">Kéo & thả file Word (.docx), PDF vào đây</p>
+                  <p class="dropzone-sub">Hoặc bấm để chọn file từ máy tính của bạn</p>
+                </div>
+                <button type="button" class="btn-browse-file" id="btnBrowseFile">Chọn File Đề Thi</button>
+              </div>
+            </div>
+
+            <div id="fileUploadInfo" class="file-info-badge" style="display: none;">
+              <span id="fileNameDisplay">file.docx</span>
+              <button type="button" id="btnRemoveFile" class="btn-remove-file">✕</button>
+            </div>
+
+            <!-- Hoặc Dán văn bản thô trực tiếp -->
+            <div class="manual-paste-toggle">
+              <button type="button" id="btnToggleManualPaste" class="btn-text-link">
+                <span>Hoặc dán trực tiếp nội dung văn bản đề thi</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+
+            <div class="manual-paste-area" id="manualPasteArea" style="display: none;">
+              <textarea id="rawExamText" class="form-textarea" rows="6" placeholder="Dán nội dung câu hỏi trắc nghiệm thô vào đây...
+Ví dụ:
+Câu 1: Thủ đô của Việt Nam là gì?
+A. Hà Nội  B. TP.HCM  C. Đà Nẵng  D. Cần Thơ
+Đáp án: A
+
+Câu 2: Các nhận định sau đúng hay sai:
+a) 2 + 2 = 4 (Đúng)
+b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
+            </div>
+
+            <!-- Nút Bóc Tách Bằng Thuật Toán & Gemini AI -->
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem;">
+              <button type="button" id="btnFastAlgorithmParse" class="btn-fast-parse" style="flex: 1; min-width: 240px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0.85rem 1.25rem; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; border: none; border-radius: 12px; font-weight: 700; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35); transition: all 0.2s ease;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                </svg>
+                <span>Bóc Tách Bằng Thuật Toán (Chuẩn 100%)</span>
+              </button>
+
+              <button type="button" id="btnRunAi" class="btn-ai-parse" style="flex: 1; min-width: 240px;">
+                <svg class="ai-sparkle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>
+                </svg>
+                <span class="btn-ai-text">Bóc Tách Bằng Gemini AI</span>
+                <div class="ai-loading-spinner" style="display: none;"></div>
+              </button>
+            </div>
+
+            <!-- Rules Banner Đúng/Sai -->
+            <div class="rules-card">
+              <div class="rules-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+                </svg>
+                <strong>Quy tắc chấm trắc nghiệm Đúng/Sai (chuẩn GDĐT):</strong>
+              </div>
+              <div class="rules-chips">
+                <span class="rule-chip">Đúng 1 ý = <strong>10%</strong></span>
+                <span class="rule-chip">Đúng 2 ý = <strong>25%</strong></span>
+                <span class="rule-chip">Đúng 3 ý = <strong>50%</strong></span>
+                <span class="rule-chip highlight">Đúng 4 ý = <strong>100%</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PHẦN TỰ LUẬN -->
+          <div class="panel-card" id="panelSectionEssay">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h2 class="panel-title" style="margin: 0;">
+                <span class="step-num">3</span>
+                <span>Phần III: Tự Luận (Tùy chọn)</span>
+              </h2>
+              <button type="button" id="btnAddEssayItem" class="btn-secondary-sm" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; font-weight: 700;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                <span>+ Thêm Câu Tự Luận</span>
+              </button>
+            </div>
+
+            <p style="font-size: 0.85rem; color: #64748b; line-height: 1.5; margin-bottom: 1rem;">
+              Thầy/Cô có thể nhập từng câu hỏi tự luận bên dưới hoặc tải file Word/PDF lên để hệ thống tự động bóc tách. Kết quả làm bài của học sinh sẽ tự động được lưu vào Sheet <strong>DATA_TULUAN</strong> và xuất ra Excel danh sách để chấm nhanh.
+            </p>
+
+            <!-- Danh sách từng câu hỏi tự luận -->
+            <div id="essayQuestionsList" class="essay-questions-editor-list" style="display: flex; flex-direction: column; gap: 0.85rem; margin-bottom: 1rem;">
+              <!-- Sẽ render động các câu hỏi tự luận ở đây -->
+            </div>
+
+            <div class="form-group" style="margin-top: 1rem; padding-top: 0.85rem; border-top: 1px dashed #e2e8f0;">
+              <label for="essayFormLink" class="form-label" style="font-size: 0.85rem; color: #64748b;">(Tùy chọn) Link Google Form làm bài tự luận dự phòng</label>
+              <input type="url" id="essayFormLink" class="form-input" placeholder="https://docs.google.com/forms/d/e/.../viewform">
+              <span class="input-hint">Nếu có dán link Form, học sinh cũng sẽ thấy nút mở Form làm bài song song.</span>
+            </div>
+          </div>
+
+          <!-- NÚT LƯU ĐỀ THI LÊN MÁY CHỦ -->
+          <div class="action-bar-submit">
+            <button type="button" id="btnSaveExam" class="btn-save-exam">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              <span>Lưu Kỳ Thi Lên Google Sheets</span>
+              <div class="save-spinner" style="display: none;"></div>
+            </button>
+            <button type="button" id="btnResetForm" class="btn-reset-form">Làm Mới</button>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Bản xem trước & Review đề thi đã bóc tách -->
+        <div class="preview-col">
+          <div class="panel-card preview-card-sticky">
+            <div class="preview-header">
+              <div>
+                <h3 class="preview-title">Bản Xem Trước & Chỉnh Sửa Đề Thi</h3>
+                <p class="preview-stats">
+                  Tổng câu: <strong id="statQuestionCount">0</strong> | 
+                  Trắc nghiệm: <strong id="statMcCount">0</strong> | 
+                  Đúng/Sai: <strong id="statTfCount">0</strong> | 
+                  Tự luận: <strong id="statEssayCount" style="color: #059669;">0</strong> | 
+                  Tổng điểm: <strong id="statTotalPoints" style="color: #2563eb;">0 đ</strong>
+                </p>
+              </div>
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button type="button" id="btnDividePointsEvenly" class="btn-secondary-sm" style="font-size: 0.78rem; padding: 0.45rem 0.75rem; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700;" title="Tự động chia đều thang điểm 10 cho toàn bộ câu hỏi trong đề">
+                  ⚡ Chia đều 10đ
+                </button>
+                <!-- Dropdown Thêm Câu Hỏi (Nhiều lựa chọn & Đúng/Sai & Tự luận) -->
+                <div class="dropdown-add-q-container" style="position: relative;">
+                  <button type="button" id="btnAddManualQuestion" class="btn-secondary-sm" style="background: #2563eb; border: 1px solid #2563eb; color: #ffffff; font-weight: 700; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>Thêm Câu Hỏi</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left: 2px;"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <div class="add-q-menu-dropdown" id="addQuestionDropdownMenu" style="display: none;">
+                    <button type="button" class="add-q-menu-item" id="btnAddMcQuestion">
+                      <span class="q-menu-item-badge mc">Phần I</span>
+                      <div class="q-menu-item-info">
+                        <div class="q-menu-item-title">Trắc nghiệm Nhiều lựa chọn</div>
+                        <div class="q-menu-item-desc">Phương án A, B, C, D</div>
+                      </div>
+                    </button>
+                    <button type="button" class="add-q-menu-item" id="btnAddTfQuestion">
+                      <span class="q-menu-item-badge tf">Phần II</span>
+                      <div class="q-menu-item-info">
+                        <div class="q-menu-item-title">Trắc nghiệm Đúng / Sai</div>
+                        <div class="q-menu-item-desc">4 ý a, b, c, d (chấm % điểm)</div>
+                      </div>
+                    </button>
+                    <button type="button" class="add-q-menu-item" id="btnAddEssayQuestion">
+                      <span class="q-menu-item-badge" style="background: #d1fae5; color: #047857;">Phần III</span>
+                      <div class="q-menu-item-info">
+                        <div class="q-menu-item-title">Câu hỏi Tự Luận</div>
+                        <div class="q-menu-item-desc">Học sinh gõ bài làm, GV chấm tay</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Danh sách câu hỏi render trước -->
+            <div class="questions-preview-list" id="questionsPreviewList">
+              <div class="empty-preview-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" x2="8" y1="13" y2="13"/>
+                  <line x1="16" x2="8" y1="17" y2="17"/>
+                  <line x1="10" x2="8" y1="9" y2="9"/>
+                </svg>
+                <p>Chưa có câu hỏi nào được bóc tách.</p>
+                <span>Tải lên file Word/PDF hoặc dán nội dung rồi bấm <strong>"Bóc Tách Đề Thi Bằng Gemini AI"</strong> để xem trước bản nháp tại đây.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DANH SÁCH CÁC ĐỀ THI ĐÃ TẠO CỦA GIÁO VIÊN -->
+      <div class="panel-card my-exams-section">
+        <div class="section-header-flex">
+          <div>
+            <h2 class="panel-title" style="margin-bottom: 0.25rem;">Danh Sách Đề Thi Của Bạn</h2>
+            <p style="font-size: 0.85rem; color: #94a3b8;">Quản lý thời điểm Mở/Đóng để cho phép học sinh vào làm bài thi</p>
+          </div>
+          <button type="button" id="btnRefreshExams" class="btn-secondary-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+              <path d="M16 21h5v-5"/>
+            </svg>
+            <span>Tải Lại Danh Sách</span>
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="exam-table">
+            <thead>
+              <tr>
+                <th>Mã đề</th>
+                <th>Tên kỳ kiểm tra</th>
+                <th>Lớp áp dụng</th>
+                <th>Thời gian</th>
+                <th>Số câu</th>
+                <th>Tự luận</th>
+                <th>Chế độ xem bài</th>
+                <th>Trạng thái (Bật/Tắt)</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="myExamsTableBody">
+              <tr>
+                <td colspan="9" style="text-align: center; padding: 2rem; color: #94a3b8;">
+                  Đang tải danh sách đề thi...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         TAB 2: XEM KẾT QUẢ VÀ THỐNG KÊ (DASHBOARD)
+         ==================================================================== -->
+    <section class="tab-content" id="tabResults" role="tabpanel" style="display: none;">
+      
+      <!-- Filter Bar & Export Actions -->
+      <div class="results-filter-card">
+        <div class="filter-left">
+          <label for="selectFilterExam" class="filter-label">Chọn bài kiểm tra:</label>
+          <select id="selectFilterExam" class="form-select">
+            <option value="ALL">-- Tất cả bài kiểm tra --</option>
+          </select>
+          <button type="button" id="btnFilterResults" class="btn-secondary-sm">Xem kết quả</button>
+        </div>
+        <div class="filter-right" style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+          <button type="button" id="btnExportExcel" class="btn-export-excel" title="Xuất bảng điểm trắc nghiệm của thí sinh (.xlsx)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" x2="8" y1="13" y2="13"/>
+              <line x1="16" x2="8" y1="17" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span>Xuất Excel Trắc Nghiệm (.xlsx)</span>
+          </button>
+
+          <button type="button" id="btnExportEssayExcel" class="btn-export-excel btn-export-essay" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); border-color: #059669; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);" title="Xuất danh sách bài làm tự luận của thí sinh theo các cột câu hỏi để giáo viên chấm nhanh">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M12 18h6"/>
+              <path d="M12 14h6"/>
+              <path d="M6 18h2"/>
+              <path d="M6 14h2"/>
+            </svg>
+            <span>Xuất Excel Tự Luận (.xlsx)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Summary KPI Metric Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-title">Số bài thi đã nộp</span>
+          <span class="metric-val" id="metricTotalSubmissions">0</span>
+          <span class="metric-desc">Thí sinh hoàn thành</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Điểm trung bình</span>
+          <span class="metric-val" id="metricAvgScore">0.0</span>
+          <span class="metric-desc">Thang điểm 10</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Điểm cao nhất / Thấp nhất</span>
+          <span class="metric-val" id="metricHighLow">0.0 / 0.0</span>
+          <span class="metric-desc">Khoảng điểm lớp</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Tỉ lệ đạt (>= 5.0)</span>
+          <span class="metric-val highlight" id="metricPassRate">0%</span>
+          <span class="metric-desc">Đạt chuẩn năng lực</span>
+        </div>
+      </div>
+
+      <!-- Kết quả bảng chi tiết -->
+      <div class="panel-card">
+        <div class="section-header-flex">
+          <h3 class="panel-title" style="margin: 0;">Bảng Điểm Chi Tiết Thí Sinh</h3>
+          <input type="text" id="searchStudentInput" class="form-input search-box" placeholder="Tìm theo tên học sinh, lớp...">
+        </div>
+
+        <div class="table-responsive">
+          <table class="exam-table" id="resultsTable">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Lớp</th>
+                <th>Họ và Tên</th>
+                <th>Ngày sinh</th>
+                <th>Giới tính</th>
+                <th>Điểm số</th>
+                <th>Số câu đúng</th>
+                <th>Thời gian nộp</th>
+                <th>Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+              <tr>
+                <td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                  Chọn kỳ kiểm tra và bấm "Xem kết quả" để tải bảng điểm.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         TAB 3: QUẢN LÝ HỌC SINH & ĐỔI MẬT KHẨU
+         ==================================================================== -->
+    <section class="tab-content" id="tabStudents" role="tabpanel" style="display: none;">
+      
+      <!-- Filter Card: Danh sách tích chọn Khối & Lớp học -->
+      <div class="results-filter-card" style="display: flex; flex-direction: column; gap: 0.9rem; padding: 1.25rem 1.5rem; background: #ffffff; border-radius: 14px; border: 1.5px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);">
+        
+        <!-- Header Bộ lọc & Nút bấm tác vụ -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(37,99,235,0.1); color: #2563eb; display: flex; align-items: center; justify-content: center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            </div>
+            <div>
+              <strong style="color: #0f172a; font-size: 0.98rem;">Bộ Lọc Khối Lớp & Lớp Học</strong>
+              <p style="margin: 0; font-size: 0.78rem; color: #64748b;">Tích chọn các khối và lớp bạn muốn hiển thị học sinh</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" id="btnExportStudentsExcel" class="btn-export-excel" style="padding: 0.45rem 0.95rem; font-size: 0.82rem;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" x2="8" y1="13" y2="13"/>
+                <line x1="16" x2="8" y1="17" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span>Xuất Excel DS Học sinh</span>
+            </button>
+            <button type="button" id="btnRefreshStudents" class="btn-secondary-sm" style="display: inline-flex; align-items: center; gap: 5px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              <span>Làm mới danh sách</span>
+            </button>
+            <span style="font-size: 0.88rem; color: #1e3a8a; background: #eff6ff; border: 1.5px solid #bfdbfe; padding: 0.45rem 1rem; border-radius: 8px; font-weight: 600;">
+              Đang hiển thị: <strong id="studentCountBadge" style="color: #1d4ed8; font-weight: 800; font-size: 1rem;">0</strong> học sinh
+            </span>
+          </div>
+        </div>
+
+        <!-- 1. Danh sách tích chọn KHỐI LỚP -->
+        <div style="display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; background: #f8fafc; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div style="min-width: 100px; padding-top: 5px; font-size: 0.84rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Tích Khối:</span>
+          </div>
+          <div id="gradeCheckboxesList" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; flex: 1;">
+            <!-- Render động các checkbox Khối -->
+            <span style="font-size: 0.82rem; color: #94a3b8; font-style: italic;">Đang tải danh sách khối...</span>
+          </div>
+        </div>
+
+        <!-- 2. Danh sách tích chọn LỚP HỌC -->
+        <div style="display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; background: #f8fafc; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div style="min-width: 100px; padding-top: 5px; font-size: 0.84rem; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Tích Lớp:</span>
+          </div>
+          <div id="classCheckboxesList" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; flex: 1;">
+            <!-- Render động các checkbox Lớp -->
+            <span style="font-size: 0.82rem; color: #94a3b8; font-style: italic;">Đang tải danh sách lớp...</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bảng danh sách học sinh -->
+      <div class="panel-card" style="margin-top: 1.25rem;">
+        <div class="section-header-flex" style="flex-wrap: wrap; gap: 0.85rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+          <h3 class="panel-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">Danh Sách Học Sinh Của Các Lớp Đang Chọn</h3>
+          <div style="flex: 1; max-width: 360px; min-width: 240px;">
+            <input type="text" id="searchStudentClassInput" class="form-input search-box" style="width: 100%; box-sizing: border-box;" placeholder="Tìm theo tên học sinh, tài khoản, trường...">
+          </div>
+        </div>
+
+        <div class="table-responsive" style="overflow-x: auto; width: 100%;">
+          <table class="exam-table" id="studentsManagementTable" style="width: 100%; table-layout: fixed; min-width: 1050px;">
+            <thead>
+              <tr>
+                <th style="width: 5%; text-align: center;">STT</th>
+                <th style="width: 8%; text-align: center;">Lớp</th>
+                <th style="width: 11%;">Tài khoản</th>
+                <th style="width: 20%;">Họ và Tên</th>
+                <th style="width: 12%; text-align: center;">Ngày sinh</th>
+                <th style="width: 8%; text-align: center;">Giới tính</th>
+                <th style="width: 16%;">Trường</th>
+                <th style="width: 11%;">Mật khẩu</th>
+                <th style="width: 9%; text-align: center;">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="studentsTableBody">
+              <tr>
+                <td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                  Đang tải danh sách học sinh từ Google Sheets...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Copyright Footer -->
+  <footer class="app-footer">
+    <p>© 2026 EduTest Pro 2.0 • Made by <strong>Nguyễn Phi Hùng</strong></p>
+  </footer>
+
+  <!-- Modal xem chi tiết bài làm học sinh & Xem nhanh đề thi (Luôn cố định chính giữa màn hình) -->
+  <div class="modal-backdrop" id="detailModal" style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.7) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;">
+    <div class="modal-dialog" style="background: #ffffff !important; color: #0f172a !important; border: 1.5px solid #cbd5e1 !important; border-radius: 16px !important; width: 100% !important; max-width: 960px !important; max-height: 90vh !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45) !important; margin: auto !important;">
+      <div class="modal-header" style="display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 1.15rem 1.5rem !important; background: #f8fafc !important; border-bottom: 1.5px solid #e2e8f0 !important;">
+        <h3 id="modalStudentTitle" style="margin: 0 !important; font-size: 1.15rem !important; font-weight: 800 !important; color: #0f172a !important;">Chi tiết bài làm</h3>
+        <button type="button" class="btn-close-modal" id="btnCloseModal" style="width: 34px !important; height: 34px !important; border-radius: 8px !important; border: 1.5px solid #cbd5e1 !important; background: #ffffff !important; color: #64748b !important; font-size: 1.1rem !important; cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important; font-weight: bold !important;">✕</button>
+      </div>
+      <div class="modal-body" id="modalStudentContent" style="padding: 1.5rem !important; overflow-y: auto !important; flex: 1 !important; max-height: calc(90vh - 75px) !important; background: #ffffff !important;">
+        <!-- Render chi tiết câu hỏi và trả lời -->
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       MODAL CẤU HÌNH TRỢ LÝ AI GEMINI
+       ========================================================================= -->
+  <div class="modal-backdrop" id="geminiConfigModal" style="display: none;">
+    <div class="modal-dialog gemini-dialog-card" style="max-width: 680px; width: 95%;">
+      <div class="gemini-custom-modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+          <div class="gemini-gear-badge" style="background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="gemini-title-main" style="color: #ffffff;">Cấu Hình Trợ Lý AI Gemini</h3>
+            <p class="gemini-title-sub" style="color: #94a3b8;">Cài đặt khóa API Key và Mô hình AI Gemini hỗ trợ soạn đề tự động</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseGeminiModal" aria-label="Đóng" style="color: #cbd5e1;">✕</button>
+      </div>
+
+      <div class="gemini-custom-modal-body" style="max-height: 75vh; overflow-y: auto; padding: 1.5rem;">
+        
+        <!-- CẤU HÌNH GOOGLE GEMINI AI -->
+        <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 1.25rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.85rem;">
+            <span style="font-size: 1.2rem;">✨</span>
+            <strong style="color: #1e3a8a; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.5px;">Cấu Hình Trợ Lý AI Gemini</strong>
+          </div>
+
+          <!-- Khóa bí mật API Key -->
+          <div class="gemini-form-group">
+            <label class="gemini-label-flex" for="modalGeminiApiKey">
+              <span>Khóa bí mật (Gemini API Key)</span>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="link-get-key-bold" style="font-size: 0.78rem;">Lấy key miễn phí ↗</a>
+            </label>
+            <div class="gemini-input-relative">
+              <input type="password" id="modalGeminiApiKey" class="form-input key-styled-input" placeholder="Dán mã Gemini API Key vào đây (AIzaSy...)">
+              <button type="button" id="btnToggleShowKey" class="btn-toggle-eye" title="Hiện/Ẩn API Key">👁</button>
+            </div>
+          </div>
+
+          <!-- Chọn Mô hình AI -->
+          <div class="gemini-form-group" style="margin-bottom: 0;">
+            <div class="model-header-row">
+              <label class="gemini-label-flex" for="modalGeminiModelSelect" style="margin-bottom: 0;">
+                <span style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><rect x="4" y="8" width="16" height="12" rx="2"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/><path d="M10 17h4"/></svg>
+                  MÔ HÌNH AI XỬ LÝ (AI MODEL)
+                </span>
+              </label>
+              <span class="badge-default-model" id="currentModelBadgeDisplay">GEMINI 3 FLASH PREVIEW</span>
+            </div>
+
+            <div class="select-wrapper-styled">
+              <select id="modalGeminiModelSelect" class="form-select model-dropdown-styled">
+                <option value="gemini-3-flash-preview" selected>Gemini 3 Flash Preview (Khuyên dùng - Chuẩn tối ưu & Tốc độ cao)</option>
+                <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash-Lite (Siêu nhanh - Tiết kiệm hạn mức)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Thế hệ mới - Suy luận tốt & Ổn định)</option>
+                <option value="gemini-3.8-flash">Gemini 3.8 Flash (Tốc độ cao & Phản hồi tức thì)</option>
+                <option value="gemini-3.6-flash">Gemini 3.6 Flash (Chuẩn tối ưu & Ổn định)</option>
+                <option value="gemini-3.7-flash">Gemini 3.7 Flash (Mới nhất - Suy luận nâng cao & Sáng tạo)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- VÙNG HIỂN THỊ TRẠNG THÁI KẾT NỐI GEMINI AI TRỰC TIẾP TRONG HỘP THOẠI -->
+          <div id="geminiConnectionStatusBox" style="margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.82rem; display: flex; align-items: flex-start; gap: 0.65rem; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #475569; transition: all 0.25s ease;">
+            <div id="geminiStatusIcon" style="font-size: 1.25rem; line-height: 1; flex-shrink: 0; margin-top: 1px;">✨</div>
+            <div style="flex: 1; min-width: 0;">
+              <div id="geminiStatusTitle" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 2px;">Trạng thái kết nối Trợ lý AI Gemini</div>
+              <div id="geminiStatusDesc" style="font-size: 0.8rem; line-height: 1.45; opacity: 0.95;">Nhập API Key và bấm "Kiểm tra kết nối AI" để kiểm tra tín hiệu trực tiếp.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="gemini-custom-modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <button type="button" id="btnTestGeminiConnection" class="btn-test-gemini" style="padding: 0.6rem 1rem; font-size: 0.85rem;">
+          <span id="testBtnText">Kiểm tra kết nối AI</span>
+        </button>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button type="button" class="btn-cancel" id="btnCancelConfigModal" style="padding: 0.6rem 1.25rem; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-weight: 600;">Đóng</button>
+          <button type="button" id="btnSaveGeminiConfig" class="btn-save-gemini-modal" style="padding: 0.6rem 1.5rem; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Lưu Cấu Hình AI</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Đổi Mật Khẩu Học Sinh (Cố định chính giữa màn hình) -->
+  <div class="modal-backdrop" id="changePasswordModal" style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.65) !important; backdrop-filter: blur(5px) !important; -webkit-backdrop-filter: blur(5px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;" aria-hidden="true">
+    <div class="modal-dialog" style="max-width: 480px; width: 100% !important; background: #ffffff !important; border-radius: 16px !important; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45) !important; border: 1.5px solid #e2e8f0 !important; overflow: hidden !important; margin: auto !important; animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+      <div class="modal-header" style="display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 1.15rem 1.5rem !important; background: #f8fafc !important; border-bottom: 1.5px solid #e2e8f0 !important;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: rgba(37,99,235,0.1); color: #2563eb; display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #1e3a8a;">Đổi Mật Khẩu Học Sinh</h3>
+            <p style="margin: 0; font-size: 0.78rem; color: #64748b;">Cập nhật mật khẩu trực tiếp lên Google Sheets</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseChangePwdModal" aria-label="Đóng" style="width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #64748b; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem 1.5rem; background: #ffffff;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+            <span style="font-size: 0.82rem; color: #64748b;">Họ và tên:</span>
+            <strong id="changePwdStudentName" style="font-size: 0.88rem; color: #1e293b;">-</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem;">
+            <span style="font-size: 0.82rem; color: #64748b;">Tài khoản (Tên đăng nhập):</span>
+            <span id="changePwdStudentUsername" style="font-size: 0.85rem; font-weight: 600; color: #2563eb; font-family: monospace;">-</span>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="font-size: 0.82rem; color: #64748b;">Lớp học:</span>
+            <span id="changePwdStudentClass" class="badge-class" style="font-size: 0.75rem;">-</span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="inputNewStudentPassword" style="display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 0.4rem;">
+            Mật khẩu mới <span style="color: #ef4444;">*</span>
+          </label>
+          <div style="position: relative;">
+            <input 
+              type="text" 
+              id="inputNewStudentPassword" 
+              class="form-control" 
+              placeholder="Nhập mật khẩu mới cho học sinh..." 
+              style="width: 100%; box-sizing: border-box; padding: 0.55rem 60px 0.55rem 0.85rem; font-weight: 600; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem;" 
+              autocomplete="off"
+            />
+            <button 
+              type="button" 
+              id="btnRandomStudentPwd" 
+              title="Tạo mật khẩu ngẫu nhiên" 
+              style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 4px;"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              <span>Tạo</span>
+            </button>
+          </div>
+          <p style="margin: 0.4rem 0 0; font-size: 0.75rem; color: #64748b;">
+            💡 Gợi ý: Có thể đặt theo ngày sinh (VD: 15082010) hoặc mật khẩu dễ nhớ (VD: 123456).
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0;">
+        <button type="button" class="btn-cancel" id="btnCancelChangePwd" style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Hủy bỏ</button>
+        <button type="button" class="btn-save-gemini-modal" id="btnConfirmChangePwd" style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(37,99,235,0.25);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="btnConfirmChangePwdText">Cập nhật mật khẩu</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thư viện SheetJS xuất Excel (.xlsx) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Dữ liệu mã nguồn Code.gs hỗ trợ sao chép 1 chạm -->
+  <script src="js/gas_code_content.js"></script>
+  <!-- Background Music (Love Story 30%) -->
+  <script src="js/bg_music.js?v=2.1"></script>
+  <!-- JavaScript logic Teacher Dashboard -->
+  <script src="js/teacher.js?v=4.5"></script>
+</body>
+</html>

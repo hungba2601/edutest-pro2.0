@@ -1,0 +1,1193 @@
+/* ==========================================================================
+   STUDENT DASHBOARD & EXAM ROOM - WHITE & OCEAN BLUE THEME (TRẮNG - XANH DƯƠNG)
+   ========================================================================== */
+body {
+  background: #f0f4f9 !important;
+  color: #1e293b !important;
+  min-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* ==========================================================================
+   NAVBAR (THIẾT KẾ NHỎ GỌN, TINH TẾ, HIỆN ĐẠI)
+   ========================================================================== */
+.student-navbar {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  padding: 0.6rem 2rem !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 56px;
+}
+
+.nav-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.brand-badge-sm {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.25) !important;
+  flex-shrink: 0 !important;
+}
+.brand-badge-sm svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke: #ffffff !important;
+}
+
+.brand-text {
+  display: flex !important;
+  flex-direction: column !important;
+  line-height: 1.25 !important;
+}
+.brand-title-app {
+  font-weight: 800 !important;
+  font-size: 1.05rem !important;
+  letter-spacing: -0.01em !important;
+  color: #0f172a !important;
+}
+.brand-role-tag {
+  font-size: 0.7rem !important;
+  color: #2563eb !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* NAV USER & LOGOUT */
+.nav-user {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1.15rem !important;
+}
+.user-meta {
+  text-align: right !important;
+  display: flex !important;
+  flex-direction: column !important;
+  line-height: 1.3 !important;
+}
+.user-fullname {
+  font-weight: 700 !important;
+  font-size: 0.88rem !important;
+  color: #0f172a !important;
+}
+.user-sub {
+  font-size: 0.76rem !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
+.btn-logout {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.4rem !important;
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #dc2626 !important;
+  padding: 0.42rem 0.85rem !important;
+  border-radius: 8px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all var(--transition-fast) !important;
+  white-space: nowrap !important;
+}
+.btn-logout svg {
+  width: 15px !important;
+  height: 15px !important;
+  stroke: currentColor !important;
+  flex-shrink: 0 !important;
+}
+.btn-logout:hover {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.25);
+}
+
+/* MAIN CONTAINER (EXAM LIST) */
+.student-main {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 1.75rem auto;
+  padding: 0 1.5rem 3rem;
+}
+
+/* CANDIDATE PROFILE HEADER CARD */
+.candidate-profile-card {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 1.75rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2.25rem;
+  box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.35);
+}
+
+.candidate-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+.candidate-avatar svg { width: 34px; height: 34px; }
+
+.candidate-name {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+}
+
+.candidate-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.meta-chip {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.825rem;
+  color: #ffffff;
+}
+.meta-chip strong { color: #ffffff; }
+
+/* EXAM SECTION HEADER */
+.exam-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.section-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.section-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+.btn-refresh-exams {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all var(--transition-fast);
+}
+.btn-refresh-exams:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* EXAMS GRID & CARDS */
+.exams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+}
+
+.exam-card-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  transition: all var(--transition-normal);
+  box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+.exam-card-item::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2563eb, #0ea5e9);
+}
+.exam-card-item:hover {
+  transform: translateY(-4px);
+  border-color: #93c5fd;
+  box-shadow: 0 12px 25px -5px rgba(37, 99, 235, 0.15);
+}
+
+.exam-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.badge-open-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #15803d;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-full);
+  border: 1px solid #86efac;
+}
+.dot-pulsing {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: pulseDot 1.5s infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.exam-card-code {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.badge-review-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+}
+.badge-review-tag.allowed {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.badge-review-tag.locked {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.exam-card-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.75rem;
+  line-height: 1.35;
+}
+
+.exam-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: #475569;
+  margin-bottom: 1.5rem;
+  flex: 1;
+}
+.exam-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.exam-meta-row svg { width: 16px; height: 16px; color: #2563eb; flex-shrink: 0; }
+
+.btn-start-exam {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  transition: all var(--transition-fast);
+}
+.btn-start-exam:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45);
+}
+
+.loading-state-card {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4rem 2rem;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius-lg);
+  color: #64748b;
+}
+
+/* ==========================================================================
+   VIEW 2: PHÒNG THI TẬP TRUNG (EXAM ROOM)
+   ========================================================================== */
+.exam-room-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f0f4f9;
+}
+
+/* FLOATING STICKY HEADER */
+.exam-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  padding: 0.85rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.exam-info-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.exam-active-tag {
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+}
+.exam-active-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+.exam-active-code {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+/* COUNTDOWN TIMER BOX */
+.countdown-timer-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-full);
+  color: #1d4ed8;
+  font-weight: 800;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+  transition: all 0.3s ease;
+}
+.timer-icon { width: 22px; height: 22px; }
+
+/* Cảnh báo khi còn dưới 5 phút */
+.countdown-timer-box.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #d97706;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.25);
+}
+
+/* Cảnh báo khẩn cấp khi còn dưới 1 phút (Nhấp nháy đỏ) */
+.countdown-timer-box.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.35);
+  animation: timerBlink 1s infinite alternate;
+}
+@keyframes timerBlink {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
+
+.btn-submit-exam {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.65rem 1.35rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  transition: all var(--transition-fast);
+}
+.btn-submit-exam:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(16, 185, 129, 0.45);
+}
+
+/* 2-COLUMN EXAM ROOM LAYOUT */
+.exam-room-layout {
+  flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 1.5rem auto;
+  padding: 0 1.5rem 3rem;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+/* QUESTION CARD */
+.exam-q-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: border-color var(--transition-fast);
+  scroll-margin-top: 100px;
+}
+.exam-q-card:hover { border-color: #93c5fd; }
+
+.exam-q-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.q-badge-num {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius-full);
+}
+.q-badge-points {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+}
+.q-badge-type {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.exam-q-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.55;
+  color: #0f172a;
+  margin-bottom: 1.25rem;
+}
+
+/* 4-OPTIONS CHOICE GROUP */
+.student-options-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.student-option-label {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1.15rem;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+  color: #1e293b;
+}
+.student-option-label:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+.student-option-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+.student-option-label.is-selected {
+  background: #eff6ff;
+  border-color: #2563eb;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+.opt-key-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  color: #334155;
+}
+.student-option-label.is-selected .opt-key-circle {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* TRUE / FALSE MATRIX FOR STUDENT */
+.student-tf-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+}
+.student-tf-table th {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+.student-tf-table td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+.tf-sub-key {
+  font-weight: 700;
+  color: #2563eb;
+  width: 32px;
+}
+.tf-radio-cell {
+  width: 70px;
+  text-align: center;
+}
+.tf-radio-cell input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+
+/* ESSAY SECTION IN EXAM ROOM */
+.essay-section-card {
+  background: #ffffff;
+  border: 2px solid #2563eb;
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.08);
+}
+.essay-tag {
+  display: inline-block;
+  background: #2563eb;
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full);
+  margin-bottom: 0.75rem;
+}
+.essay-prompt-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+  white-space: pre-wrap;
+}
+.btn-open-googleform {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  padding: 0.95rem 1.75rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  transition: all var(--transition-fast);
+}
+.btn-open-googleform:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.45);
+}
+
+/* RIGHT COLUMN: QUESTION PALETTE (NẰM IM CỐ ĐỊNH KHI CUỘN ĐỀ THI) */
+.exam-palette-col {
+  position: sticky !important;
+  top: 85px !important;
+  align-self: start !important;
+  z-index: 50;
+}
+
+.palette-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  max-height: calc(100vh - 105px);
+  overflow-y: auto;
+}
+
+.palette-card::-webkit-scrollbar {
+  width: 5px;
+}
+.palette-card::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.palette-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+.palette-subtitle {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-bottom: 1.25rem;
+}
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+.palette-btn {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.palette-btn:hover {
+  background: #e2e8f0;
+  border-color: #93c5fd;
+}
+.palette-btn.answered {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+}
+
+.palette-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+.legend-item { display: flex; align-items: center; gap: 0.35rem; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.legend-dot.answered { background: #2563eb; }
+.legend-dot.unanswered { background: #cbd5e1; }
+.palette-footer {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2563eb;
+  text-align: center;
+}
+
+/* ==========================================================================
+   VIEW 3: MÀN HÌNH KẾT QUẢ THI (CELEBRATION RESULT)
+   ========================================================================== */
+.exam-result-wrapper {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+}
+.result-modal-card {
+  background: #ffffff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: var(--radius-lg);
+  padding: 2.75rem 2.25rem;
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 25px 60px -10px rgba(37, 99, 235, 0.25);
+  animation: zoomIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.result-trophy-icon {
+  font-size: 3.5rem;
+  margin-bottom: 0.75rem;
+}
+.result-title {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.35rem;
+}
+.result-subtitle {
+  font-size: 0.925rem;
+  color: #64748b;
+  margin-bottom: 1.75rem;
+}
+
+.result-score-circle {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #eff6ff 0%, #dbeafe 70%);
+  border: 3px solid #2563eb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.75rem;
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.2);
+}
+.score-number {
+  font-size: 2.75rem;
+  font-weight: 900;
+  color: #1d4ed8;
+  line-height: 1;
+}
+.score-max {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+.result-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+.res-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+}
+.res-label {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.res-value {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 0.25rem;
+}
+
+.result-essay-card {
+  background: #eff6ff;
+  border: 1px dashed #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+.result-essay-card h4 {
+  font-size: 0.95rem;
+  color: #1d4ed8;
+  margin-bottom: 0.35rem;
+}
+.result-essay-card p {
+  font-size: 0.85rem;
+  color: #334155;
+  margin-bottom: 0.75rem;
+}
+
+.btn-primary-home {
+  width: 100%;
+  padding: 0.95rem;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+  transition: all var(--transition-fast);
+}
+.btn-primary-home:hover {
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45);
+}
+
+/* ==========================================================================
+   REVIEW MODAL & DETAILS (XEM LẠI BÀI LÀM CHO HỌC SINH)
+   ========================================================================== */
+.review-q-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+.review-q-card.is-correct {
+  border-color: #86efac;
+  border-left: 5px solid #16a34a;
+}
+.review-q-card.is-wrong {
+  border-color: #fca5a5;
+  border-left: 5px solid #dc2626;
+}
+.review-q-card.is-partial {
+  border-color: #fde68a;
+  border-left: 5px solid #f59e0b;
+}
+
+.review-q-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #e2e8f0;
+}
+.review-badge-status {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-full);
+}
+.review-badge-status.correct {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.review-badge-status.wrong {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+.review-badge-status.partial {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.review-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.review-opt-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-sm);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  color: #334155;
+}
+.review-opt-item.user-correct {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+  font-weight: 600;
+}
+.review-opt-item.user-wrong {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+  text-decoration: line-through;
+}
+.review-opt-item.correct-answer {
+  background: #ecfdf5;
+  border-color: #34d399;
+  color: #065f46;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px #10b981;
+}
+
+.review-tf-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.88rem;
+}
+.review-tf-table th, .review-tf-table td {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #e2e8f0;
+  text-align: left;
+}
+.review-tf-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   EXAM SECTIONS (PHẦN I, PHẦN II, PHẦN III) & ESSAY STYLES FOR STUDENT
+   ========================================================================== */
+.student-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.25rem;
+  border-radius: var(--radius-md);
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.student-section-header:first-child {
+  margin-top: 0;
+}
+.student-section-header.part-1 {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-left: 5px solid #2563eb;
+  color: #1e3a8a;
+}
+.student-section-header.part-2 {
+  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);
+  border-left: 5px solid #9333ea;
+  color: #581c87;
+}
+.student-section-header.part-3 {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-left: 5px solid #059669;
+  color: #064e3b;
+}
+
+.section-hdr-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.section-hdr-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.section-hdr-desc {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+.section-hdr-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* ESSAY CARD TRONG PHÒNG THI HỌC SINH */
+.student-essay-card {
+  background: #ffffff;
+  border: 1.5px solid #d1fae5;
+  border-radius: var(--radius-lg);
+  padding: 1.35rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 3px 12px rgba(16, 185, 129, 0.06);
+  transition: all 0.2s ease;
+}
+.student-essay-card:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.12);
+}
+.student-essay-card .exam-q-header {
+  border-bottom: 1px dashed #e2e8f0;
+  padding-bottom: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+.student-essay-card .q-badge-num {
+  background: #059669;
+  color: #ffffff;
+}
+.student-essay-card .q-badge-type {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.student-essay-textarea-wrap {
+  margin-top: 1rem;
+  position: relative;
+}
+.student-essay-textarea {
+  width: 100%;
+  min-height: 140px;
+  max-height: 400px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 0.9rem 1rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #0f172a;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+}
+.student-essay-textarea:focus {
+  outline: none;
+  border-color: #059669;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+.student-essay-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.essay-word-counter {
+  font-weight: 600;
+  color: #059669;
+}
+
+/* PALETTE ESSAY BUTTONS */
+.palette-btn.palette-essay {
+  background: #f0fdf4;
+  border-color: #a7f3d0;
+  color: #047857;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.palette-btn.palette-essay:hover {
+  background: #dcfce7;
+  border-color: #059669;
+  color: #064e3b;
+}
+.palette-btn.palette-essay.answered {
+  background: #059669 !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35);
+}
+
+.palette-section-title {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-top: 0.6rem;
+  margin-bottom: 0.2rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+/* REVIEW ESSAY CARD */
+.review-essay-card {
+  background: #ffffff;
+  border: 1.5px solid #d1fae5;
+  border-left: 5px solid #059669;
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+.review-essay-student-ans {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1rem;
+  margin-top: 0.65rem;
+  font-size: 0.92rem;
+  color: #0f172a;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .exam-room-layout { grid-template-columns: 1fr; }
+  .exam-palette-col { position: static !important; }
+  .palette-card { position: static; max-height: none; }
+  .exam-sticky-header { flex-wrap: wrap; padding: 0.75rem 1rem; }
+  .exam-active-title { max-width: 200px; }
+}
