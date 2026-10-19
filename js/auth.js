@@ -1,3 +1,52 @@
+function formatDob(raw) {
+  if (!raw || raw === "--" || raw === "-") return "--";
+  if (raw instanceof Date && !isNaN(raw.getTime())) {
+    const dd = String(raw.getDate()).padStart(2, '0');
+    const mm = String(raw.getMonth() + 1).padStart(2, '0');
+    const yyyy = raw.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  let s = String(raw || "").trim();
+  if (!s || s === "--" || s === "-") return "--";
+
+  // Cắt bỏ phần giờ phút giây nếu có (VD: "16/11/2013 00:00:00" -> "16/11/2013")
+  if (s.includes(" ")) {
+    s = s.split(" ")[0].trim();
+  }
+
+  // Xử lý chuẩn ISO (VD: "2013-11-16T00:00:00.000Z")
+  if (s.includes("T")) {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+    s = s.split("T")[0].trim();
+  }
+
+  // Định dạng YYYY-MM-DD -> DD/MM/YYYY
+  if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(s)) {
+    const parts = s.split(/[-/.]/);
+    const dd = parts[2].padStart(2, '0');
+    const mm = parts[1].padStart(2, '0');
+    const yyyy = parts[0];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // Định dạng DD/MM/YYYY chuẩn hóa padding (VD: 5/9/2013 -> 05/09/2013)
+  if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(s)) {
+    const parts = s.split(/[-/.]/);
+    const dd = parts[0].padStart(2, '0');
+    const mm = parts[1].padStart(2, '0');
+    const yyyy = parts[2];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  return s;
+}
+
 /**
  * ============================================================================
  * AUTHENTICATION LOGIC - HỆ THỐNG THI TRẮC NGHIỆM TRỰC TUYẾN
@@ -205,6 +254,9 @@ loginForm.addEventListener("submit", async (e) => {
       showToast("Thành công", result.message || "Đăng nhập thành công! Đang chuyển hướng...", "success", 2000);
 
       // Lưu thông tin người dùng vào Session / Local Storage
+      if (result.data && result.data.ngaySinh) {
+        result.data.ngaySinh = formatDob(result.data.ngaySinh);
+      }
       localStorage.setItem("currentUser", JSON.stringify(result.data));
       localStorage.setItem("userRole", result.role || role);
       localStorage.setItem("loginTime", new Date().toISOString());

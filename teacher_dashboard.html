@@ -614,7 +614,7 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
                 <th>Điểm số</th>
                 <th>Số câu đúng</th>
                 <th>Thời gian nộp</th>
-                <th>Chi tiết</th>
+                <th style="text-align: center;">Chi tiết & Xóa</th>
               </tr>
             </thead>
             <tbody id="resultsTableBody">
@@ -659,6 +659,10 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
                 <polyline points="10 9 9 9 8 9"/>
               </svg>
               <span>Xuất Excel DS Học sinh</span>
+            </button>
+            <button type="button" id="btnOpenAddStudentModal" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(5,150,105,0.25); transition: all 0.2s ease;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              <span>+ Thêm học sinh</span>
             </button>
             <button type="button" id="btnRefreshStudents" class="btn-secondary-sm" style="display: inline-flex; align-items: center; gap: 5px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
@@ -715,9 +719,9 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
                 <th style="width: 20%;">Họ và Tên</th>
                 <th style="width: 12%; text-align: center;">Ngày sinh</th>
                 <th style="width: 8%; text-align: center;">Giới tính</th>
-                <th style="width: 16%;">Trường</th>
+                <th style="width: 13%;">Trường</th>
                 <th style="width: 11%;">Mật khẩu</th>
-                <th style="width: 9%; text-align: center;">Hành động</th>
+                <th style="width: 13%; text-align: center;">Hành động</th>
               </tr>
             </thead>
             <tbody id="studentsTableBody">
@@ -958,6 +962,10 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
             <span class="profile-info-label">Đơn vị / Trường học</span>
             <span class="profile-info-value" id="profileModalSchool">--</span>
           </div>
+          <div class="profile-info-item" id="profileModalDobItem" style="display: none;">
+            <span class="profile-info-label">Ngày sinh</span>
+            <span class="profile-info-value" id="profileModalDob">--</span>
+          </div>
         </div>
 
         <div style="margin-top: 1.25rem; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 0.85rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
@@ -1034,6 +1042,103 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           <div class="save-pwd-spinner" style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
         </button>
       </div>
+    </div>
+  </div>
+
+
+  <!-- MODAL THÊM MỚI HỌC SINH THỦ CÔNG -->
+  <div class="modal-backdrop" id="modalAddStudent" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 999999; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;" aria-hidden="true">
+    <div class="modal-card" style="width: 100%; max-width: 560px; background: #ffffff; border-radius: var(--radius-lg); box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+      
+      <!-- Header Modal -->
+      <div style="padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Thêm Học Sinh Thủ Công</h3>
+            <span style="font-size: 0.76rem; color: #a7f3d0;">Lưu trực tiếp vào Google Sheets (DATA_HOCSINH)</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseAddStudentModal" style="background: none; border: none; font-size: 1.4rem; color: #a7f3d0; cursor: pointer;">✕</button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="formAddStudent" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 0.95rem; max-height: calc(85vh - 120px); overflow-y: auto;">
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;">
+          <!-- Họ và tên -->
+          <div class="form-group" style="margin: 0; grid-column: span 2;">
+            <label class="form-label required" for="inputAddStudentFullName" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Họ và tên học sinh</label>
+            <input type="text" id="inputAddStudentFullName" class="form-input" placeholder="Ví dụ: Nguyễn Văn An" required autocomplete="off">
+          </div>
+
+          <!-- Lớp học -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="inputAddStudentClass" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Lớp học</label>
+            <input type="text" id="inputAddStudentClass" class="form-input" placeholder="Ví dụ: 9A1" required style="text-transform: uppercase;">
+          </div>
+
+          <!-- Giới tính -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="selectAddStudentGender" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Giới tính</label>
+            <select id="selectAddStudentGender" class="form-input" style="padding: 0.55rem 0.75rem;">
+              <option value="Nam">Nam</option>
+              <option value="Nữ">Nữ</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;">
+          <!-- Tài khoản (Mã HS) -->
+          <div class="form-group" style="margin: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label required" for="inputAddStudentUsername" style="margin: 0; font-weight: 700; font-size: 0.85rem; color: #1e293b;">Tài khoản (Mã HS)</label>
+              <button type="button" id="btnAutoGenerateUsername" style="background: none; border: none; color: #059669; font-size: 0.74rem; font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0;">Tạo tự động</button>
+            </div>
+            <input type="text" id="inputAddStudentUsername" class="form-input" placeholder="Ví dụ: HS005 hoặc hs9a101" required autocomplete="off" style="font-family: monospace; font-weight: 600;">
+          </div>
+
+          <!-- Mật khẩu khởi tạo -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="inputAddStudentPassword" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Mật khẩu ban đầu</label>
+            <input type="text" id="inputAddStudentPassword" class="form-input" value="123" placeholder="Mặc định: 123" required style="font-family: monospace;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;">
+          <!-- Ngày sinh -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="inputAddStudentDob" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Ngày sinh</label>
+            <input type="text" id="inputAddStudentDob" class="form-input" placeholder="DD/MM/YYYY (VD: 15/05/2010)" autocomplete="off">
+            <span style="font-size: 0.72rem; color: #64748b; margin-top: 3px; display: block;">Định dạng ngày/tháng/năm</span>
+          </div>
+
+          <!-- Trường học -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="inputAddStudentSchool" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Trường học</label>
+            <input type="text" id="inputAddStudentSchool" class="form-input" placeholder="Tên trường học..." autocomplete="off">
+          </div>
+        </div>
+
+        <!-- Alert Error Box -->
+        <div id="addStudentAlertBox" style="display: none; background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.82rem; font-weight: 600;"></div>
+
+      </form>
+
+      <!-- Footer Buttons -->
+      <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button type="button" class="btn-cancel" id="btnCancelAddStudent" style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Hủy bỏ</button>
+        <button type="button" id="btnConfirmAddStudent" style="padding: 0.55rem 1.45rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(5,150,105,0.25);">
+          <span id="btnConfirmAddStudentText">Lưu Lên Google Sheets</span>
+          <div id="addStudentSpinner" style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
+        </button>
+      </div>
+
     </div>
   </div>
 

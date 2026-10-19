@@ -2240,3 +2240,19 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 
+
+/* Nút xóa kết quả bài làm và xóa học sinh */
+.btn-delete-result:hover, .btn-action-delete-student:hover {
+  background: #fee2e2 !important;
+  border-color: #f87171 !important;
+  color: #b91c1c !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.2);
+}
+.btn-delete-result:active, .btn-action-delete-student:active {
+  transform: translateY(0);
+}
+#btnOpenAddStudentModal:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(5, 150, 105, 0.38) !important;
+}

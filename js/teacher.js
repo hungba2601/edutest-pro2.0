@@ -1,3 +1,52 @@
+function formatDob(raw) {
+  if (!raw || raw === "--" || raw === "-") return "--";
+  if (raw instanceof Date && !isNaN(raw.getTime())) {
+    const dd = String(raw.getDate()).padStart(2, '0');
+    const mm = String(raw.getMonth() + 1).padStart(2, '0');
+    const yyyy = raw.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  let s = String(raw || "").trim();
+  if (!s || s === "--" || s === "-") return "--";
+
+  // Cắt bỏ phần giờ phút giây nếu có (VD: "16/11/2013 00:00:00" -> "16/11/2013")
+  if (s.includes(" ")) {
+    s = s.split(" ")[0].trim();
+  }
+
+  // Xử lý chuẩn ISO (VD: "2013-11-16T00:00:00.000Z")
+  if (s.includes("T")) {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+    s = s.split("T")[0].trim();
+  }
+
+  // Định dạng YYYY-MM-DD -> DD/MM/YYYY
+  if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(s)) {
+    const parts = s.split(/[-/.]/);
+    const dd = parts[2].padStart(2, '0');
+    const mm = parts[1].padStart(2, '0');
+    const yyyy = parts[0];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // Định dạng DD/MM/YYYY chuẩn hóa padding (VD: 5/9/2013 -> 05/09/2013)
+  if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(s)) {
+    const parts = s.split(/[-/.]/);
+    const dd = parts[0].padStart(2, '0');
+    const mm = parts[1].padStart(2, '0');
+    const yyyy = parts[2];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  return s;
+}
+
 /**
  * ============================================================================
  * TEACHER DASHBOARD LOGIC - EDUTEST PRO 2.0
@@ -89,6 +138,9 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   currentTeacher = JSON.parse(rawUser);
+  if (currentTeacher && currentTeacher.ngaySinh) {
+    currentTeacher.ngaySinh = formatDob(currentTeacher.ngaySinh);
+  }
 
   // Hiển thị thông tin giáo viên lên navbar
   document.getElementById("gvFullName").textContent = currentTeacher.hoTenGV || currentTeacher.username;
@@ -131,6 +183,9 @@ window.addEventListener("DOMContentLoaded", () => {
 
   // Khởi tạo tính năng Thông tin cá nhân & Đổi mật khẩu cho Giáo viên
   initTeacherAccountDropdownAndModals();
+
+  // Khởi tạo tính năng Thêm mới học sinh thủ công
+  initAddStudentModal();
 
   // Đăng xuất
   document.getElementById("btnLogout").addEventListener("click", () => {
@@ -3303,15 +3358,22 @@ function renderResultsTable(results) {
       <td>${idx + 1}</td>
       <td><strong>${row.lop}</strong></td>
       <td>${row.hoTen}</td>
-      <td>${row.ngaySinh}</td>
+      <td>${formatDob(row.ngaySinh)}</td>
       <td>${row.gioiTinh}</td>
       <td><span class="score-badge ${badgeClass}">${displayScore}</span></td>
       <td>${row.soCauDungSai || "--"}</td>
       <td style="font-size: 0.8rem; color: #94a3b8;">${row.thoiGianNop}</td>
       <td>
-        <button type="button" class="btn-secondary-sm btn-view-detail" data-index="${idx}">
-          Xem bài làm
-        </button>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <button type="button" class="btn-secondary-sm btn-view-detail" data-index="${idx}">
+            Xem bài làm
+          </button>
+          <button type="button" class="btn-delete-result" data-index="${idx}" title="Xóa kết quả này khỏi Google Sheets" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #fecaca; background: #fef2f2; color: #dc2626; cursor: pointer; transition: all 0.2s ease;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -3357,7 +3419,7 @@ document.getElementById("btnExportExcel").addEventListener("click", () => {
     "Mã Học Sinh": row.usernameHS,
     "Họ và Tên": row.hoTen,
     "Lớp": row.lop,
-    "Ngày Sinh": row.ngaySinh,
+    "Ngày Sinh": formatDob(row.ngaySinh),
     "Giới Tính": row.gioiTinh,
     "Trường": row.truong,
     "Mã Đề Thi": row.maDe,
@@ -3430,7 +3492,7 @@ function exportEssayResultsExcel() {
       "Lớp": row.lop || "",
       "Họ và Tên": row.hoTen || "",
       "Mã Học Sinh": row.usernameHS || "",
-      "Ngày Sinh": row.ngaySinh || "",
+      "Ngày Sinh": formatDob(row.ngaySinh),
       "Giới Tính": row.gioiTinh || "",
       "Trường": row.truong || "",
       "Mã Đề Thi": row.maDe || "",
@@ -4089,23 +4151,7 @@ function renderStudentsTable(students) {
 
   let html = "";
   students.forEach((st, idx) => {
-    let dobText = st.ngaySinh || "-";
-    if (dobText && typeof dobText === "string") {
-      dobText = dobText.trim();
-      // Bỏ phần giờ nếu có (VD: "15/05/2010 00:00:00" -> "15/05/2010")
-      if (dobText.includes(" ")) {
-        dobText = dobText.split(" ")[0];
-      }
-      if (dobText.includes("T")) {
-        const d = new Date(dobText);
-        if (!isNaN(d.getTime())) {
-          dobText = ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
-        }
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dobText)) {
-        const parts = dobText.split("-");
-        dobText = `${parts[2]}/${parts[1]}/${parts[0]}`;
-      }
-    }
+    let dobText = formatDob(st.ngaySinh);
 
     const safeUsername = escapeHtml(st.username || "");
     const safeHoTen = escapeHtml(st.hoTen || "");
@@ -4154,10 +4200,17 @@ function renderStudentsTable(students) {
           </div>
         </td>
         <td style="text-align: center;">
-          <button type="button" class="btn-action-change-pwd" data-username="${safeUsername}" style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease;">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <span>Đổi MK</span>
-          </button>
+          <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+            <button type="button" class="btn-action-change-pwd" data-username="${safeUsername}" style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease;" title="Đổi mật khẩu cho học sinh">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Đổi MK</span>
+            </button>
+            <button type="button" class="btn-action-delete-student" data-username="${safeUsername}" data-hoten="${safeHoTen}" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; padding: 5px 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease;" title="Xóa học sinh này khỏi Google Sheets">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -4516,18 +4569,7 @@ function exportStudentsToExcel() {
 
   // Định dạng dữ liệu xuất bảng tính chuẩn đẹp
   const exportData = listToExport.map((st, idx) => {
-    let dobText = st.ngaySinh || "";
-    if (dobText && typeof dobText === "string") {
-      if (dobText.includes("T")) {
-        const d = new Date(dobText);
-        if (!isNaN(d.getTime())) {
-          dobText = ("0" + d.getDate()).slice(-2) + "/" + ("0" + (d.getMonth() + 1)).slice(-2) + "/" + d.getFullYear();
-        }
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(dobText.trim())) {
-        const parts = dobText.trim().split("-");
-        dobText = `${parts[2]}/${parts[1]}/${parts[0]}`;
-      }
-    }
+    let dobText = formatDob(st.ngaySinh);
 
     return {
       "STT": idx + 1,
@@ -4628,6 +4670,14 @@ function initTeacherAccountDropdownAndModals() {
     if (elName) elName.textContent = fullName;
     if (elClasses) elClasses.textContent = currentTeacher.lopGiangDay || "Tất cả";
     if (elSchool) elSchool.textContent = currentTeacher.truong || "Hệ thống chung";
+    const elDob = document.getElementById("profileModalDob");
+    const elDobItem = document.getElementById("profileModalDobItem");
+    if (currentTeacher.ngaySinh) {
+      if (elDob) elDob.textContent = formatDob(currentTeacher.ngaySinh);
+      if (elDobItem) elDobItem.style.display = "";
+    } else if (elDobItem) {
+      elDobItem.style.display = "none";
+    }
     if (elTopName) elTopName.textContent = fullName;
     if (elAvatar) elAvatar.textContent = (fullName.slice(0, 2) || "GV").toUpperCase();
 
@@ -4811,6 +4861,238 @@ function initTeacherAccountDropdownAndModals() {
       } finally {
         btnSaveChangePwd.disabled = false;
         btnSaveChangePwd.innerHTML = origHtml;
+      }
+    });
+  }
+}
+
+
+// ============================================================================
+// KHỞI TẠO TÍNH NĂNG THÊM MỚI HỌC SINH THỦ CÔNG
+// ============================================================================
+function initAddStudentModal() {
+  const btnOpen = document.getElementById("btnOpenAddStudentModal");
+  const modal = document.getElementById("modalAddStudent");
+  const btnClose = document.getElementById("btnCloseAddStudentModal");
+  const btnCancel = document.getElementById("btnCancelAddStudent");
+  const btnConfirm = document.getElementById("btnConfirmAddStudent");
+  const btnAutoUser = document.getElementById("btnAutoGenerateUsername");
+
+  const inpName = document.getElementById("inputAddStudentFullName");
+  const inpClass = document.getElementById("inputAddStudentClass");
+  const selGender = document.getElementById("selectAddStudentGender");
+  const inpUser = document.getElementById("inputAddStudentUsername");
+  const inpPass = document.getElementById("inputAddStudentPassword");
+  const inpDob = document.getElementById("inputAddStudentDob");
+  const inpSchool = document.getElementById("inputAddStudentSchool");
+  const alertBox = document.getElementById("addStudentAlertBox");
+  const spinner = document.getElementById("addStudentSpinner");
+  const btnText = document.getElementById("btnConfirmAddStudentText");
+
+  function showAlert(msg) {
+    if (alertBox) {
+      alertBox.textContent = msg;
+      alertBox.style.display = "block";
+    } else {
+      showToast("Lỗi nhập liệu", msg, "warning");
+    }
+  }
+
+  function hideAlert() {
+    if (alertBox) {
+      alertBox.style.display = "none";
+      alertBox.textContent = "";
+    }
+  }
+
+  function openModal() {
+    hideAlert();
+    // Gợi ý lớp học đầu tiên của giáo viên
+    let defaultClass = "";
+    if (currentTeacher && currentTeacher.lopGiangDay) {
+      const parts = currentTeacher.lopGiangDay.split(/[,;\s]+/).filter(Boolean);
+      if (parts.length > 0 && !parts[0].toUpperCase().includes("ALL") && !parts[0].toUpperCase().includes("TẤT CẢ")) {
+        defaultClass = parts[0].trim().toUpperCase();
+      }
+    }
+    if (inpClass) inpClass.value = defaultClass;
+    if (inpName) {
+      inpName.value = "";
+      setTimeout(() => inpName.focus(), 150);
+    }
+    if (selGender) selGender.value = "Nam";
+    if (inpPass) inpPass.value = "123";
+    if (inpDob) inpDob.value = "";
+    if (inpSchool) inpSchool.value = (currentTeacher && currentTeacher.truong) ? currentTeacher.truong : "";
+
+    // Tự động sinh mã học sinh mẫu
+    generateAutoUsername();
+
+    if (modal) modal.style.display = "flex";
+  }
+
+  function closeModal() {
+    if (modal) modal.style.display = "none";
+  }
+
+  function generateAutoUsername() {
+    const cls = (inpClass ? inpClass.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "") : "") || "hs";
+    // Đếm số lượng học sinh lớp này đang có
+    const countInClass = allLoadedStudents.filter(s => (s.lop || "").toLowerCase() === (inpClass.value || "").trim().toLowerCase()).length;
+    const nextNum = String(countInClass + 1).padStart(2, "0");
+    const autoUser = cls + "_" + nextNum;
+    if (inpUser) inpUser.value = autoUser;
+  }
+
+  if (btnAutoUser) {
+    btnAutoUser.addEventListener("click", generateAutoUsername);
+  }
+
+  if (inpClass) {
+    inpClass.addEventListener("blur", () => {
+      if (inpClass.value.trim() && (!inpUser.value || inpUser.value.startsWith("hs_") || inpUser.value.includes("_"))) {
+        generateAutoUsername();
+      }
+    });
+  }
+
+  if (btnOpen) btnOpen.addEventListener("click", openModal);
+  if (btnClose) btnClose.addEventListener("click", closeModal);
+  if (btnCancel) btnCancel.addEventListener("click", closeModal);
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  // Xử lý gửi form thêm học sinh
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", async () => {
+      hideAlert();
+
+      const hoTen = inpName ? inpName.value.trim() : "";
+      const lop = inpClass ? inpClass.value.trim().toUpperCase() : "";
+      const gioiTinh = selGender ? selGender.value : "Nam";
+      const username = inpUser ? inpUser.value.trim() : "";
+      const password = inpPass ? inpPass.value.trim() : "123";
+      let ngaySinh = inpDob ? inpDob.value.trim() : "";
+      const truong = inpSchool ? inpSchool.value.trim() : "";
+
+      if (!hoTen) {
+        showAlert("Vui lòng nhập Họ và tên học sinh!");
+        if (inpName) inpName.focus();
+        return;
+      }
+
+      if (!lop) {
+        showAlert("Vui lòng nhập Lớp học của học sinh!");
+        if (inpClass) inpClass.focus();
+        return;
+      }
+
+      if (!username) {
+        showAlert("Vui lòng nhập Mã tài khoản (Mã HS)!");
+        if (inpUser) inpUser.focus();
+        return;
+      }
+
+      // Kiểm tra trùng tài khoản ngay ở client
+      const isExisted = allLoadedStudents.some(s => s.username.toUpperCase() === username.toUpperCase());
+      if (isExisted) {
+        showAlert(`Mã tài khoản "${username}" đã tồn tại trong danh sách học sinh! Vui lòng chọn mã khác.`);
+        if (inpUser) inpUser.focus();
+        return;
+      }
+
+      // Chuẩn hóa ngày sinh qua formatDob
+      if (ngaySinh) {
+        ngaySinh = formatDob(ngaySinh);
+      }
+
+      // Bật loading
+      btnConfirm.disabled = true;
+      if (btnText) btnText.textContent = "Đang lưu lên Sheets...";
+      if (spinner) spinner.style.display = "inline-block";
+
+      const payload = {
+        action: "addStudent",
+        username: username,
+        password: password,
+        lop: lop,
+        hoTen: hoTen,
+        ngaySinh: ngaySinh,
+        gioiTinh: gioiTinh,
+        truong: truong
+      };
+
+      try {
+        let res = null;
+        try {
+          const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+          });
+          const text = await response.text();
+          if (text && !text.trim().startsWith("<")) {
+            res = JSON.parse(text);
+          }
+        } catch (postErr) {
+          console.warn("POST addStudent failed, attempting GET fallback...", postErr);
+        }
+
+        if (!res || !res.success) {
+          const getUrl = API_URL + "?action=addStudent&username=" + encodeURIComponent(username) +
+            "&password=" + encodeURIComponent(password) +
+            "&lop=" + encodeURIComponent(lop) +
+            "&hoTen=" + encodeURIComponent(hoTen) +
+            "&ngaySinh=" + encodeURIComponent(ngaySinh) +
+            "&gioiTinh=" + encodeURIComponent(gioiTinh) +
+            "&truong=" + encodeURIComponent(truong) +
+            "&_t=" + Date.now();
+          const getRes = await fetch(getUrl);
+          const getTxt = await getRes.text();
+          if (getTxt && !getTxt.trim().startsWith("<")) {
+            res = JSON.parse(getTxt);
+          }
+        }
+
+        if (res && res.success) {
+          showToast("Thành công", res.message || "Đã thêm mới học sinh vào Google Sheets thành công!", "success", 4000);
+          
+          const newStudentObj = res.student || {
+            username: username,
+            password: password,
+            lop: lop,
+            hoTen: hoTen,
+            ngaySinh: ngaySinh,
+            gioiTinh: gioiTinh,
+            truong: truong
+          };
+
+          // Thêm vào danh sách học sinh đang có
+          allLoadedStudents.push(newStudentObj);
+
+          // Cập nhật lại giao diện bộ lọc Khối & Lớp nếu có lớp mới
+          if (typeof initGradeAndClassCheckboxes === "function") {
+            initGradeAndClassCheckboxes(allLoadedStudents);
+          }
+
+          // Render lại bảng
+          filterAndRenderStudents();
+
+          // Đóng modal
+          closeModal();
+        } else {
+          showAlert(res ? res.message : "Không thể thêm học sinh lên Google Sheets! Vui lòng kiểm tra lại.");
+        }
+      } catch (err) {
+        console.error("Lỗi khi thêm mới học sinh:", err);
+        showAlert("Lỗi kết nối máy chủ Google Sheets: " + err.message);
+      } finally {
+        btnConfirm.disabled = false;
+        if (btnText) btnText.textContent = "Lưu Lên Google Sheets";
+        if (spinner) spinner.style.display = "none";
       }
     });
   }

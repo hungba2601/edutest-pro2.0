@@ -207,6 +207,12 @@ function doGet(e) {
           return handleUpdateStudentPassword(payload);
         case "updateTeacherPassword":
           return handleUpdateTeacherPassword(payload);
+        case "deleteStudentResult":
+          return handleDeleteStudentResult(payload);
+        case "deleteStudent":
+          return handleDeleteStudent(payload);
+        case "addStudent":
+          return handleAddStudent(payload);
         case "ensureDeThiColumns":
           ensureDeThiSheetColumns(ss.getSheetByName(SHEETS.DETHI));
           return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
@@ -348,7 +354,8 @@ function handleLogin(payload) {
               username: gvUser,
               hoTenGV: String(row[2] || ""),
               lopGiangDay: String(row[3] || ""),
-              truong: String(row[4] || "")
+              truong: String(row[4] || ""),
+              ngaySinh: row[5] ? formatBirthDateValue(row[5]) : ""
             }
           });
         } else {
@@ -399,7 +406,7 @@ function handleLogin(payload) {
               username: hsUser,
               lop: String(row[2] || ""),
               hoTen: String(row[3] || ""),
-              ngaySinh: formatDateValue(row[4]),
+              ngaySinh: formatBirthDateValue(row[4]),
               gioiTinh: String(row[5] || ""),
               truong: String(row[6] || "")
             }
@@ -858,7 +865,7 @@ function handleGetTeacherResults(payload) {
           usernameHS: String(row[0]),
           lop: String(row[1]),
           hoTen: String(row[2]),
-          ngaySinh: formatDateValue(row[3]),
+          ngaySinh: formatBirthDateValue(row[3]),
           gioiTinh: String(row[4]),
           truong: String(row[5]),
           thoiGianDangNhap: formatDateValue(row[6]),
@@ -924,7 +931,7 @@ function handleGetStudentsForTeacher(payload) {
         password: String(row[1] || "").trim(),
         lop: String(row[2] || "").trim(),
         hoTen: String(row[3] || "").trim(),
-        ngaySinh: formatDateValue(row[4]),
+        ngaySinh: formatBirthDateValue(row[4]),
         gioiTinh: String(row[5] || "").trim(),
         truong: String(row[6] || "").trim()
       });
@@ -1181,7 +1188,7 @@ function handleSubmitExam(payload) {
   const usernameHS = String(payload.usernameHS || "").trim();
   const lop = String(payload.lop || "").trim();
   const hoTen = String(payload.hoTen || "").trim();
-  const ngaySinh = String(payload.ngaySinh || "").trim();
+  const ngaySinh = formatBirthDateValue(payload.ngaySinh || "");
   const gioiTinh = String(payload.gioiTinh || "").trim();
   const truong = String(payload.truong || "").trim();
   const thoiGianVaoThi = String(payload.thoiGianVaoThi || "").trim();
@@ -1419,6 +1426,24 @@ function handleSubmitExam(payload) {
 }
 
 /**
+ * Format ngày sinh chuẩn dd/MM/yyyy (loại bỏ hoàn toàn phần giờ 00:00:00)
+ */
+function formatBirthDateValue(val) {
+  if (val === null || val === undefined || val === "") return "";
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, Session.getScriptTimeZone(), "dd/MM/yyyy");
+  }
+  var s = String(val).trim();
+  if (s.indexOf(" ") !== -1) {
+    s = s.split(" ")[0].trim();
+  }
+  if (s.indexOf("T") !== -1) {
+    s = s.split("T")[0].trim();
+  }
+  return s;
+}
+
+/**
  * Format ngày tháng tránh trả về định dạng Date thô của Google Sheets
  */
 function formatDateValue(val) {
@@ -1450,3 +1475,212 @@ function parseBooleanVal(val) {
 }
 
 
+
+
+/**
+ * Xóa một bản ghi kết quả bài làm của học sinh (ở cả DATA_KETQUA và DATA_TULUAN)
+ * Payload: { action: "deleteStudentResult", usernameHS, maDe, thoiGianNop, usernameGV }
+ */
+function handleDeleteStudentResult(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
+    if (!sheetKetQua) {
+      return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_KETQUA!" });
+    }
+
+    const usernameHS = String(payload.usernameHS || "").trim();
+    const maDe = String(payload.maDe || "").trim();
+    const thoiGianNop = String(payload.thoiGianNop || "").trim();
+    const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
+
+    if (!usernameHS || !maDe) {
+      return createJsonResponse({ success: false, message: "Thiếu thông tin mã học sinh hoặc mã đề thi để xóa!" });
+    }
+
+    const dataKetQua = sheetKetQua.getDataRange().getValues();
+    let deletedFromKetQua = false;
+
+    // DATA_KETQUA: 0: TK HS | 1: Lớp | 2: Họ tên | 3: Ngày sinh | 4: Giới tính | 5: Trường
+    // 6: TG Đăng nhập | 7: Mã đề | 8: TK GV đề thi | 9: Điểm tổng | 10: Đúng/sai | 11: TG nộp | 12: Chi tiết
+    for (let i = dataKetQua.length - 1; i >= 1; i--) {
+      const row = dataKetQua[i];
+      const rowHS = String(row[0] || "").trim();
+      const rowMaDe = String(row[7] || "").trim();
+      const rowGV = String(row[8] || "").trim().toLowerCase();
+      const rowThoiGianNop = formatDateValue(row[11]);
+
+      const isMatchHS = rowHS.toUpperCase() === usernameHS.toUpperCase();
+      const isMatchMaDe = rowMaDe === maDe;
+      const isMatchGV = !usernameGV || rowGV === usernameGV;
+      const isMatchTime = !thoiGianNop || rowThoiGianNop === thoiGianNop || String(row[11]).includes(thoiGianNop);
+
+      if (isMatchHS && isMatchMaDe && isMatchGV && isMatchTime) {
+        sheetKetQua.deleteRow(i + 1);
+        deletedFromKetQua = true;
+        break; // Xóa 1 lần nộp bài cụ thể
+      }
+    }
+
+    // Xóa bản ghi tương ứng trong DATA_TULUAN nếu có
+    const sheetTuLuan = ss.getSheetByName(SHEETS.TULUAN);
+    if (sheetTuLuan) {
+      const dataTuLuan = sheetTuLuan.getDataRange().getValues();
+      for (let i = dataTuLuan.length - 1; i >= 1; i--) {
+        const row = dataTuLuan[i];
+        const rowHS = String(row[0] || "").trim();
+        const rowMaDe = String(row[7] || "").trim();
+        const rowThoiGianNop = formatDateValue(row[9]);
+
+        const isMatchHS = rowHS.toUpperCase() === usernameHS.toUpperCase();
+        const isMatchMaDe = rowMaDe === maDe;
+        const isMatchTime = !thoiGianNop || rowThoiGianNop === thoiGianNop || String(row[9]).includes(thoiGianNop);
+
+        if (isMatchHS && isMatchMaDe && isMatchTime) {
+          sheetTuLuan.deleteRow(i + 1);
+          break;
+        }
+      }
+    }
+
+    if (deletedFromKetQua) {
+      return createJsonResponse({
+        success: true,
+        message: "Đã xóa kết quả bài làm khỏi Google Sheets thành công!",
+        usernameHS: usernameHS,
+        maDe: maDe
+      });
+    } else {
+      return createJsonResponse({
+        success: false,
+        message: "Không tìm thấy bản ghi kết quả phù hợp trên Google Sheets để xóa!"
+      });
+    }
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi xóa kết quả bài thi: " + err.toString()
+    });
+  }
+}
+
+/**
+ * Xóa một học sinh khỏi Sheet DATA_HOCSINH
+ * Payload: { action: "deleteStudent", usernameHS }
+ */
+function handleDeleteStudent(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+    if (!sheetHS) {
+      return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_HOCSINH!" });
+    }
+
+    const usernameHS = String(payload.usernameHS || "").trim();
+    if (!usernameHS) {
+      return createJsonResponse({ success: false, message: "Thiếu mã tài khoản học sinh cần xóa!" });
+    }
+
+    const dataHS = sheetHS.getDataRange().getValues();
+    let deleted = false;
+    let deletedName = "";
+
+    for (let i = dataHS.length - 1; i >= 1; i--) {
+      const row = dataHS[i];
+      const rowHS = String(row[0] || "").trim();
+      if (rowHS.toUpperCase() === usernameHS.toUpperCase()) {
+        deletedName = String(row[3] || usernameHS);
+        sheetHS.deleteRow(i + 1);
+        deleted = true;
+        break;
+      }
+    }
+
+    if (deleted) {
+      return createJsonResponse({
+        success: true,
+        message: "Đã xóa học sinh \"" + deletedName + "\" (" + usernameHS + ") khỏi Google Sheets thành công!",
+        usernameHS: usernameHS
+      });
+    } else {
+      return createJsonResponse({
+        success: false,
+        message: "Không tìm thấy học sinh có mã \"" + usernameHS + "\" trên Sheet DATA_HOCSINH!"
+      });
+    }
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi xóa học sinh: " + err.toString()
+    });
+  }
+}
+
+/**
+ * Thêm mới một học sinh thủ công vào Sheet DATA_HOCSINH
+ * Payload: { action: "addStudent", username, password, lop, hoTen, ngaySinh, gioiTinh, truong }
+ */
+function handleAddStudent(payload) {
+  try {
+    const ss = getSpreadsheet();
+    let sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+    if (!sheetHS) {
+      sheetHS = ss.insertSheet(SHEETS.HOCSINH);
+      const headers = ["Tài khoản HS", "Mật khẩu", "Lớp", "Họ tên", "Ngày sinh", "Giới tính", "Trường"];
+      sheetHS.appendRow(headers);
+      formatHeaderRow(sheetHS);
+    }
+
+    const username = String(payload.username || "").trim();
+    const password = String(payload.password || "123").trim();
+    const lop = String(payload.lop || "").trim().toUpperCase();
+    const hoTen = String(payload.hoTen || "").trim();
+    const ngaySinh = formatBirthDateValue(payload.ngaySinh || "");
+    const gioiTinh = String(payload.gioiTinh || "Nam").trim();
+    const truong = String(payload.truong || "").trim();
+
+    if (!username) {
+      return createJsonResponse({ success: false, message: "Mã tài khoản học sinh không được để trống!" });
+    }
+    if (!hoTen) {
+      return createJsonResponse({ success: false, message: "Họ và tên học sinh không được để trống!" });
+    }
+    if (!lop) {
+      return createJsonResponse({ success: false, message: "Lớp học không được để trống!" });
+    }
+
+    const dataHS = sheetHS.getDataRange().getValues();
+    for (let i = 1; i < dataHS.length; i++) {
+      const existingUser = String(dataHS[i][0] || "").trim();
+      if (existingUser.toUpperCase() === username.toUpperCase()) {
+        return createJsonResponse({
+          success: false,
+          message: "Mã tài khoản \"" + username + "\" đã tồn tại trên Sheet DATA_HOCSINH! Vui lòng chọn mã khác."
+        });
+      }
+    }
+
+    // Thêm dòng mới: [Tài khoản HS, Mật khẩu, Lớp, Họ tên, Ngày sinh, Giới tính, Trường]
+    const newRow = [username, password, lop, hoTen, ngaySinh, gioiTinh, truong];
+    sheetHS.appendRow(newRow);
+
+    return createJsonResponse({
+      success: true,
+      message: "Đã thêm mới học sinh \"" + hoTen + "\" (" + username + ") vào Google Sheets thành công!",
+      student: {
+        username: username,
+        password: password,
+        lop: lop,
+        hoTen: hoTen,
+        ngaySinh: ngaySinh,
+        gioiTinh: gioiTinh,
+        truong: truong
+      }
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi thêm học sinh: " + err.toString()
+    });
+  }
+}
