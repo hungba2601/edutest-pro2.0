@@ -43,16 +43,45 @@
     </div>
 
     <!-- User Profile & Logout -->
+        <!-- User Profile Dropdown & Logout -->
     <div class="nav-user">
-      <div class="user-meta">
-        <span class="user-fullname" id="hsFullName">Đang tải...</span>
-        <span class="user-sub" id="hsClassSchool">Lớp: -- | Trường: --</span>
+      <div class="user-dropdown-wrap">
+        <div class="user-profile-trigger" id="userProfileTrigger" title="Tài khoản cá nhân & Đổi mật khẩu">
+          <div class="user-nav-avatar student-avatar" id="hsNavAvatar">HS</div>
+          <div class="user-meta">
+            <span class="user-fullname" id="hsFullName">Đang tải...</span>
+            <span class="user-sub" id="hsClassSchool">Lớp: -- | Trường: --</span>
+          </div>
+          <svg class="user-dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <!-- Menu thả xuống -->
+        <div class="user-dropdown-menu" id="userDropdownMenu">
+          <div class="dropdown-user-header">
+            <div class="dropdown-user-name" id="dropdownHsName">Thí Sinh</div>
+            <span class="dropdown-user-badge hs">Học Sinh</span>
+          </div>
+          <button type="button" class="dropdown-item-btn" id="btnOpenProfileModal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Thông tin cá nhân</span>
+          </button>
+          <button type="button" class="dropdown-item-btn" id="btnOpenChangePassModal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Đổi mật khẩu</span>
+          </button>
+          <div class="dropdown-divider-line"></div>
+          <button type="button" class="dropdown-item-btn logout" id="btnLogoutDropdown">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Đăng xuất</span>
+          </button>
+        </div>
       </div>
+
       <button class="btn-logout" id="btnLogout" title="Đăng xuất">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
           <polyline points="16 17 21 12 16 7"/>
-          <line x1="21" x2="9" y1="12" y2="12"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
         </svg>
         <span>Đăng xuất</span>
       </button>
@@ -212,7 +241,16 @@
       <h2 class="result-title">Hoàn Thành Bài Kiểm Tra!</h2>
       <p class="result-subtitle" id="resultGreeting">Chúc mừng bạn đã nộp bài thành công.</p>
 
-      <div class="result-score-container">
+      <!-- Thông báo khi kỳ thi KHÓA xem điểm -->
+      <div id="resultScoreLockedNotice" class="score-locked-card" style="display: none; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: var(--radius-md); padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; text-align: center;">
+        <div style="width: 52px; height: 52px; margin: 0 auto 0.75rem; background: #eff6ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem;">🔒</div>
+        <h3 style="color: #1e293b; font-size: 1.1rem; font-weight: 800; margin: 0 0 0.4rem;">Kỳ thi đã khóa xem điểm số</h3>
+        <p style="margin: 0; font-size: 0.88rem; color: #64748b; line-height: 1.55;">
+          Giáo viên đã đặt chế độ <strong>"Không cho xem điểm"</strong> khi nộp bài. Toàn bộ bài thi trắc nghiệm & tự luận của bạn đã được hệ thống lưu an toàn. Điểm số chính thức sẽ được Giáo viên công bố sau.
+        </p>
+      </div>
+
+      <div class="result-score-container" id="resultScoreContainer">
         <div class="result-score-badge">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           <span>ĐIỂM PHẦN TRẮC NGHIỆM</span>
@@ -306,5 +344,122 @@
   <script src="js/bg_music.js?v=2.1"></script>
   <!-- JavaScript logic Student -->
   <script src="js/student.js?v=3.5"></script>
+
+  <!-- MODAL THÔNG TIN CÁ NHÂN HỌC SINH -->
+  <div class="modal-backdrop" id="modalStudentProfile" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 999999; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;" aria-hidden="true">
+    <div class="modal-card" style="width: 100%; max-width: 580px; background: #ffffff; border-radius: var(--radius-lg); box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+      <div class="modal-profile-header">
+        <button type="button" class="btn-close-modal" id="btnCloseProfileModal" style="position: absolute; right: 1rem; top: 1rem; background: none; border: none; font-size: 1.4rem; color: #64748b; cursor: pointer;">✕</button>
+        <div class="modal-profile-avatar-wrap student" id="modalHsAvatarLarge">HS</div>
+        <h3 style="margin: 0; font-size: 1.25rem; font-weight: 800; color: #0f172a;" id="modalProfileFullName">Học Sinh</h3>
+        <span class="dropdown-user-badge hs" style="margin-top: 6px; padding: 3px 12px; font-size: 0.78rem;">Tài Khoản Thí Sinh</span>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <h4 style="margin: 0 0 0.5rem; font-size: 0.88rem; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.04em;">Thông Tin Thí Sinh</h4>
+        <div class="profile-info-grid">
+          <div class="profile-info-item">
+            <span class="profile-info-label">Mã tài khoản HS</span>
+            <span class="profile-info-value" id="profileModalUsername">--</span>
+          </div>
+          <div class="profile-info-item">
+            <span class="profile-info-label">Họ và tên</span>
+            <span class="profile-info-value" id="profileModalFullName">--</span>
+          </div>
+          <div class="profile-info-item">
+            <span class="profile-info-label">Lớp học</span>
+            <span class="profile-info-value" id="profileModalClass">--</span>
+          </div>
+          <div class="profile-info-item">
+            <span class="profile-info-label">Trường học</span>
+            <span class="profile-info-value" id="profileModalSchool">--</span>
+          </div>
+          <div class="profile-info-item">
+            <span class="profile-info-label">Ngày sinh</span>
+            <span class="profile-info-value" id="profileModalDob">--</span>
+          </div>
+          <div class="profile-info-item">
+            <span class="profile-info-label">Giới tính</span>
+            <span class="profile-info-value" id="profileModalGender">--</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 1.25rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 0.85rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 8px; color: #047857; font-size: 0.86rem; font-weight: 600;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span>Bảo mật tài khoản của bạn</span>
+          </div>
+          <button type="button" id="btnSwitchToChangePwdModal" style="background: #059669; color: #ffffff; border: none; border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+            Đổi Mật Khẩu
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end;">
+        <button type="button" class="btn-cancel" id="btnCloseProfileModalBottom" style="padding: 0.55rem 1.5rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ĐỔI MẬT KHẨU HỌC SINH -->
+  <div class="modal-backdrop" id="modalStudentChangePassword" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 999999; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;" aria-hidden="true">
+    <div class="modal-card" style="width: 100%; max-width: 480px; background: #ffffff; border-radius: var(--radius-lg); box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+      <div style="padding: 1.25rem 1.5rem; background: #064e3b; color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: #059669; display: flex; align-items: center; justify-content: center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700;">Đổi Mật Khẩu Cá Nhân</h3>
+            <span style="font-size: 0.75rem; color: #a7f3d0;">Cập nhật trực tiếp lên Google Sheets</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseChangePassModal" style="background: none; border: none; font-size: 1.4rem; color: #a7f3d0; cursor: pointer;">✕</button>
+      </div>
+
+      <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+        <div class="form-group" style="margin: 0;">
+          <label class="form-label required" for="inputStudentOldPassword">Mật khẩu hiện tại</label>
+          <div class="password-input-wrap">
+            <input type="password" id="inputStudentOldPassword" class="form-input" placeholder="Nhập mật khẩu bạn đang dùng..." required autocomplete="current-password">
+            <button type="button" class="btn-toggle-eye" data-target="inputStudentOldPassword" title="Hiện/Ẩn mật khẩu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin: 0;">
+          <label class="form-label required" for="inputStudentNewPassword">Mật khẩu mới</label>
+          <div class="password-input-wrap">
+            <input type="password" id="inputStudentNewPassword" class="form-input" placeholder="Tối thiểu 3 ký tự..." required autocomplete="new-password">
+            <button type="button" class="btn-toggle-eye" data-target="inputStudentNewPassword" title="Hiện/Ẩn mật khẩu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin: 0;">
+          <label class="form-label required" for="inputStudentConfirmNewPassword">Nhập lại mật khẩu mới</label>
+          <div class="password-input-wrap">
+            <input type="password" id="inputStudentConfirmNewPassword" class="form-input" placeholder="Xác nhận lại mật khẩu mới..." required autocomplete="new-password">
+            <button type="button" class="btn-toggle-eye" data-target="inputStudentConfirmNewPassword" title="Hiện/Ẩn mật khẩu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="studentPwdAlertBox" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.825rem; font-weight: 600;"></div>
+      </div>
+
+      <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button type="button" class="btn-cancel" id="btnCancelStudentChangePwd" style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Hủy</button>
+        <button type="button" id="btnSaveStudentPassword" style="padding: 0.55rem 1.35rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #059669, #047857); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(5,150,105,0.25);">
+          <span>Lưu Mật Khẩu Mới</span>
+          <div class="save-pwd-spinner" style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

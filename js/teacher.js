@@ -126,6 +126,12 @@ window.addEventListener("DOMContentLoaded", () => {
   // Khởi tạo sự kiện chuyển chế độ xem lại bài (Ôn tập vs Thi chính thức)
   initReviewModeSelector();
 
+  // Khởi tạo sự kiện chuyển chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
+  initScoreModeSelector();
+
+  // Khởi tạo tính năng Thông tin cá nhân & Đổi mật khẩu cho Giáo viên
+  initTeacherAccountDropdownAndModals();
+
   // Đăng xuất
   document.getElementById("btnLogout").addEventListener("click", () => {
     localStorage.removeItem("currentUser");
@@ -166,6 +172,45 @@ function initReviewModeSelector() {
   }
   if (radioDisallow) {
     radioDisallow.addEventListener("change", () => updateReviewModeDisplay(false));
+  }
+}
+
+// Cập nhật giao diện chuyển chế độ Xem điểm
+function updateScoreModeDisplay(isAllow) {
+  const optAllow = document.getElementById("optScoreAllow");
+  const optDisallow = document.getElementById("optScoreDisallow");
+  const badgeMode = document.getElementById("badgeScoreMode");
+
+  if (isAllow) {
+    if (optAllow) optAllow.classList.add("selected");
+    if (optDisallow) optDisallow.classList.remove("selected");
+    if (badgeMode) {
+      badgeMode.textContent = "👁️ CHO XEM ĐIỂM";
+      badgeMode.style.background = "#ecfdf5";
+      badgeMode.style.color = "#047857";
+      badgeMode.style.borderColor = "#a7f3d0";
+    }
+  } else {
+    if (optAllow) optAllow.classList.remove("selected");
+    if (optDisallow) optDisallow.classList.add("selected");
+    if (badgeMode) {
+      badgeMode.textContent = "🔒 KHÓA XEM ĐIỂM";
+      badgeMode.style.background = "#fef2f2";
+      badgeMode.style.color = "#dc2626";
+      badgeMode.style.borderColor = "#fecaca";
+    }
+  }
+}
+
+function initScoreModeSelector() {
+  const radioAllow = document.getElementById("radioAllowViewScore");
+  const radioDisallow = document.getElementById("radioDisallowViewScore");
+
+  if (radioAllow) {
+    radioAllow.addEventListener("change", () => updateScoreModeDisplay(true));
+  }
+  if (radioDisallow) {
+    radioDisallow.addEventListener("change", () => updateScoreModeDisplay(false));
   }
 }
 
@@ -2452,6 +2497,10 @@ btnSaveExam.addEventListener("click", async () => {
   const radioAllow = document.getElementById("radioAllowReview");
   const choXemLaiBai = radioAllow ? radioAllow.checked : true;
 
+  // Lấy cấu hình Chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
+  const radioAllowScore = document.getElementById("radioAllowViewScore");
+  const choXemDiem = radioAllowScore ? radioAllowScore.checked : true;
+
   // Đóng gói cấu trúc đề thi
   const examDataPayload = {
     action: "saveExam",
@@ -2461,9 +2510,11 @@ btnSaveExam.addEventListener("click", async () => {
     trangThai: trangThai,
     lopChoPhep: selectedClasses,
     choXemLaiBai: choXemLaiBai,
+    choXemDiem: choXemDiem,
     duLieuDe: {
       cauHoi: parsedQuestions,
       choXemLaiBai: choXemLaiBai,
+      choXemDiem: choXemDiem,
       tuLuan: {
         noiDung: parsedEssayQuestions.length > 0 ? parsedEssayQuestions[0].noiDung : "",
         linkForm: essayFormLink,
@@ -2492,6 +2543,7 @@ btnSaveExam.addEventListener("click", async () => {
     soCauHoi: parsedQuestions.length,
     hasTuLuan: !!(parsedEssayQuestions.length > 0 || essayFormLink),
     choXemLaiBai: choXemLaiBai,
+    choXemDiem: choXemDiem,
     trangThai: trangThai,
     duLieuDe: examDataPayload.duLieuDe
   };
@@ -2641,6 +2693,16 @@ function openExamForEditing(maDe) {
     updateReviewModeDisplay(isAllowReview);
   }
 
+  // 5.1. Điền lại chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
+  const isAllowScore = (exam.choXemDiem !== false && exam.duLieuDe?.choXemDiem !== false);
+  const radioAllowScore = document.getElementById("radioAllowViewScore");
+  const radioDisallowScore = document.getElementById("radioDisallowViewScore");
+  if (radioAllowScore && radioDisallowScore) {
+    radioAllowScore.checked = isAllowScore;
+    radioDisallowScore.checked = !isAllowScore;
+    updateScoreModeDisplay(isAllowScore);
+  }
+
   // 6. Tải danh sách câu hỏi trắc nghiệm vào trình chỉnh sửa
   parsedQuestions = JSON.parse(JSON.stringify(exam.duLieuDe?.cauHoi || []));
   renderQuestionsPreview(parsedQuestions);
@@ -2698,6 +2760,15 @@ function cancelEditingMode() {
     rAllow.checked = true;
     rDisallow.checked = false;
     updateReviewModeDisplay(true);
+  }
+
+  // Reset chế độ xem điểm về mặc định Cho xem điểm
+  const rAllowScore = document.getElementById("radioAllowViewScore");
+  const rDisallowScore = document.getElementById("radioDisallowViewScore");
+  if (rAllowScore && rDisallowScore) {
+    rAllowScore.checked = true;
+    rDisallowScore.checked = false;
+    updateScoreModeDisplay(true);
   }
 
   document.getElementById("examDuration").value = "45";
@@ -2949,6 +3020,7 @@ function renderTeacherExamsTable(examsList, isFromCache) {
   examsList.forEach(exam => {
     const isOpening = exam.trangThai === "Mở";
     const isReviewAllowed = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
+    const isScoreAllowed = (exam.choXemDiem !== false && exam.duLieuDe?.choXemDiem !== false);
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
@@ -2962,9 +3034,14 @@ function renderTeacherExamsTable(examsList, isFromCache) {
       <td>${exam.soCauHoi} câu</td>
       <td>${exam.hasTuLuan ? '<span style="color: #34d399;">Có tự luận</span>' : '<span style="color: #64748b;">Không</span>'}</td>
       <td>
-        ${isReviewAllowed 
-          ? '<span class="badge-table-review allowed" title="Học sinh được xem lại bài và đáp án sau khi nộp (Chế độ Ôn tập)">📖 Cho xem</span>' 
-          : '<span class="badge-table-review locked" title="Học sinh bị khóa xem lại bài và đáp án (Chế độ Thi chính thức)">🔒 Khóa xem</span>'}
+        <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
+          ${isReviewAllowed 
+            ? '<span class="badge-table-review allowed" title="Học sinh được xem lại bài và đáp án sau khi nộp (Chế độ Ôn tập)">📖 Cho xem bài</span>' 
+            : '<span class="badge-table-review locked" title="Học sinh bị khóa xem lại bài và đáp án (Chế độ Thi chính thức)">🔒 Khóa xem bài</span>'}
+          ${isScoreAllowed
+            ? '<span class="badge-table-review" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;" title="Học sinh xem được điểm số ngay sau khi nộp bài">👁️ Cho xem điểm</span>'
+            : '<span class="badge-table-review" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;" title="Khóa hiển thị điểm số khi nộp bài">🔒 Khóa xem điểm</span>'}
+        </div>
       </td>
       <td>
         <button type="button" class="btn-toggle-status ${isOpening ? 'active' : ''}" data-made="${exam.maDe}" data-status="${exam.trangThai}">
@@ -4497,3 +4574,244 @@ function exportStudentsToExcel() {
   showToast("Xuất Excel thành công", `Đã tải xuống file "${fileName}" (${listToExport.length} học sinh).`, "success", 3500);
 }
 
+
+// ============================================================================
+// HỆ THỐNG MENU TÀI KHOẢN, THÔNG TIN CÁ NHÂN & ĐỔI MẬT KHẨU GIÁO VIÊN
+// ============================================================================
+function initTeacherAccountDropdownAndModals() {
+  const trigger = document.getElementById("userProfileTrigger");
+  const dropdown = document.getElementById("userDropdownMenu");
+
+  // 1. Toggle mở / đóng dropdown
+  if (trigger && dropdown) {
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = dropdown.classList.contains("show");
+      if (isOpen) {
+        dropdown.classList.remove("show");
+        trigger.classList.remove("active");
+      } else {
+        dropdown.classList.add("show");
+        trigger.classList.add("active");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!dropdown.contains(e.target) && !trigger.contains(e.target)) {
+        dropdown.classList.remove("show");
+        trigger.classList.remove("active");
+      }
+    });
+  }
+
+  // 2. Modal Thông tin cá nhân Giáo viên
+  const btnOpenProfile = document.getElementById("btnOpenProfileModal");
+  const modalProfile = document.getElementById("modalTeacherProfile");
+  const btnCloseProfile = document.getElementById("btnCloseProfileModal");
+  const btnCloseProfileBottom = document.getElementById("btnCloseProfileModalBottom");
+  const btnSwitchToChangePwd = document.getElementById("btnSwitchToChangePwdModal");
+
+  function openTeacherProfile() {
+    if (dropdown) dropdown.classList.remove("show");
+    if (trigger) trigger.classList.remove("active");
+    if (!currentTeacher) return;
+
+    const elUser = document.getElementById("profileModalUsername");
+    const elName = document.getElementById("profileModalFullName");
+    const elClasses = document.getElementById("profileModalClasses");
+    const elSchool = document.getElementById("profileModalSchool");
+    const elTopName = document.getElementById("modalProfileFullName");
+    const elAvatar = document.getElementById("modalGvAvatarLarge");
+
+    const fullName = currentTeacher.hoTenGV || currentTeacher.username || "Thầy/Cô";
+    if (elUser) elUser.textContent = currentTeacher.username || "--";
+    if (elName) elName.textContent = fullName;
+    if (elClasses) elClasses.textContent = currentTeacher.lopGiangDay || "Tất cả";
+    if (elSchool) elSchool.textContent = currentTeacher.truong || "Hệ thống chung";
+    if (elTopName) elTopName.textContent = fullName;
+    if (elAvatar) elAvatar.textContent = (fullName.slice(0, 2) || "GV").toUpperCase();
+
+    if (modalProfile) modalProfile.style.display = "flex";
+  }
+
+  function closeTeacherProfile() {
+    if (modalProfile) modalProfile.style.display = "none";
+  }
+
+  if (btnOpenProfile) btnOpenProfile.addEventListener("click", openTeacherProfile);
+  if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeTeacherProfile);
+  if (btnCloseProfileBottom) btnCloseProfileBottom.addEventListener("click", closeTeacherProfile);
+  if (modalProfile) {
+    modalProfile.addEventListener("click", (e) => {
+      if (e.target === modalProfile) closeTeacherProfile();
+    });
+  }
+
+  // 3. Modal Đổi Mật Khẩu Giáo viên
+  const btnOpenChangePwd = document.getElementById("btnOpenChangePassModal");
+  const modalChangePwd = document.getElementById("modalTeacherChangePassword");
+  const btnCloseChangePwd = document.getElementById("btnCloseChangePassModal");
+  const btnCancelChangePwd = document.getElementById("btnCancelTeacherChangePwd");
+  const btnSaveChangePwd = document.getElementById("btnSaveTeacherPassword");
+  const alertBox = document.getElementById("teacherPwdAlertBox");
+
+  function openTeacherChangePwd() {
+    if (dropdown) dropdown.classList.remove("show");
+    if (trigger) trigger.classList.remove("active");
+    closeTeacherProfile();
+
+    const inpOld = document.getElementById("inputOldPassword");
+    const inpNew = document.getElementById("inputNewPassword");
+    const inpConfirm = document.getElementById("inputConfirmNewPassword");
+    if (inpOld) inpOld.value = "";
+    if (inpNew) inpNew.value = "";
+    if (inpConfirm) inpConfirm.value = "";
+    if (alertBox) {
+      alertBox.style.display = "none";
+      alertBox.textContent = "";
+    }
+
+    if (modalChangePwd) modalChangePwd.style.display = "flex";
+    if (inpOld) setTimeout(() => inpOld.focus(), 150);
+  }
+
+  function closeTeacherChangePwd() {
+    if (modalChangePwd) modalChangePwd.style.display = "none";
+  }
+
+  if (btnOpenChangePwd) btnOpenChangePwd.addEventListener("click", openTeacherChangePwd);
+  if (btnSwitchToChangePwd) btnSwitchToChangePwd.addEventListener("click", openTeacherChangePwd);
+  if (btnCloseChangePwd) btnCloseChangePwd.addEventListener("click", closeTeacherChangePwd);
+  if (btnCancelChangePwd) btnCancelChangePwd.addEventListener("click", closeTeacherChangePwd);
+  if (modalChangePwd) {
+    modalChangePwd.addEventListener("click", (e) => {
+      if (e.target === modalChangePwd) closeTeacherChangePwd();
+    });
+  }
+
+  // 4. Toggle Eye cho ô mật khẩu
+  document.querySelectorAll(".btn-toggle-eye").forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const targetId = btn.getAttribute("data-target");
+      const targetInp = document.getElementById(targetId);
+      if (targetInp) {
+        const isPwd = targetInp.type === "password";
+        targetInp.type = isPwd ? "text" : "password";
+        btn.innerHTML = isPwd 
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+      }
+    };
+  });
+
+  // 5. Nút Đăng xuất trong Dropdown
+  const btnLogoutDrop = document.getElementById("btnLogoutDropdown");
+  if (btnLogoutDrop) {
+    btnLogoutDrop.addEventListener("click", () => {
+      if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi cổng Giáo Viên?")) {
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("userRole");
+        window.location.href = "index.html";
+      }
+    });
+  }
+
+  // 6. Xử lý Lưu Đổi Mật Khẩu
+  if (btnSaveChangePwd) {
+    btnSaveChangePwd.addEventListener("click", async () => {
+      const inpOld = document.getElementById("inputOldPassword");
+      const inpNew = document.getElementById("inputNewPassword");
+      const inpConfirm = document.getElementById("inputConfirmNewPassword");
+
+      const oldPassword = inpOld ? inpOld.value.trim() : "";
+      const newPassword = inpNew ? inpNew.value.trim() : "";
+      const confirmPassword = inpConfirm ? inpConfirm.value.trim() : "";
+
+      const showAlert = (msg) => {
+        if (alertBox) {
+          alertBox.textContent = msg;
+          alertBox.style.display = "block";
+        } else {
+          showToast("Lỗi nhập liệu", msg, "warning");
+        }
+      };
+
+      if (!oldPassword) {
+        showAlert("Vui lòng nhập mật khẩu hiện tại!");
+        if (inpOld) inpOld.focus();
+        return;
+      }
+
+      if (!newPassword) {
+        showAlert("Vui lòng nhập mật khẩu mới!");
+        if (inpNew) inpNew.focus();
+        return;
+      }
+
+      if (newPassword.length < 3) {
+        showAlert("Mật khẩu mới phải có ít nhất 3 ký tự!");
+        if (inpNew) inpNew.focus();
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        showAlert("Xác nhận mật khẩu mới không khớp!");
+        if (inpConfirm) inpConfirm.focus();
+        return;
+      }
+
+      if (alertBox) alertBox.style.display = "none";
+
+      const origHtml = btnSaveChangePwd.innerHTML;
+      btnSaveChangePwd.disabled = true;
+      btnSaveChangePwd.innerHTML = '<span>Đang lưu lên Sheets...</span><div class="save-pwd-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite;"></div>';
+
+      try {
+        let res = null;
+        try {
+          const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({
+              action: "updateTeacherPassword",
+              usernameGV: currentTeacher.username,
+              oldPassword: oldPassword,
+              newPassword: newPassword
+            })
+          });
+          const text = await response.text();
+          if (text && !text.trim().startsWith("<")) {
+            res = JSON.parse(text);
+          }
+        } catch (postErr) {
+          console.warn("POST updateTeacherPassword failed, attempting GET fallback...", postErr);
+        }
+
+        if (!res || !res.success) {
+          const getUrl = API_URL + "?action=updateTeacherPassword&usernameGV=" + encodeURIComponent(currentTeacher.username) + "&oldPassword=" + encodeURIComponent(oldPassword) + "&newPassword=" + encodeURIComponent(newPassword) + "&_t=" + Date.now();
+          const getRes = await fetch(getUrl);
+          const getTxt = await getRes.text();
+          if (getTxt && !getTxt.trim().startsWith("<")) {
+            res = JSON.parse(getTxt);
+          }
+        }
+
+        if (res && res.success) {
+          showToast("Thành công", res.message || "Đã đổi mật khẩu và cập nhật lên Google Sheets thành công!", "success", 4000);
+          closeTeacherChangePwd();
+        } else {
+          showAlert(res ? res.message : "Mật khẩu hiện tại không chính xác hoặc không thể cập nhật!");
+          showToast("Đổi mật khẩu thất bại", res ? res.message : "Mật khẩu hiện tại không chính xác!", "error", 5000);
+        }
+      } catch (err) {
+        console.error("Lỗi khi gọi API đổi mật khẩu giáo viên:", err);
+        showAlert("Không thể kết nối đến máy chủ Google Sheets. Vui lòng kiểm tra lại mạng!");
+        showToast("Lỗi kết nối", "Không thể kết nối đến máy chủ Google Sheets.", "error", 5000);
+      } finally {
+        btnSaveChangePwd.disabled = false;
+        btnSaveChangePwd.innerHTML = origHtml;
+      }
+    });
+  }
+}

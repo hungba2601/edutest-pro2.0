@@ -77,7 +77,7 @@ function initDatabase() {
   let sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
   if (!sheetDeThi) {
     sheetDeThi = ss.insertSheet(SHEETS.DETHI);
-    const headers = ["Mã đề thi", "Tên kỳ kiểm tra", "Tài khoản GV tạo", "Lớp được phép thi", "Thời gian làm bài", "Trạng thái (Đóng/Mở)", "Chế độ xem bài", "Dữ liệu đề (JSON)"];
+    const headers = ["Mã đề thi", "Tên kỳ kiểm tra", "Tài khoản GV tạo", "Lớp được phép thi", "Thời gian làm bài", "Trạng thái (Đóng/Mở)", "Chế độ xem bài", "Chế độ xem điểm", "Dữ liệu đề (JSON)"];
     sheetDeThi.appendRow(headers);
     formatHeaderRow(sheetDeThi);
   } else {
@@ -205,6 +205,11 @@ function doGet(e) {
           return handleLogin(payload);
         case "updateStudentPassword":
           return handleUpdateStudentPassword(payload);
+        case "updateTeacherPassword":
+          return handleUpdateTeacherPassword(payload);
+        case "ensureDeThiColumns":
+          ensureDeThiSheetColumns(ss.getSheetByName(SHEETS.DETHI));
+          return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
         case "verifyAdminPassword":
           return handleVerifyAdminPassword(payload);
       }
@@ -268,6 +273,9 @@ function doPost(e) {
 
       case "updateStudentPassword":
         return handleUpdateStudentPassword(payload);
+
+      case "updateTeacherPassword":
+        return handleUpdateTeacherPassword(payload);
 
       // --- MODULE 3: HỌC SINH ---
       case "getStudentExams":
@@ -499,40 +507,81 @@ function handleVerifyAdminPassword(payload) {
 /**
  * Tự động kiểm tra và nâng cấp Sheet DATA_DETHI để luôn có cột 'Chế độ xem bài'
  */
+/**
+ * Tự động kiểm tra và nâng cấp Sheet DATA_DETHI để luôn có 2 cột:
+ * Cột 'Chế độ xem bài' và cột 'Chế độ xem điểm'
+ */
 function ensureDeThiSheetColumns(sheetDeThi) {
   try {
     const data = sheetDeThi.getDataRange().getValues();
     if (!data || data.length === 0) return;
-    const headerRow = data[0];
+    let headerRow = data[0];
 
-    // Kiểm tra xem đã có cột Chế độ xem bài chưa
+    // 1. Kiểm tra xem đã có cột Chế độ xem bài chưa
     let reviewColIdx = -1;
+    let scoreColIdx = -1;
+    let jsonColIdx = -1;
+
     for (let c = 0; c < headerRow.length; c++) {
-      const hText = String(headerRow[c] || "").toLowerCase();
-      if (hText.indexOf("xem lại") !== -1 || hText.indexOf("chế độ xem") !== -1) {
+      const hText = String(headerRow[c] || "").toLowerCase().trim();
+      if (hText.indexOf("xem lại") !== -1 || (hText.indexOf("chế độ xem") !== -1 && hText.indexOf("điểm") === -1)) {
         reviewColIdx = c;
-        break;
+      }
+      if (hText.indexOf("xem điểm") !== -1 || (hText.indexOf("chế độ") !== -1 && hText.indexOf("điểm") !== -1)) {
+        scoreColIdx = c;
+      }
+      if (hText.indexOf("json") !== -1 || hText.indexOf("dữ liệu") !== -1) {
+        jsonColIdx = c;
       }
     }
 
-    // Nếu chưa có cột "Chế độ xem bài" (ví dụ Sheet cũ chỉ có 7 cột)
-    if (reviewColIdx === -1 && headerRow.length >= 7) {
-      sheetDeThi.insertColumnBefore(7);
-      sheetDeThi.getRange(1, 7).setValue("Chế độ xem bài");
+    // Nếu chưa có cột "Chế độ xem bài"
+    if (reviewColIdx === -1) {
+      const insertAt = jsonColIdx !== -1 ? jsonColIdx + 1 : 7;
+      sheetDeThi.insertColumnBefore(insertAt);
+      sheetDeThi.getRange(1, insertAt).setValue("Chế độ xem bài");
+      reviewColIdx = insertAt - 1;
+      formatHeaderRow(sheetDeThi);
+    }
+
+    // Lấy lại header sau khi có thể đã chèn cột xem bài
+    const refreshedData = sheetDeThi.getDataRange().getValues();
+    headerRow = refreshedData[0];
+    scoreColIdx = -1;
+    jsonColIdx = -1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const hText = String(headerRow[c] || "").toLowerCase().trim();
+      if (hText.indexOf("xem điểm") !== -1 || (hText.indexOf("chế độ") !== -1 && hText.indexOf("điểm") !== -1)) {
+        scoreColIdx = c;
+      }
+      if (hText.indexOf("json") !== -1 || hText.indexOf("dữ liệu") !== -1) {
+        jsonColIdx = c;
+      }
+    }
+
+    // 2. Kiểm tra xem đã có cột "Chế độ xem điểm" chưa
+    if (scoreColIdx === -1) {
+      const insertScoreAt = jsonColIdx !== -1 ? jsonColIdx + 1 : (headerRow.length >= 8 ? 8 : headerRow.length + 1);
+      sheetDeThi.insertColumnBefore(insertScoreAt);
+      sheetDeThi.getRange(1, insertScoreAt).setValue("Chế độ xem điểm");
+      scoreColIdx = insertScoreAt - 1;
       formatHeaderRow(sheetDeThi);
 
-      // Cập nhật giá trị hiển thị cho các đề thi đã lưu trước đó
-      const newData = sheetDeThi.getDataRange().getValues();
-      for (let i = 1; i < newData.length; i++) {
-        const jsonStr = String(newData[i][7] || "");
-        let isAllow = true;
+      // Tự động quét và cập nhật giá trị cho các đề thi cũ
+      const latestData = sheetDeThi.getDataRange().getValues();
+      const currentJsonIdx = latestData[0].findIndex(h => String(h).toLowerCase().includes("json") || String(h).toLowerCase().includes("dữ liệu"));
+      const targetJsonCol = currentJsonIdx !== -1 ? currentJsonIdx : (latestData[0].length - 1);
+
+      for (let i = 1; i < latestData.length; i++) {
+        const jsonStr = String(latestData[i][targetJsonCol] || "");
+        let isAllowScore = true;
         try {
           const parsed = JSON.parse(jsonStr);
-          isAllow = (parsed.choXemLaiBai !== false);
+          isAllowScore = (parsed.choXemDiem !== false);
         } catch (e) {
-          isAllow = true;
+          isAllowScore = true;
         }
-        sheetDeThi.getRange(i + 1, 7).setValue(isAllow ? "Cho xem lại bài" : "Khóa xem lại bài");
+        sheetDeThi.getRange(i + 1, scoreColIdx + 1).setValue(isAllowScore ? "Cho xem điểm" : "Khóa xem điểm");
       }
     }
   } catch (err) {
@@ -541,8 +590,34 @@ function ensureDeThiSheetColumns(sheetDeThi) {
 }
 
 /**
- * Lưu đề thi mới hoặc cập nhật đề thi đã có (Hỗ trợ 8 cột với Chế độ xem bài)
+ * Trợ giúp xác định chính xác index các cột của DATA_DETHI linh hoạt
  */
+function getDeThiColumnIndexes(sheetDeThi) {
+  const headerRow = sheetDeThi.getRange(1, 1, 1, Math.max(sheetDeThi.getLastColumn(), 1)).getValues()[0];
+  let reviewCol = -1;
+  let scoreCol = -1;
+  let jsonCol = -1;
+
+  for (let c = 0; c < headerRow.length; c++) {
+    const h = String(headerRow[c] || "").toLowerCase().trim();
+    if (h.indexOf("xem lại") !== -1 || (h.indexOf("chế độ xem") !== -1 && h.indexOf("điểm") === -1)) {
+      reviewCol = c;
+    }
+    if (h.indexOf("xem điểm") !== -1 || (h.indexOf("chế độ") !== -1 && h.indexOf("điểm") !== -1)) {
+      scoreCol = c;
+    }
+    if (h.indexOf("json") !== -1 || h.indexOf("dữ liệu") !== -1) {
+      jsonCol = c;
+    }
+  }
+
+  if (jsonCol === -1) jsonCol = headerRow.length - 1;
+  if (reviewCol === -1) reviewCol = 6;
+  if (scoreCol === -1) scoreCol = (jsonCol > reviewCol + 1) ? reviewCol + 1 : 7;
+
+  return { reviewCol, scoreCol, jsonCol };
+}
+
 function handleSaveExam(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
@@ -551,6 +626,7 @@ function handleSaveExam(payload) {
   }
 
   ensureDeThiSheetColumns(sheetDeThi);
+  const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const usernameGV = String(payload.usernameGV || "").trim();
   const tenKyThi = String(payload.tenKyThi || "").trim();
@@ -558,13 +634,16 @@ function handleSaveExam(payload) {
   const thoiGian = Number(payload.thoiGian) || 45;
   const trangThai = String(payload.trangThai || "Mở").trim();
   const choXemLaiBai = (payload.choXemLaiBai !== false);
+  const choXemDiem = (payload.choXemDiem !== false);
   const cheDoXemText = choXemLaiBai ? "Cho xem lại bài" : "Khóa xem lại bài";
+  const cheDoXemDiemText = choXemDiem ? "Cho xem điểm" : "Khóa xem điểm";
 
   let duLieuDeObj = payload.duLieuDe || {};
   if (typeof duLieuDeObj === "string") {
     try { duLieuDeObj = JSON.parse(duLieuDeObj); } catch (e) { duLieuDeObj = {}; }
   }
   duLieuDeObj.choXemLaiBai = choXemLaiBai;
+  duLieuDeObj.choXemDiem = choXemDiem;
   const duLieuDeStr = JSON.stringify(duLieuDeObj);
 
   let maDe = String(payload.maDe || "").trim();
@@ -585,8 +664,9 @@ function handleSaveExam(payload) {
         sheetDeThi.getRange(rowNum, 4).setValue(lopChoPhep);
         sheetDeThi.getRange(rowNum, 5).setValue(thoiGian);
         sheetDeThi.getRange(rowNum, 6).setValue(trangThai);
-        sheetDeThi.getRange(rowNum, 7).setValue(cheDoXemText);
-        sheetDeThi.getRange(rowNum, 8).setValue(duLieuDeStr);
+        sheetDeThi.getRange(rowNum, cols.reviewCol + 1).setValue(cheDoXemText);
+        sheetDeThi.getRange(rowNum, cols.scoreCol + 1).setValue(cheDoXemDiemText);
+        sheetDeThi.getRange(rowNum, cols.jsonCol + 1).setValue(duLieuDeStr);
         updated = true;
         break;
       }
@@ -596,26 +676,28 @@ function handleSaveExam(payload) {
   // Nếu tạo mới
   if (!updated) {
     maDe = "DE_" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + "_" + Math.floor(Math.random() * 1000);
-    sheetDeThi.appendRow([maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, duLieuDeStr]);
+    const newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
+    sheetDeThi.appendRow(newRow);
   }
 
   return createJsonResponse({
     success: true,
     message: updated ? "Cập nhật đề thi thành công!" : "Tạo đề thi mới thành công!",
     maDe: maDe,
-    choXemLaiBai: choXemLaiBai
+    choXemLaiBai: choXemLaiBai,
+    choXemDiem: choXemDiem
   });
 }
 
-/**
- * Lấy danh sách các đề thi do giáo viên tạo (Tối ưu tốc độ cao)
- */
 function handleGetTeacherExams(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
   if (!sheetDeThi) {
     return createJsonResponse({ success: true, exams: [] });
   }
+
+  ensureDeThiSheetColumns(sheetDeThi);
+  const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
   const data = sheetDeThi.getDataRange().getValues();
@@ -627,16 +709,9 @@ function handleGetTeacherExams(payload) {
     const rowGV = String(row[2]).trim().toLowerCase();
 
     if (rowGV === usernameGV) {
-      let cheDoXemText = "";
-      let jsonRaw = "";
-
-      // Nhận diện linh hoạt giữa Sheet 8 cột và Sheet 7 cột cũ
-      if (row.length >= 8 && String(row[7]).trim().startsWith("{")) {
-        cheDoXemText = String(row[6] || "").trim();
-        jsonRaw = row[7];
-      } else {
-        jsonRaw = row[6];
-      }
+      const cheDoXemText = String(row[cols.reviewCol] || "").trim();
+      const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
+      const jsonRaw = row[cols.jsonCol];
 
       let duLieuDeParsed = {};
       try {
@@ -652,6 +727,13 @@ function handleGetTeacherExams(payload) {
         choXemLaiBai = (duLieuDeParsed.choXemLaiBai !== false);
       }
 
+      let choXemDiem = true;
+      if (cheDoXemDiemText) {
+        choXemDiem = cheDoXemDiemText.indexOf("Khóa") === -1;
+      } else {
+        choXemDiem = (duLieuDeParsed.choXemDiem !== false);
+      }
+
       exams.push({
         maDe: String(row[0]),
         tenKyThi: String(row[1]),
@@ -660,6 +742,7 @@ function handleGetTeacherExams(payload) {
         thoiGian: Number(row[4]) || 45,
         trangThai: String(row[5] || "Mở"),
         choXemLaiBai: choXemLaiBai,
+        choXemDiem: choXemDiem,
         soCauHoi: (duLieuDeParsed.cauHoi || []).length,
         hasTuLuan: !!(duLieuDeParsed.tuLuan && (duLieuDeParsed.tuLuan.noiDung || duLieuDeParsed.tuLuan.linkForm)),
         duLieuDe: duLieuDeParsed
@@ -673,9 +756,6 @@ function handleGetTeacherExams(payload) {
   });
 }
 
-/**
- * Bật/Tắt nhanh trạng thái Đóng/Mở của đề thi
- */
 function handleToggleExamStatus(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
@@ -870,6 +950,7 @@ function handleUpdateStudentPassword(payload) {
   }
 
   const usernameHS = String(payload.usernameHS || "").trim();
+  const oldPassword = payload.oldPassword !== undefined ? String(payload.oldPassword).trim() : null;
   const newPassword = String(payload.newPassword || "").trim();
 
   if (!usernameHS) {
@@ -883,13 +964,23 @@ function handleUpdateStudentPassword(payload) {
   const dataHS = sheetHS.getDataRange().getValues();
   for (let i = 1; i < dataHS.length; i++) {
     if (String(dataHS[i][0]).trim().toUpperCase() === usernameHS.toUpperCase()) {
+      const currentPass = String(dataHS[i][1] !== null && dataHS[i][1] !== undefined ? dataHS[i][1] : "").trim();
+      
+      // Nếu có truyền oldPassword (học sinh tự đổi) thì kiểm tra mật khẩu cũ
+      if (oldPassword !== null && currentPass !== oldPassword) {
+        return createJsonResponse({
+          success: false,
+          message: "Mật khẩu hiện tại không chính xác! Vui lòng nhập đúng mật khẩu cũ."
+        });
+      }
+
       // Cột 2 (index 1) là Mật khẩu (Range bắt đầu từ 1, nên là cột 2)
       sheetHS.getRange(i + 1, 2).setValue(newPassword);
 
       const hoTen = String(dataHS[i][3] || usernameHS);
       return createJsonResponse({
         success: true,
-        message: `Đã đổi mật khẩu cho học sinh "${hoTen}" (${usernameHS}) thành công!`,
+        message: `Đã đổi mật khẩu thành công cho học sinh "${hoTen}" (${usernameHS})!`,
         usernameHS: usernameHS,
         newPassword: newPassword
       });
@@ -899,6 +990,62 @@ function handleUpdateStudentPassword(payload) {
   return createJsonResponse({
     success: false,
     message: "Không tìm thấy học sinh có mã tài khoản: " + usernameHS
+  });
+}
+
+/**
+ * Đổi mật khẩu giáo viên và cập nhật trực tiếp lên DATA_GIAOVIEN Google Sheets
+ */
+function handleUpdateTeacherPassword(payload) {
+  const ss = getSpreadsheet();
+  const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+
+  if (!sheetGV) {
+    return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_GIAOVIEN!" });
+  }
+
+  const usernameGV = String(payload.usernameGV || "").trim();
+  const oldPassword = payload.oldPassword !== undefined ? String(payload.oldPassword).trim() : null;
+  const newPassword = String(payload.newPassword || "").trim();
+
+  if (!usernameGV) {
+    return createJsonResponse({ success: false, message: "Thiếu mã tài khoản giáo viên!" });
+  }
+
+  if (!newPassword) {
+    return createJsonResponse({ success: false, message: "Mật khẩu mới không được để trống!" });
+  }
+
+  const dataGV = sheetGV.getDataRange().getValues();
+  // Sheet DATA_GIAOVIEN: Cột 0: Tài khoản GV | Cột 1: Mật khẩu | Cột 2: Họ tên GV | Cột 3: Lớp giảng dạy | Cột 4: Trường
+  for (let i = 1; i < dataGV.length; i++) {
+    if (String(dataGV[i][0]).trim().toUpperCase() === usernameGV.toUpperCase()) {
+      const currentPass = String(dataGV[i][1] !== null && dataGV[i][1] !== undefined ? dataGV[i][1] : "").trim();
+
+      // Nếu có truyền oldPassword thì kiểm tra mật khẩu cũ
+      if (oldPassword !== null && currentPass !== oldPassword) {
+        return createJsonResponse({
+          success: false,
+          message: "Mật khẩu hiện tại không chính xác! Vui lòng kiểm tra lại."
+        });
+      }
+
+      // Cột 2 (index 1) là Mật khẩu
+      sheetGV.getRange(i + 1, 2).setValue(newPassword);
+
+      const hoTen = String(dataGV[i][2] || usernameGV);
+      return createJsonResponse({
+        success: true,
+        message: `Đã đổi mật khẩu thành công cho giáo viên "${hoTen}" (${usernameGV})!`,
+        usernameGV: usernameGV,
+        newPassword: newPassword
+      });
+    }
+  }
+
+  return createJsonResponse({
+    success: false,
+    message: "Không tìm thấy giáo viên có mã tài khoản: " + usernameGV
   });
 }
 
@@ -916,16 +1063,20 @@ function handleGetStudentExams(payload) {
     return createJsonResponse({ success: true, exams: [] });
   }
 
+  ensureDeThiSheetColumns(sheetDeThi);
+  const cols = getDeThiColumnIndexes(sheetDeThi);
+
   const studentClass = String(payload.lop || "").trim().toUpperCase();
   const data = sheetDeThi.getDataRange().getValues();
   const availableExams = [];
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
+    if (!row[0]) continue;
+
     const trangThai = String(row[5] || "").trim();
     const allowedClasses = String(row[3] || "").trim().toUpperCase();
 
-    // Điều kiện: Đang "Mở" VÀ (Cho phép tất cả HOẶC có chứa lớp của học sinh)
     if (trangThai.toLowerCase() === "mở") {
       let isAllowed = false;
       if (!allowedClasses || allowedClasses === "TẤT CẢ" || allowedClasses === "ALL") {
@@ -936,15 +1087,9 @@ function handleGetStudentExams(payload) {
       }
 
       if (isAllowed) {
-        let cheDoXemText = "";
-        let jsonRaw = "";
-
-        if (row.length >= 8 && String(row[7]).trim().startsWith("{")) {
-          cheDoXemText = String(row[6] || "").trim();
-          jsonRaw = row[7];
-        } else {
-          jsonRaw = row[6];
-        }
+        const cheDoXemText = String(row[cols.reviewCol] || "").trim();
+        const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
+        const jsonRaw = row[cols.jsonCol];
 
         let duLieuDeParsed = {};
         try {
@@ -960,7 +1105,13 @@ function handleGetStudentExams(payload) {
           choXemLaiBai = (duLieuDeParsed.choXemLaiBai !== false);
         }
 
-        // Tạo bản copy không lộ đáp án đúng cho học sinh trước khi thi
+        let choXemDiem = true;
+        if (cheDoXemDiemText) {
+          choXemDiem = cheDoXemDiemText.indexOf("Khóa") === -1;
+        } else {
+          choXemDiem = (duLieuDeParsed.choXemDiem !== false);
+        }
+
         const safeQuestions = (duLieuDeParsed.cauHoi || []).map((q, idx) => {
           const safeQ = {
             id: q.id || (idx + 1),
@@ -970,13 +1121,11 @@ function handleGetStudentExams(payload) {
           };
 
           if (q.loaiCauHoi === "true_false") {
-            // Đúng sai nhiều ý: chỉ gửi nội dung các ý, không gửi cờ 'dung'
             safeQ.y = (q.y || []).map(item => ({
               key: item.key,
               noiDung: item.noiDung
             }));
           } else {
-            // 4 lựa chọn: chỉ gửi các lựa chọn A/B/C/D
             safeQ.luaChon = (q.luaChon || []).map(opt => ({
               key: opt.key,
               noiDung: opt.noiDung
@@ -993,7 +1142,6 @@ function handleGetStudentExams(payload) {
             id: eq.id || (eqIdx + 1),
             noiDung: eq.noiDung,
             diem: eq.diem !== undefined ? eq.diem : 1
-            // Không gửi đáp án trước khi nộp bài để đảm bảo bảo mật phòng thi
           }))
         };
 
@@ -1007,6 +1155,7 @@ function handleGetStudentExams(payload) {
           soCauHoi: safeQuestions.length,
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
+          choXemDiem: choXemDiem,
           tuLuan: safeTuLuan
         });
       }
@@ -1019,9 +1168,6 @@ function handleGetStudentExams(payload) {
   });
 }
 
-/**
- * Nộp bài và lưu kết quả vào DATA_KETQUA
- */
 function handleSubmitExam(payload) {
   const ss = getSpreadsheet();
   const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
@@ -1049,7 +1195,15 @@ function handleSubmitExam(payload) {
   for (let i = 1; i < dataDe.length; i++) {
     if (String(dataDe[i][0]).trim() === maDe) {
       usernameGV = String(dataDe[i][2]).trim();
-      const rawJson = (dataDe[i].length >= 8 && String(dataDe[i][7]).trim().startsWith("{")) ? dataDe[i][7] : dataDe[i][6];
+      let rawJson = "";
+      for (let c = dataDe[i].length - 1; c >= 6; c--) {
+        const valStr = String(dataDe[i][c] || "").trim();
+        if (valStr.startsWith("{") && valStr.endsWith("}")) {
+          rawJson = dataDe[i][c];
+          break;
+        }
+      }
+      if (!rawJson) rawJson = dataDe[i][dataDe[i].length - 1];
       try {
         originalExamData = typeof rawJson === "string" ? JSON.parse(rawJson) : rawJson;
       } catch (e) {
@@ -1243,6 +1397,8 @@ function handleSubmitExam(payload) {
     JSON.stringify(fullDetailObject)
   ]);
 
+  const choXemDiem = (originalExamData.choXemDiem !== false);
+
   return createJsonResponse({
     success: true,
     message: "Nộp bài thành công!",
@@ -1254,6 +1410,7 @@ function handleSubmitExam(payload) {
     soCauDungSai: soCauDungSaiText,
     thoiGianNop: thoiGianNop,
     choXemLaiBai: choXemLaiBai,
+    choXemDiem: choXemDiem,
     chiTietKetQua: choXemLaiBai ? detailedResults : [],
     baiLamTuLuan: essayDetailsForStudent,
     danhSachCauHoiTuLuan: choXemLaiBai ? essayQuestions : [],

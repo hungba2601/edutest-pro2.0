@@ -108,6 +108,9 @@ window.addEventListener("DOMContentLoaded", () => {
   // Tải danh sách các bài thi mở cho lớp của học sinh
   loadAvailableExams();
 
+  // Khởi tạo tính năng Thông tin cá nhân & Đổi mật khẩu cho Học sinh
+  initStudentAccountDropdownAndModals();
+
   // Đăng xuất
   document.getElementById("btnLogout").addEventListener("click", () => {
     localStorage.removeItem("currentUser");
@@ -246,6 +249,7 @@ async function loadAvailableExams() {
 
     const hasTuLuan = !!(exam.tuLuan && (exam.tuLuan.noiDung || exam.tuLuan.linkForm));
     const isAllowReview = (exam.choXemLaiBai !== false);
+    const isAllowScore = (exam.choXemDiem !== false);
 
     card.innerHTML = `
       <div class="exam-card-top">
@@ -257,6 +261,9 @@ async function loadAvailableExams() {
           ${isAllowReview 
             ? `<span class="badge-review-tag allowed" title="Cho phép học sinh xem lại bài làm và đáp án sau khi nộp">📖 Ôn tập</span>`
             : `<span class="badge-review-tag locked" title="Khóa xem lại đề và đáp án để bảo mật kỳ thi">🔒 Thi chính thức</span>`}
+          ${isAllowScore 
+            ? `<span class="badge-score-tag allowed" title="Cho phép học sinh xem điểm số ngay sau khi nộp bài"><i class="fas fa-check-circle"></i> Cho xem điểm</span>`
+            : `<span class="badge-score-tag locked" title="Khóa xem điểm - Điểm số được bảo mật, Giáo viên sẽ công bố sau"><i class="fas fa-lock"></i> Khóa xem điểm</span>`}
         </div>
         <span class="exam-card-code">${exam.maDe}</span>
       </div>
@@ -279,6 +286,10 @@ async function loadAvailableExams() {
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           <span>Chế độ sau thi: <strong style="color: ${isAllowReview ? '#10b981' : '#f59e0b'};">${isAllowReview ? 'Cho xem lại bài & đáp án' : 'Khóa xem bài & đáp án'}</strong></span>
+        </div>
+        <div class="exam-meta-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+          <span>Xem điểm số: <strong style="color: ${isAllowScore ? '#10b981' : '#f59e0b'};">${isAllowScore ? 'Cho xem điểm' : 'Khóa xem điểm (Bảo mật điểm)'}</strong></span>
         </div>
         ${hasTuLuan ? `
           <div class="exam-meta-row" style="color: #6ee7b7;">
@@ -327,6 +338,7 @@ function getLocalAvailableExams(studentClass) {
               const duLieu = ex.duLieuDe || {};
               const questions = duLieu.cauHoi || ex.cauHoi || [];
               const choXem = (ex.choXemLaiBai !== false && duLieu.choXemLaiBai !== false);
+              const choDiem = (ex.choXemDiem !== false && duLieu.choXemDiem !== false);
 
               result.push({
                 maDe: ex.maDe,
@@ -338,6 +350,7 @@ function getLocalAvailableExams(studentClass) {
                 soCauHoi: questions.length,
                 cauHoi: questions,
                 choXemLaiBai: choXem,
+                choXemDiem: choDiem,
                 tuLuan: duLieu.tuLuan || ex.tuLuan || {}
               });
             }
@@ -351,18 +364,62 @@ function getLocalAvailableExams(studentClass) {
   return result;
 }
 
+/**
+ * Thuật toán Fisher-Yates shuffle để xáo trộn ngẫu nhiên vị trí các câu hỏi
+ */
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // ============================================================================
 // 3. VÀO PHÒNG THI TẬP TRUNG & BẬT ĐỒNG HỒ ĐẾM NGƯỢC
 // ============================================================================
 function enterExamRoom(exam) {
   const isAllowReview = (exam.choXemLaiBai !== false);
+  const isAllowScore = (exam.choXemDiem !== false);
   const modeText = isAllowReview ? "ÔN TẬP (Xem được bài làm & đáp án sau khi nộp)" : "THI CHÍNH THỨC (Khóa xem bài & đáp án nhằm bảo mật đề)";
+  const scoreText = isAllowScore ? "Hiện điểm ngay khi nộp" : "Khóa xem điểm (GV công bố sau)";
 
-  if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ: ${modeText}`)) {
+  if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ bài làm: ${modeText}.\n• Chế độ xem điểm: ${scoreText}.`)) {
     return;
   }
 
-  activeExam = exam;
+  // ==========================================================================
+  // ĐẢO VỊ TRÍ CÂU HỎI RANDOM CHO MỖI HỌC SINH:
+  // - Phần I (Trắc nghiệm nhiều lựa chọn): ĐẢO NGẪU NHIÊN
+  // - Phần II (Trắc nghiệm đúng/sai): ĐẢO NGẪU NHIÊN
+  // - Đảo riêng biệt từng phần, không trộn lẫn Phần I sang Phần II
+  // - Phần III (Tự luận): KHÔNG ĐẢO, giữ nguyên thứ tự
+  // ==========================================================================
+  const rawQuestions = JSON.parse(JSON.stringify(exam.cauHoi || []));
+  const rawPart1 = rawQuestions.filter(q => q.loaiCauHoi !== "true_false");
+  const rawPart2 = rawQuestions.filter(q => q.loaiCauHoi === "true_false");
+
+  const shuffledPart1 = shuffleArray(rawPart1);
+  const shuffledPart2 = shuffleArray(rawPart2);
+
+  // Đánh số thứ tự hiển thị tuần tự cho học sinh
+  let runningIndex = 1;
+  shuffledPart1.forEach(q => {
+    q.displayIndex = runningIndex++;
+  });
+  shuffledPart2.forEach(q => {
+    q.displayIndex = runningIndex++;
+  });
+
+  const finalExamQuestions = [...shuffledPart1, ...shuffledPart2];
+
+  // Tạo đối tượng phiên thi riêng của học sinh (Tự luận giữ nguyên 100%)
+  activeExam = {
+    ...exam,
+    cauHoi: finalExamQuestions
+  };
+
   examStartTime = new Date();
   studentAnswers = {};
   studentEssayAnswers = {};
@@ -495,8 +552,9 @@ function renderExamQuestions(questions, essayData) {
     `;
     container.appendChild(p1Hdr);
 
-    part1Questions.forEach((q) => {
+    part1Questions.forEach((q, idx) => {
       const qId = q.id;
+      const displayNum = q.displayIndex || (idx + 1);
       const card = document.createElement("div");
       card.className = "exam-q-card";
       card.id = `q_card_${qId}`;
@@ -505,7 +563,7 @@ function renderExamQuestions(questions, essayData) {
       card.innerHTML = `
         <div class="exam-q-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="q-badge-num">Câu ${qId}</span>
+            <span class="q-badge-num">Câu ${displayNum}</span>
             <span class="q-badge-points">${qPoints} điểm</span>
           </div>
           <span class="q-badge-type">Trắc nghiệm 4 lựa chọn</span>
@@ -532,8 +590,9 @@ function renderExamQuestions(questions, essayData) {
     `;
     container.appendChild(p2Hdr);
 
-    part2Questions.forEach((q) => {
+    part2Questions.forEach((q, idx) => {
       const qId = q.id;
+      const displayNum = q.displayIndex || (part1Questions.length + idx + 1);
       const card = document.createElement("div");
       card.className = "exam-q-card";
       card.id = `q_card_${qId}`;
@@ -542,7 +601,7 @@ function renderExamQuestions(questions, essayData) {
       card.innerHTML = `
         <div class="exam-q-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span class="q-badge-num">Câu ${qId}</span>
+            <span class="q-badge-num">Câu ${displayNum}</span>
             <span class="q-badge-points">${qPoints} điểm</span>
           </div>
           <span class="q-badge-type">Trắc nghiệm Đúng / Sai</span>
@@ -781,13 +840,15 @@ function renderQuestionPalette(questions, essayData) {
       title.textContent = "Phần I: Trắc nghiệm";
       grid.appendChild(title);
     }
-    part1Questions.forEach((q) => {
+    part1Questions.forEach((q, idx) => {
       const qId = q.id;
+      const displayNum = q.displayIndex || (idx + 1);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "palette-btn";
       btn.id = `palette_btn_${qId}`;
-      btn.textContent = qId;
+      btn.textContent = displayNum;
+      btn.title = `Câu hỏi trắc nghiệm số ${displayNum}`;
       btn.addEventListener("click", () => {
         closeMobilePalette();
         const targetCard = document.getElementById(`q_card_${qId}`);
@@ -805,13 +866,15 @@ function renderQuestionPalette(questions, essayData) {
       title.textContent = "Phần II: Đúng/Sai";
       grid.appendChild(title);
     }
-    part2Questions.forEach((q) => {
+    part2Questions.forEach((q, idx) => {
       const qId = q.id;
+      const displayNum = q.displayIndex || (part1Questions.length + idx + 1);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "palette-btn";
       btn.id = `palette_btn_${qId}`;
-      btn.textContent = qId;
+      btn.textContent = displayNum;
+      btn.title = `Câu hỏi Đúng/Sai số ${displayNum}`;
       btn.addEventListener("click", () => {
         closeMobilePalette();
         const targetCard = document.getElementById(`q_card_${qId}`);
@@ -1065,6 +1128,7 @@ function gradeExamLocally(exam, userAnswers) {
   const diemTracNghiem = Math.round(totalScore * 100) / 100;
   const tongDiemTracNghiem = Math.round(maxPossibleScore * 100) / 100;
   const isAllowReview = (exam.choXemLaiBai !== false);
+  const isAllowScore = (exam.choXemDiem !== false);
 
   return {
     success: true,
@@ -1076,6 +1140,7 @@ function gradeExamLocally(exam, userAnswers) {
     soCauDungSai: `${correctCount}/${questions.length} câu đúng`,
     thoiGianNop: UtilitiesFormatTime(),
     choXemLaiBai: isAllowReview,
+    choXemDiem: isAllowScore,
     chiTietKetQua: isAllowReview ? detailedResults : [],
     linkTuLuan: (exam.tuLuan && exam.tuLuan.linkForm) ? exam.tuLuan.linkForm : "",
     baiLamTuLuan: studentEssayAnswers,
@@ -1140,8 +1205,26 @@ function showExamResultScreen(result) {
     }
   }
 
-  document.getElementById("resultCorrectStats").textContent = `${result.soCauDung || 0} / ${result.tongSoCau || 0} câu`;
   document.getElementById("resultSubmitTime").textContent = result.thoiGianNop || UtilitiesFormatTime();
+
+  // ==========================================================================
+  // XỬ LÝ CHẾ ĐỘ XEM ĐIỂM (CHO XEM ĐIỂM VS KHÔNG CHO XEM ĐIỂM)
+  // ==========================================================================
+  const isAllowScore = (activeExam?.choXemDiem !== false && result?.choXemDiem !== false);
+  const scoreContainer = document.getElementById("resultScoreContainer");
+  const scoreLockedNotice = document.getElementById("resultScoreLockedNotice");
+
+  if (!isAllowScore) {
+    if (scoreContainer) scoreContainer.style.display = "none";
+    if (scoreLockedNotice) scoreLockedNotice.style.display = "block";
+    document.getElementById("resultCorrectStats").textContent = "Đã bảo mật";
+    showToast("Nộp bài thành công!", "Hệ thống đã ghi nhận bài thi của bạn an toàn.", "success", 5000);
+  } else {
+    if (scoreContainer) scoreContainer.style.display = "block";
+    if (scoreLockedNotice) scoreLockedNotice.style.display = "none";
+    document.getElementById("resultCorrectStats").textContent = `${result.soCauDung || 0} / ${result.tongSoCau || 0} câu`;
+    showToast("Thành công", `Điểm phần trắc nghiệm của bạn: ${displayScore}/${maxTracNghiemScore} điểm!`, "success", 5000);
+  }
 
   // Nếu có link bài tự luận
   if (result.linkTuLuan) {
@@ -1167,8 +1250,6 @@ function showExamResultScreen(result) {
     if (btnReview) btnReview.style.display = "none";
     if (lockedNotice) lockedNotice.style.display = "block";
   }
-
-  showToast("Thành công", `Điểm phần trắc nghiệm của bạn: ${displayScore}/${maxTracNghiemScore} điểm!`, "success", 5000);
 }
 
 // ============================================================================
@@ -1201,8 +1282,13 @@ function openExamReviewModal() {
   }
 
   if (modalTitle) modalTitle.textContent = `Chi Tiết Bài Làm: ${activeExam.tenKyThi || activeExam.maDe}`;
+  const isAllowScore = (activeExam?.choXemDiem !== false && lastExamResult?.choXemDiem !== false);
   if (modalScoreStats) {
-    modalScoreStats.innerHTML = `Điểm phần trắc nghiệm: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} điểm</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: <strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
+    if (isAllowScore) {
+      modalScoreStats.innerHTML = `Điểm phần trắc nghiệm: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} điểm</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: <strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
+    } else {
+      modalScoreStats.innerHTML = `Điểm số: <strong style="color: #b45309;">🔒 Giáo viên đã khóa xem điểm</strong> | Đúng: <strong style="color: #16a34a;">Đã bảo mật</strong> | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: <strong style="color: #059669;">📖 Ôn tập xem bài làm</strong>`;
+    }
   }
 
   modalBody.innerHTML = "";
@@ -1342,6 +1428,7 @@ function renderReviewQuestionCard(q, detailedList, container) {
   const qId = q.id;
   const isTf = q.loaiCauHoi === "true_false";
   const detail = detailedList.find(d => (d.qId || 0) == qId);
+  const isAllowScore = (activeExam?.choXemDiem !== false && lastExamResult?.choXemDiem !== false);
 
   const card = document.createElement("div");
   card.className = "review-q-card";
@@ -1353,23 +1440,33 @@ function renderReviewQuestionCard(q, detailedList, container) {
     const maxPts = detail ? detail.diemToiDa : (q.diem || 1);
     if (earned === maxPts && maxPts > 0) {
       card.classList.add("is-correct");
-      statusBadgeHtml = `<span class="review-badge-status correct">✓ Đúng trọn vẹn (${earned}/${maxPts}đ)</span>`;
+      statusBadgeHtml = isAllowScore 
+        ? `<span class="review-badge-status correct">✓ Đúng trọn vẹn (${earned}/${maxPts}đ)</span>`
+        : `<span class="review-badge-status correct">✓ Đúng trọn vẹn</span>`;
     } else if (earned > 0) {
       card.classList.add("is-partial");
-      statusBadgeHtml = `<span class="review-badge-status partial">⚡ Đúng 1 phần (${earned}/${maxPts}đ)</span>`;
+      statusBadgeHtml = isAllowScore 
+        ? `<span class="review-badge-status partial">⚡ Đúng 1 phần (${earned}/${maxPts}đ)</span>`
+        : `<span class="review-badge-status partial">⚡ Đúng 1 phần</span>`;
     } else {
       card.classList.add("is-wrong");
-      statusBadgeHtml = `<span class="review-badge-status wrong">✗ Chưa đạt (${earned}/${maxPts}đ)</span>`;
+      statusBadgeHtml = isAllowScore 
+        ? `<span class="review-badge-status wrong">✗ Chưa đạt (${earned}/${maxPts}đ)</span>`
+        : `<span class="review-badge-status wrong">✗ Chưa đạt</span>`;
     }
   } else {
     const isCorrect = detail ? detail.dung : (studentAnswers[qId] && String(studentAnswers[qId]).toUpperCase() === String(q.dapAnDung).toUpperCase());
     const maxPts = q.diem !== undefined ? q.diem : 1;
     if (isCorrect) {
       card.classList.add("is-correct");
-      statusBadgeHtml = `<span class="review-badge-status correct">✓ Đúng (+${maxPts}đ)</span>`;
+      statusBadgeHtml = isAllowScore 
+        ? `<span class="review-badge-status correct">✓ Đúng (+${maxPts}đ)</span>`
+        : `<span class="review-badge-status correct">✓ Đúng</span>`;
     } else {
       card.classList.add("is-wrong");
-      statusBadgeHtml = `<span class="review-badge-status wrong">✗ Sai (0/${maxPts}đ)</span>`;
+      statusBadgeHtml = isAllowScore 
+        ? `<span class="review-badge-status wrong">✗ Sai (0/${maxPts}đ)</span>`
+        : `<span class="review-badge-status wrong">✗ Sai</span>`;
     }
   }
 
@@ -1508,3 +1605,248 @@ function closeExamReviewModal() {
   }
 }
 
+
+// ============================================================================
+// HỆ THỐNG MENU TÀI KHOẢN, THÔNG TIN CÁ NHÂN & ĐỔI MẬT KHẨU HỌC SINH
+// ============================================================================
+function initStudentAccountDropdownAndModals() {
+  const trigger = document.getElementById("userProfileTrigger");
+  const dropdown = document.getElementById("userDropdownMenu");
+
+  // 1. Toggle mở / đóng dropdown
+  if (trigger && dropdown) {
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = dropdown.classList.contains("show");
+      if (isOpen) {
+        dropdown.classList.remove("show");
+        trigger.classList.remove("active");
+      } else {
+        dropdown.classList.add("show");
+        trigger.classList.add("active");
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!dropdown.contains(e.target) && !trigger.contains(e.target)) {
+        dropdown.classList.remove("show");
+        trigger.classList.remove("active");
+      }
+    });
+  }
+
+  // 2. Modal Thông tin cá nhân Học sinh
+  const btnOpenProfile = document.getElementById("btnOpenProfileModal");
+  const modalProfile = document.getElementById("modalStudentProfile");
+  const btnCloseProfile = document.getElementById("btnCloseProfileModal");
+  const btnCloseProfileBottom = document.getElementById("btnCloseProfileModalBottom");
+  const btnSwitchToChangePwd = document.getElementById("btnSwitchToChangePwdModal");
+
+  function openStudentProfile() {
+    if (dropdown) dropdown.classList.remove("show");
+    if (trigger) trigger.classList.remove("active");
+    if (!currentStudent) return;
+
+    const elUser = document.getElementById("profileModalUsername");
+    const elName = document.getElementById("profileModalFullName");
+    const elClass = document.getElementById("profileModalClass");
+    const elSchool = document.getElementById("profileModalSchool");
+    const elDob = document.getElementById("profileModalDob");
+    const elGender = document.getElementById("profileModalGender");
+    const elTopName = document.getElementById("modalProfileFullName");
+    const elAvatar = document.getElementById("modalHsAvatarLarge");
+
+    const fullName = currentStudent.hoTen || currentStudent.username || "Học Sinh";
+    if (elUser) elUser.textContent = currentStudent.username || "--";
+    if (elName) elName.textContent = fullName;
+    if (elClass) elClass.textContent = currentStudent.lop || "--";
+    if (elSchool) elSchool.textContent = currentStudent.truong || "Hệ thống chung";
+    if (elDob) elDob.textContent = (typeof formatDob === "function" ? formatDob(currentStudent.ngaySinh) : currentStudent.ngaySinh) || "--";
+    if (elGender) elGender.textContent = currentStudent.gioiTinh || "--";
+    if (elTopName) elTopName.textContent = fullName;
+    if (elAvatar) elAvatar.textContent = (fullName.slice(0, 2) || "HS").toUpperCase();
+
+    if (modalProfile) modalProfile.style.display = "flex";
+  }
+
+  function closeStudentProfile() {
+    if (modalProfile) modalProfile.style.display = "none";
+  }
+
+  if (btnOpenProfile) btnOpenProfile.addEventListener("click", openStudentProfile);
+  if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeStudentProfile);
+  if (btnCloseProfileBottom) btnCloseProfileBottom.addEventListener("click", closeStudentProfile);
+  if (modalProfile) {
+    modalProfile.addEventListener("click", (e) => {
+      if (e.target === modalProfile) closeStudentProfile();
+    });
+  }
+
+  // 3. Modal Đổi Mật Khẩu Học sinh
+  const btnOpenChangePwd = document.getElementById("btnOpenChangePassModal");
+  const modalChangePwd = document.getElementById("modalStudentChangePassword");
+  const btnCloseChangePwd = document.getElementById("btnCloseChangePassModal");
+  const btnCancelChangePwd = document.getElementById("btnCancelStudentChangePwd");
+  const btnSaveChangePwd = document.getElementById("btnSaveStudentPassword");
+  const alertBox = document.getElementById("studentPwdAlertBox");
+
+  function openStudentChangePwd() {
+    if (dropdown) dropdown.classList.remove("show");
+    if (trigger) trigger.classList.remove("active");
+    closeStudentProfile();
+
+    const inpOld = document.getElementById("inputOldPassword");
+    const inpNew = document.getElementById("inputNewPassword");
+    const inpConfirm = document.getElementById("inputConfirmNewPassword");
+    if (inpOld) inpOld.value = "";
+    if (inpNew) inpNew.value = "";
+    if (inpConfirm) inpConfirm.value = "";
+    if (alertBox) {
+      alertBox.style.display = "none";
+      alertBox.textContent = "";
+    }
+
+    if (modalChangePwd) modalChangePwd.style.display = "flex";
+    if (inpOld) setTimeout(() => inpOld.focus(), 150);
+  }
+
+  function closeStudentChangePwd() {
+    if (modalChangePwd) modalChangePwd.style.display = "none";
+  }
+
+  if (btnOpenChangePwd) btnOpenChangePwd.addEventListener("click", openStudentChangePwd);
+  if (btnSwitchToChangePwd) btnSwitchToChangePwd.addEventListener("click", openStudentChangePwd);
+  if (btnCloseChangePwd) btnCloseChangePwd.addEventListener("click", closeStudentChangePwd);
+  if (btnCancelChangePwd) btnCancelChangePwd.addEventListener("click", closeStudentChangePwd);
+  if (modalChangePwd) {
+    modalChangePwd.addEventListener("click", (e) => {
+      if (e.target === modalChangePwd) closeStudentChangePwd();
+    });
+  }
+
+  // 4. Toggle Eye cho ô mật khẩu
+  document.querySelectorAll(".btn-toggle-eye").forEach(btn => {
+    btn.onclick = (e) => {
+      e.preventDefault();
+      const targetId = btn.getAttribute("data-target");
+      const targetInp = document.getElementById(targetId);
+      if (targetInp) {
+        const isPwd = targetInp.type === "password";
+        targetInp.type = isPwd ? "text" : "password";
+        btn.innerHTML = isPwd 
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+      }
+    };
+  });
+
+  // 5. Nút Đăng xuất trong Dropdown
+  const btnLogoutDrop = document.getElementById("btnLogoutDropdown");
+  if (btnLogoutDrop) {
+    btnLogoutDrop.addEventListener("click", () => {
+      if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi cổng Học Sinh?")) {
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("userRole");
+        window.location.href = "index.html";
+      }
+    });
+  }
+
+  // 6. Xử lý Lưu Đổi Mật Khẩu
+  if (btnSaveChangePwd) {
+    btnSaveChangePwd.addEventListener("click", async () => {
+      const inpOld = document.getElementById("inputOldPassword");
+      const inpNew = document.getElementById("inputNewPassword");
+      const inpConfirm = document.getElementById("inputConfirmNewPassword");
+
+      const oldPassword = inpOld ? inpOld.value.trim() : "";
+      const newPassword = inpNew ? inpNew.value.trim() : "";
+      const confirmPassword = inpConfirm ? inpConfirm.value.trim() : "";
+
+      const showAlert = (msg) => {
+        if (alertBox) {
+          alertBox.textContent = msg;
+          alertBox.style.display = "block";
+        } else {
+          showToast("Lỗi nhập liệu", msg, "warning");
+        }
+      };
+
+      if (!oldPassword) {
+        showAlert("Vui lòng nhập mật khẩu hiện tại!");
+        if (inpOld) inpOld.focus();
+        return;
+      }
+
+      if (!newPassword) {
+        showAlert("Vui lòng nhập mật khẩu mới!");
+        if (inpNew) inpNew.focus();
+        return;
+      }
+
+      if (newPassword.length < 3) {
+        showAlert("Mật khẩu mới phải có ít nhất 3 ký tự!");
+        if (inpNew) inpNew.focus();
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        showAlert("Xác nhận mật khẩu mới không khớp!");
+        if (inpConfirm) inpConfirm.focus();
+        return;
+      }
+
+      if (alertBox) alertBox.style.display = "none";
+
+      const origHtml = btnSaveChangePwd.innerHTML;
+      btnSaveChangePwd.disabled = true;
+      btnSaveChangePwd.innerHTML = '<span>Đang lưu lên Sheets...</span><div class="save-pwd-spinner" style="display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin 0.6s linear infinite;"></div>';
+
+      try {
+        let res = null;
+        try {
+          const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({
+              action: "updateStudentPassword",
+              usernameHS: currentStudent.username,
+              oldPassword: oldPassword,
+              newPassword: newPassword
+            })
+          });
+          const text = await response.text();
+          if (text && !text.trim().startsWith("<")) {
+            res = JSON.parse(text);
+          }
+        } catch (postErr) {
+          console.warn("POST updateStudentPassword failed, attempting GET fallback...", postErr);
+        }
+
+        if (!res || !res.success) {
+          const getUrl = API_URL + "?action=updateStudentPassword&usernameHS=" + encodeURIComponent(currentStudent.username) + "&oldPassword=" + encodeURIComponent(oldPassword) + "&newPassword=" + encodeURIComponent(newPassword) + "&_t=" + Date.now();
+          const getRes = await fetch(getUrl);
+          const getTxt = await getRes.text();
+          if (getTxt && !getTxt.trim().startsWith("<")) {
+            res = JSON.parse(getTxt);
+          }
+        }
+
+        if (res && res.success) {
+          showToast("Thành công", res.message || "Đã đổi mật khẩu và cập nhật lên Google Sheets thành công!", "success", 4000);
+          closeStudentChangePwd();
+        } else {
+          showAlert(res ? res.message : "Mật khẩu hiện tại không chính xác hoặc không thể cập nhật!");
+          showToast("Đổi mật khẩu thất bại", res ? res.message : "Mật khẩu hiện tại không chính xác!", "error", 5000);
+        }
+      } catch (err) {
+        console.error("Lỗi khi gọi API đổi mật khẩu học sinh:", err);
+        showAlert("Không thể kết nối đến máy chủ Google Sheets. Vui lòng kiểm tra lại mạng!");
+        showToast("Lỗi kết nối", "Không thể kết nối đến máy chủ Google Sheets.", "error", 5000);
+      } finally {
+        btnSaveChangePwd.disabled = false;
+        btnSaveChangePwd.innerHTML = origHtml;
+      }
+    });
+  }
+}
