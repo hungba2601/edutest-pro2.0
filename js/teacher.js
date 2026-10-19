@@ -331,40 +331,168 @@ function initScoreModeSelector() {
   }
 }
 
-// Render danh sách checkbox chọn lớp
+// Render danh sách checkbox chọn Khối và Lớp cho đề thi (đồng bộ giống tab Quản lý học sinh)
 function initClassSelector(classesString) {
-  const container = document.getElementById("classSelectorContainer");
-  container.innerHTML = "";
+  const classContainer = document.getElementById("classSelectorContainer");
+  const gradeContainer = document.getElementById("examGradeCheckboxesList");
+  if (!classContainer) return;
+
+  classContainer.innerHTML = "";
+  if (gradeContainer) gradeContainer.innerHTML = "";
 
   const rawClasses = classesString ? classesString.split(/[,;\s]+/).filter(Boolean) : ["9A1", "9A2"];
   
-  // Sắp xếp các lớp theo khối và tên (VD: 8A1, 8A2... rồi đến 9A1, 9A2...)
+  // Sắp xếp các lớp theo khối và tên theo thứ tự tự nhiên (VD: 8A1, 8A2, ..., 8A10, ..., 9A1)
   const classes = Array.from(new Set(rawClasses)).sort((a, b) => {
     const ga = parseInt(getGradeFromClass(a)) || 0;
     const gb = parseInt(getGradeFromClass(b)) || 0;
     if (ga !== gb) return ga - gb;
-    return a.localeCompare(b);
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
   });
 
-  // Thêm tùy chọn "Tất cả"
-  const allChip = createClassChip("ALL", "Tất cả các lớp", true);
-  container.appendChild(allChip);
+  // Tập hợp các khối duy nhất
+  const gradeSet = new Set();
+  classes.forEach(cls => {
+    const g = getGradeFromClass(cls);
+    if (g) gradeSet.add(g);
+  });
+  const sortedGrades = Array.from(gradeSet).sort((a, b) => Number(a) - Number(b));
+
+  // 1. Render danh sách Checkbox KHỐI LỚP (giống Tab Quản lý HS)
+  if (gradeContainer) {
+    const allGradeChip = createClassChip("ALL", "Tất cả khối", true, true);
+    gradeContainer.appendChild(allGradeChip);
+
+    sortedGrades.forEach(g => {
+      const gChip = createClassChip(g, `Khối ${g}`, true, true, g);
+      gradeContainer.appendChild(gChip);
+    });
+  }
+
+  // 2. Render danh sách Checkbox LỚP HỌC
+  const allClassChip = createClassChip("ALL", "Tất cả các lớp", true, false);
+  classContainer.appendChild(allClassChip);
 
   classes.forEach(cls => {
-    const chip = createClassChip(cls, cls, true);
-    container.appendChild(chip);
+    const chip = createClassChip(cls, cls, true, false);
+    classContainer.appendChild(chip);
   });
+
+  // Gắn sự kiện đồng bộ giữa Tích Khối và Tích Lớp
+  attachExamClassFilterEvents();
 }
 
-function createClassChip(val, labelText, checked = false) {
+function createClassChip(val, labelText, checked = false, isGrade = false, gradeVal = "") {
   const div = document.createElement("div");
-  const g = val === "ALL" ? "all" : (getGradeFromClass(val) || "other");
+  const g = val === "ALL" ? "all" : (gradeVal || getGradeFromClass(val) || "other");
   div.className = `class-checkbox-chip chip-grade-${g}`;
+  const inputId = isGrade ? `exam_grade_${val}` : `class_${val}`;
+  const inputClass = isGrade ? "exam-grade-cb" : "exam-class-cb";
+  const gradeAttr = (!isGrade && val !== "ALL") ? `data-grade="${g}"` : "";
+  const labelStyle = val === "ALL" ? 'style="font-weight: 700;"' : "";
+
   div.innerHTML = `
-    <input type="checkbox" id="class_${val}" value="${val}" ${checked ? "checked" : ""}>
-    <label for="class_${val}">${labelText}</label>
+    <input type="checkbox" id="${inputId}" value="${val}" ${gradeAttr} class="${inputClass}" ${checked ? "checked" : ""}>
+    <label for="${inputId}" ${labelStyle}>${labelText}</label>
   `;
   return div;
+}
+
+function attachExamClassFilterEvents() {
+  const gradeContainer = document.getElementById("examGradeCheckboxesList");
+  const classContainer = document.getElementById("classSelectorContainer");
+
+  if (gradeContainer && !gradeContainer._hasFilterListener) {
+    gradeContainer._hasFilterListener = true;
+    gradeContainer.addEventListener("change", (e) => {
+      const target = e.target;
+      if (!target || target.type !== "checkbox") return;
+
+      const allGradeCb = document.getElementById("exam_grade_ALL");
+      const gradeCbs = document.querySelectorAll("#examGradeCheckboxesList .exam-grade-cb:not(#exam_grade_ALL)");
+      const classCbs = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)");
+      const allClassCb = document.getElementById("class_ALL");
+
+      if (target.value === "ALL") {
+        const isChecked = target.checked;
+        gradeCbs.forEach(cb => cb.checked = isChecked);
+        classCbs.forEach(cb => cb.checked = isChecked);
+        if (allClassCb) allClassCb.checked = isChecked;
+      } else {
+        const gradeVal = target.value;
+        const isChecked = target.checked;
+
+        classCbs.forEach(cb => {
+          if (cb.getAttribute("data-grade") === gradeVal) {
+            cb.checked = isChecked;
+          }
+        });
+
+        if (allGradeCb) {
+          allGradeCb.checked = gradeCbs.length > 0 && Array.from(gradeCbs).every(cb => cb.checked);
+        }
+        if (allClassCb) {
+          allClassCb.checked = classCbs.length > 0 && Array.from(classCbs).every(cb => cb.checked);
+        }
+      }
+    });
+  }
+
+  if (classContainer && !classContainer._hasFilterListener) {
+    classContainer._hasFilterListener = true;
+    classContainer.addEventListener("change", (e) => {
+      const target = e.target;
+      if (!target || target.type !== "checkbox") return;
+
+      const allClassCb = document.getElementById("class_ALL");
+      const classCbs = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)");
+      const gradeCbs = document.querySelectorAll("#examGradeCheckboxesList .exam-grade-cb:not(#exam_grade_ALL)");
+      const allGradeCb = document.getElementById("exam_grade_ALL");
+
+      if (target.value === "ALL") {
+        const isChecked = target.checked;
+        classCbs.forEach(cb => cb.checked = isChecked);
+        gradeCbs.forEach(cb => cb.checked = isChecked);
+        if (allGradeCb) allGradeCb.checked = isChecked;
+      } else {
+        const gradeVal = target.getAttribute("data-grade");
+        if (gradeVal) {
+          const classesOfGrade = Array.from(classCbs).filter(cb => cb.getAttribute("data-grade") === gradeVal);
+          const targetGradeCb = document.getElementById("exam_grade_" + gradeVal);
+          if (targetGradeCb) {
+            targetGradeCb.checked = classesOfGrade.length > 0 && classesOfGrade.every(cb => cb.checked);
+          }
+        }
+
+        if (allClassCb) {
+          allClassCb.checked = classCbs.length > 0 && Array.from(classCbs).every(cb => cb.checked);
+        }
+        if (allGradeCb) {
+          allGradeCb.checked = gradeCbs.length > 0 && Array.from(gradeCbs).every(cb => cb.checked);
+        }
+      }
+    });
+  }
+}
+
+function syncExamGradeAndClassUI() {
+  const allClassCb = document.getElementById("class_ALL");
+  const classCbs = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)");
+  const gradeCbs = document.querySelectorAll("#examGradeCheckboxesList .exam-grade-cb:not(#exam_grade_ALL)");
+  const allGradeCb = document.getElementById("exam_grade_ALL");
+
+  gradeCbs.forEach(gcb => {
+    const gVal = gcb.value;
+    const classesOfGrade = Array.from(classCbs).filter(cb => cb.getAttribute("data-grade") === gVal);
+    gcb.checked = classesOfGrade.length > 0 && classesOfGrade.every(cb => cb.checked);
+  });
+
+  if (allClassCb) {
+    allClassCb.checked = classCbs.length > 0 && Array.from(classCbs).every(cb => cb.checked);
+  }
+  if (allGradeCb) {
+    allGradeCb.checked = gradeCbs.length > 0 && Array.from(gradeCbs).every(cb => cb.checked);
+  }
 }
 
 // ============================================================================
@@ -2570,8 +2698,14 @@ btnSaveExam.addEventListener("click", async () => {
   const trangThai = isOpening ? "Mở" : "Đóng";
 
   // Lấy các lớp được chọn
-  const checkedBoxes = document.querySelectorAll("#classSelectorContainer input[type='checkbox']:checked");
-  const selectedClasses = Array.from(checkedBoxes).map(cb => cb.value).join(", ");
+  const allClassCb = document.getElementById("class_ALL");
+  const checkedClassBoxes = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL):checked");
+  let selectedClasses = "";
+  if (allClassCb && allClassCb.checked) {
+    selectedClasses = "ALL, " + Array.from(checkedClassBoxes).map(cb => cb.value).join(", ");
+  } else {
+    selectedClasses = Array.from(checkedClassBoxes).map(cb => cb.value).join(", ");
+  }
 
   const essayFormLink = (document.getElementById("essayFormLink")?.value || "").trim();
 
@@ -2770,18 +2904,22 @@ function openExamForEditing(maDe) {
   if (isOpening) statusDisplay.classList.remove("closed");
   else statusDisplay.classList.add("closed");
 
-  // 3. Tích chọn lại các lớp
+  // 3. Tích chọn lại các lớp và đồng bộ khối
   const allowedUpper = (exam.lopChoPhep || "").toUpperCase();
-  const checkboxes = document.querySelectorAll("#classSelectorContainer input[type='checkbox']");
-  checkboxes.forEach(cb => {
+  const isAll = allowedUpper.includes("ALL") || allowedUpper.includes("TẤT CẢ");
+  const allowedArr = allowedUpper.split(/[,;\s]+/).map(s => s.trim());
+  const classCbs = document.querySelectorAll("#classSelectorContainer .exam-class-cb");
+
+  classCbs.forEach(cb => {
     const val = cb.value.toUpperCase();
-    if (allowedUpper.includes("ALL") || allowedUpper.includes("TẤT CẢ")) {
-      cb.checked = (val === "ALL");
+    if (isAll) {
+      cb.checked = true;
     } else {
-      const allowedArr = allowedUpper.split(/[,;\s]+/).map(s => s.trim());
-      cb.checked = allowedArr.includes(val);
+      cb.checked = (val !== "ALL" && allowedArr.includes(val));
     }
   });
+
+  syncExamGradeAndClassUI();
 
   // 4. Điền phần tự luận
   const tuLuan = exam.duLieuDe?.tuLuan || {};
@@ -2897,6 +3035,10 @@ function cancelEditingMode() {
   document.getElementById("uploadDropzone").style.display = "block";
   parsedQuestions = [];
   renderQuestionsPreview([]);
+
+  // Reset lại chọn lớp và khối về tất cả được chọn
+  const allExamCbs = document.querySelectorAll("#classSelectorContainer input[type='checkbox'], #examGradeCheckboxesList input[type='checkbox']");
+  allExamCbs.forEach(cb => cb.checked = true);
 }
 
 /**
@@ -3943,8 +4085,16 @@ function buildGradeAndClassFilters(apiClasses) {
     const ga = parseInt(getGradeFromClass(a)) || 0;
     const gb = parseInt(getGradeFromClass(b)) || 0;
     if (ga !== gb) return ga - gb;
-    return a.localeCompare(b);
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
   });
+
+  // Đồng bộ cho Tab 1 nếu chưa chỉnh sửa đề và danh sách lớp có sự thay đổi
+  if (teacherAllClassesList.length > 0 && !editingExamCode) {
+    const currentExamClasses = Array.from(document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)")).map(cb => cb.value);
+    if (currentExamClasses.length === 0 || teacherAllClassesList.some(c => !currentExamClasses.includes(c))) {
+      initClassSelector(teacherAllClassesList.join(","));
+    }
+  }
 
   // Tập hợp tất cả các khối duy nhất
   const gradeSet = new Set();
