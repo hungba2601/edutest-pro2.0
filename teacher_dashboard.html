@@ -26,7 +26,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=7.0">
+  <link rel="stylesheet" href="css/teacher.css?v=7.1">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -276,32 +276,40 @@
               </div>
             </div>
 
-            <div class="form-group" style="display: flex; flex-direction: column; gap: 0.65rem;">
-              <label class="form-label required" style="margin-bottom: 0;">Lớp được phép thi</label>
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.45rem;">
+                <label class="form-label required" style="margin-bottom: 0;">Lớp được phép thi</label>
+                <span id="examSelectedCountBadge" style="font-size: 0.76rem; font-weight: 700; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px;">Đang chọn: Tất cả</span>
+              </div>
               
-              <!-- 1. Danh sách tích chọn KHỐI LỚP (Lọc theo khối giống Tab Quản lý HS) -->
-              <div style="display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; background: #f8fafc; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
-                <div style="min-width: 100px; padding-top: 5px; font-size: 0.84rem; font-weight: 700; color: #1e3a8a; display: flex; align-items: center; gap: 6px;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                  <span>Tích Khối:</span>
+              <!-- Khung chọn Khối & Lớp siêu gọn gàng tối ưu diện tích -->
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.65rem 0.85rem;">
+                
+                <!-- 1. Hàng Tích Khối -->
+                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding-bottom: 0.5rem; margin-bottom: 0.5rem; border-bottom: 1px dashed #cbd5e1;">
+                  <span style="font-size: 0.8rem; font-weight: 700; color: #1e3a8a; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Tích Khối:
+                  </span>
+                  <div id="examGradeCheckboxesList" class="compact-chips-row" style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; flex: 1;">
+                    <!-- Render động các checkbox Khối -->
+                  </div>
                 </div>
-                <div id="examGradeCheckboxesList" style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; flex: 1;">
-                  <!-- Render động các checkbox Khối -->
+
+                <!-- 2. Hàng Tích Lớp (100% chiều rộng để hiển thị gọn nhiều nút trên 1 hàng) -->
+                <div>
+                  <div style="font-size: 0.78rem; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 4px; margin-bottom: 0.4rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span>Tích Lớp:</span>
+                  </div>
+                  <div class="class-selector compact-class-chips" id="classSelectorContainer" style="margin-top: 0; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; width: 100%;">
+                    <!-- Checkboxes danh sách lớp được render động theo giáo viên -->
+                  </div>
                 </div>
+
               </div>
 
-              <!-- 2. Danh sách tích chọn LỚP HỌC -->
-              <div style="display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; background: #f8fafc; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid #e2e8f0;">
-                <div style="min-width: 100px; padding-top: 5px; font-size: 0.84rem; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 6px;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  <span>Tích Lớp:</span>
-                </div>
-                <div class="class-selector" id="classSelectorContainer" style="margin-top: 0; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; flex: 1;">
-                  <!-- Checkboxes danh sách lớp được render động theo giáo viên -->
-                </div>
-              </div>
-
-              <span class="input-hint" style="margin-top: 0.2rem;">Học sinh thuộc các lớp này mới nhìn thấy bài kiểm tra khi ở trạng thái "Mở".</span>
+              <span class="input-hint" style="margin-top: 0.25rem;">Học sinh thuộc các lớp này mới nhìn thấy bài kiểm tra khi ở trạng thái "Mở".</span>
             </div>
           </div>
 
@@ -951,7 +959,7 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   <!-- Background Music (Love Story 30%) -->
   <script src="js/bg_music.js?v=2.1"></script>
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=7.0"></script>
+  <script src="js/teacher.js?v=7.1"></script>
 
   <!-- MODAL THÔNG TIN CÁ NHÂN GIÁO VIÊN -->
   <div class="modal-backdrop" id="modalTeacherProfile" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 999999; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;" aria-hidden="true">

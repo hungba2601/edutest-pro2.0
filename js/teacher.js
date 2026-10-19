@@ -380,6 +380,7 @@ function initClassSelector(classesString) {
 
   // Gắn sự kiện đồng bộ giữa Tích Khối và Tích Lớp
   attachExamClassFilterEvents();
+  updateSelectedClassCountBadge();
 }
 
 function createClassChip(val, labelText, checked = false, isGrade = false, gradeVal = "") {
@@ -396,6 +397,31 @@ function createClassChip(val, labelText, checked = false, isGrade = false, grade
     <label for="${inputId}" ${labelStyle}>${labelText}</label>
   `;
   return div;
+}
+
+function updateSelectedClassCountBadge() {
+  const badge = document.getElementById("examSelectedCountBadge");
+  if (!badge) return;
+  const allClassCb = document.getElementById("class_ALL");
+  const totalClasses = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)");
+  const checkedClasses = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL):checked");
+  
+  if (allClassCb && allClassCb.checked) {
+    badge.textContent = `Đang chọn: Tất cả (${totalClasses.length} lớp)`;
+    badge.style.background = "#eff6ff";
+    badge.style.color = "#1d4ed8";
+    badge.style.borderColor = "#bfdbfe";
+  } else if (checkedClasses.length === 0) {
+    badge.textContent = `Chưa chọn lớp nào`;
+    badge.style.background = "#fef2f2";
+    badge.style.color = "#dc2626";
+    badge.style.borderColor = "#fecaca";
+  } else {
+    badge.textContent = `Đang chọn: ${checkedClasses.length}/${totalClasses.length} lớp`;
+    badge.style.background = "#f0fdf4";
+    badge.style.color = "#15803d";
+    badge.style.borderColor = "#bbf7d0";
+  }
 }
 
 function attachExamClassFilterEvents() {
@@ -435,6 +461,7 @@ function attachExamClassFilterEvents() {
           allClassCb.checked = classCbs.length > 0 && Array.from(classCbs).every(cb => cb.checked);
         }
       }
+      updateSelectedClassCountBadge();
     });
   }
 
@@ -471,6 +498,7 @@ function attachExamClassFilterEvents() {
           allGradeCb.checked = gradeCbs.length > 0 && Array.from(gradeCbs).every(cb => cb.checked);
         }
       }
+      updateSelectedClassCountBadge();
     });
   }
 }
@@ -493,6 +521,7 @@ function syncExamGradeAndClassUI() {
   if (allGradeCb) {
     allGradeCb.checked = gradeCbs.length > 0 && Array.from(gradeCbs).every(cb => cb.checked);
   }
+  updateSelectedClassCountBadge();
 }
 
 // ============================================================================
@@ -3039,6 +3068,7 @@ function cancelEditingMode() {
   // Reset lại chọn lớp và khối về tất cả được chọn
   const allExamCbs = document.querySelectorAll("#classSelectorContainer input[type='checkbox'], #examGradeCheckboxesList input[type='checkbox']");
   allExamCbs.forEach(cb => cb.checked = true);
+  updateSelectedClassCountBadge();
 }
 
 /**

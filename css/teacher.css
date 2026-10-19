@@ -419,6 +419,16 @@ input:checked + .slider:before { transform: translateX(22px); }
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
+/* COMPACT CHIPS CHO FORM ĐỀ THI GỌN GÀNG */
+.compact-chips-row .class-checkbox-chip label,
+.compact-class-chips .class-checkbox-chip label {
+  padding: 0.22rem 0.58rem !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  line-height: 1.35 !important;
+}
+
 /* ==========================================================================
    BẢNG MÀU PHÂN BIỆT THEO TỪNG KHỐI LỚP (MỖI KHỐI MỘT MÀU RIÊNG BIỆT)
    ========================================================================== */
