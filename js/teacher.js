@@ -1,3 +1,61 @@
+
+/**
+ * Xử lý Xóa học sinh khi click icon thùng rác
+ */
+async function handleDeleteStudentAction(u, name, btn) {
+  const confirmDel = confirm(`⚠️ XÁC NHẬN XÓA HỌC SINH:\n\nBạn có chắc chắn muốn XÓA học sinh "${name}" (Mã tài khoản: ${u}) khỏi danh sách?\n\nHọc sinh này sẽ bị xóa vĩnh viễn trên Sheet DATA_HOCSINH của Google Sheets!`);
+  if (!confirmDel) return;
+
+  const origHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<div style="width: 14px; height: 14px; border: 2px solid #dc2626; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>';
+
+  try {
+    let res = null;
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "deleteStudent",
+          usernameHS: u
+        })
+      });
+      const text = await response.text();
+      if (text && !text.trim().startsWith("<")) {
+        res = JSON.parse(text);
+      }
+    } catch (postErr) {
+      console.warn("POST deleteStudent failed, attempting GET fallback...", postErr);
+    }
+
+    if (!res || !res.success) {
+      const getUrl = API_URL + "?action=deleteStudent&usernameHS=" + encodeURIComponent(u) + "&_t=" + Date.now();
+      const getRes = await fetch(getUrl);
+      const getTxt = await getRes.text();
+      if (getTxt && !getTxt.trim().startsWith("<")) {
+        res = JSON.parse(getTxt);
+      }
+    }
+
+    if (res && res.success) {
+      showToast("Thành công", res.message || `Đã xóa học sinh "${name}" khỏi Google Sheets!`, "success", 3500);
+      currentTeacherStudents = currentTeacherStudents.filter(s => s.username.toUpperCase() !== u.toUpperCase());
+      saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
+      filterAndRenderStudents();
+    } else {
+      showToast("Xóa thất bại", res ? res.message : "Không thể xóa học sinh!", "error", 4000);
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  } catch (err) {
+    console.error("Lỗi khi xóa học sinh:", err);
+    showToast("Lỗi kết nối", "Không thể kết nối đến máy chủ Google Sheets.", "error", 4000);
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
+
 function formatDob(raw) {
   if (!raw || raw === "--" || raw === "-") return "--";
   if (raw instanceof Date && !isNaN(raw.getTime())) {
@@ -4474,10 +4532,18 @@ window.addEventListener("DOMContentLoaded", () => {
     btnConfirmChangePwd.addEventListener("click", submitChangePassword);
   }
 
-  // 8. Xử lý click trong bảng học sinh (Hiện/Ẩn MK, Copy MK, Đổi MK)
+  // 8. Xử lý click trong bảng học sinh (Hiện/Ẩn MK, Copy MK, Đổi MK, Xóa Học Sinh)
   const tbody = document.getElementById("studentsTableBody");
   if (tbody) {
     tbody.addEventListener("click", (e) => {
+      const btnDelete = e.target.closest(".btn-action-delete-student");
+      if (btnDelete) {
+        const u = btnDelete.getAttribute("data-username");
+        const name = btnDelete.getAttribute("data-hoten") || u;
+        handleDeleteStudentAction(u, name, btnDelete);
+        return;
+      }
+
       const btnEdit = e.target.closest(".btn-action-change-pwd");
       if (btnEdit) {
         const u = btnEdit.getAttribute("data-username");
@@ -4918,7 +4984,6 @@ function initAddStudentModal() {
     if (inpClass) inpClass.value = defaultClass;
     if (inpName) {
       inpName.value = "";
-      setTimeout(() => inpName.focus(), 150);
     }
     if (selGender) selGender.value = "Nam";
     if (inpPass) inpPass.value = "123";
@@ -4928,24 +4993,37 @@ function initAddStudentModal() {
     // Tự động sinh mã học sinh mẫu
     generateAutoUsername();
 
-    if (modal) modal.style.display = "flex";
+    if (modal) {
+      modal.classList.remove("hidden-modal");
+      modal.style.setProperty("display", "flex", "important");
+      modal.setAttribute("aria-hidden", "false");
+    }
+
+    if (inpName) setTimeout(() => inpName.focus(), 150);
   }
 
   function closeModal() {
-    if (modal) modal.style.display = "none";
+    if (modal) {
+      modal.classList.add("hidden-modal");
+      modal.style.setProperty("display", "none", "important");
+      modal.setAttribute("aria-hidden", "true");
+    }
   }
 
   function generateAutoUsername() {
     const cls = (inpClass ? inpClass.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "") : "") || "hs";
-    // Đếm số lượng học sinh lớp này đang có
-    const countInClass = allLoadedStudents.filter(s => (s.lop || "").toLowerCase() === (inpClass.value || "").trim().toLowerCase()).length;
+    // Đếm số lượng học sinh lớp này đang có trong currentTeacherStudents
+    const countInClass = (currentTeacherStudents || []).filter(s => (s.lop || "").toLowerCase() === (inpClass ? inpClass.value : "").trim().toLowerCase()).length;
     const nextNum = String(countInClass + 1).padStart(2, "0");
     const autoUser = cls + "_" + nextNum;
     if (inpUser) inpUser.value = autoUser;
   }
 
   if (btnAutoUser) {
-    btnAutoUser.addEventListener("click", generateAutoUsername);
+    btnAutoUser.onclick = (e) => {
+      e.preventDefault();
+      generateAutoUsername();
+    };
   }
 
   if (inpClass) {
@@ -4956,18 +5034,34 @@ function initAddStudentModal() {
     });
   }
 
-  if (btnOpen) btnOpen.addEventListener("click", openModal);
-  if (btnClose) btnClose.addEventListener("click", closeModal);
-  if (btnCancel) btnCancel.addEventListener("click", closeModal);
+  if (btnOpen) {
+    btnOpen.onclick = (e) => {
+      e.preventDefault();
+      openModal();
+    };
+  }
+  if (btnClose) {
+    btnClose.onclick = (e) => {
+      e.preventDefault();
+      closeModal();
+    };
+  }
+  if (btnCancel) {
+    btnCancel.onclick = (e) => {
+      e.preventDefault();
+      closeModal();
+    };
+  }
   if (modal) {
-    modal.addEventListener("click", (e) => {
+    modal.onclick = (e) => {
       if (e.target === modal) closeModal();
-    });
+    };
   }
 
   // Xử lý gửi form thêm học sinh
   if (btnConfirm) {
-    btnConfirm.addEventListener("click", async () => {
+    btnConfirm.onclick = async (e) => {
+      e.preventDefault();
       hideAlert();
 
       const hoTen = inpName ? inpName.value.trim() : "";
@@ -4997,7 +5091,7 @@ function initAddStudentModal() {
       }
 
       // Kiểm tra trùng tài khoản ngay ở client
-      const isExisted = allLoadedStudents.some(s => s.username.toUpperCase() === username.toUpperCase());
+      const isExisted = (currentTeacherStudents || []).some(s => (s.username || "").toUpperCase() === username.toUpperCase());
       if (isExisted) {
         showAlert(`Mã tài khoản "${username}" đã tồn tại trong danh sách học sinh! Vui lòng chọn mã khác.`);
         if (inpUser) inpUser.focus();
@@ -5070,12 +5164,15 @@ function initAddStudentModal() {
             truong: truong
           };
 
-          // Thêm vào danh sách học sinh đang có
-          allLoadedStudents.push(newStudentObj);
+          // Thêm vào currentTeacherStudents
+          currentTeacherStudents.push(newStudentObj);
+
+          // Cập nhật lại bộ nhớ đệm
+          saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
 
           // Cập nhật lại giao diện bộ lọc Khối & Lớp nếu có lớp mới
-          if (typeof initGradeAndClassCheckboxes === "function") {
-            initGradeAndClassCheckboxes(allLoadedStudents);
+          if (typeof buildGradeAndClassFilters === "function") {
+            buildGradeAndClassFilters(teacherAllClassesList);
           }
 
           // Render lại bảng
@@ -5094,6 +5191,13 @@ function initAddStudentModal() {
         if (btnText) btnText.textContent = "Lưu Lên Google Sheets";
         if (spinner) spinner.style.display = "none";
       }
-    });
+    };
   }
+}
+
+// Đảm bảo khởi tạo sự kiện Thêm học sinh khi DOM sẵn sàng
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAddStudentModal);
+} else {
+  initAddStudentModal();
 }
