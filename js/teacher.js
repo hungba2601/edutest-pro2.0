@@ -200,9 +200,13 @@ window.addEventListener("DOMContentLoaded", () => {
     currentTeacher.ngaySinh = formatDob(currentTeacher.ngaySinh);
   }
 
-  // Hiển thị thông tin giáo viên lên navbar
+  // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)
   document.getElementById("gvFullName").textContent = currentTeacher.hoTenGV || currentTeacher.username;
-  document.getElementById("gvClasses").textContent = `Lớp: ${currentTeacher.lopGiangDay || "Tất cả"}`;
+  const gvClassesEl = document.getElementById("gvClasses");
+  if (gvClassesEl) {
+    gvClassesEl.textContent = "";
+    gvClassesEl.style.display = "none";
+  }
 
   // Khởi tạo giao diện cấu hình Gemini API & Model
   initGeminiConfigUI();
