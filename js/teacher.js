@@ -42,7 +42,7 @@ async function handleDeleteStudentAction(u, name, btn) {
       showToast("Thành công", res.message || `Đã xóa học sinh "${name}" khỏi Google Sheets!`, "success", 3500);
       currentTeacherStudents = currentTeacherStudents.filter(s => s.username.toUpperCase() !== u.toUpperCase());
       saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
-      filterAndRenderStudents();
+      applyStudentFilters();
     } else {
       showToast("Xóa thất bại", res ? res.message : "Không thể xóa học sinh!", "error", 4000);
       btn.disabled = false;
@@ -5176,7 +5176,7 @@ function initAddStudentModal() {
           }
 
           // Render lại bảng
-          filterAndRenderStudents();
+          applyStudentFilters();
 
           // Đóng modal
           closeModal();
@@ -5200,4 +5200,12 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initAddStudentModal);
 } else {
   initAddStudentModal();
+}
+
+
+// Alias an toàn tương thích ngược cho việc lọc và render danh sách học sinh
+function filterAndRenderStudents() {
+  if (typeof applyStudentFilters === "function") {
+    applyStudentFilters();
+  }
 }
