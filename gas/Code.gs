@@ -905,6 +905,22 @@ function getDeThiColumnIndexes(sheetDeThi) {
   return { reviewCol, scoreCol, jsonCol };
 }
 
+/**
+ * So sánh tài khoản giáo viên thông minh (bỏ qua dấu nháy đơn, tiền tố số 0 nếu là số điện thoại)
+ */
+function isSameTeacherAccount(acc1, acc2) {
+  var s1 = String(acc1 || "").trim().toLowerCase();
+  var s2 = String(acc2 || "").trim().toLowerCase();
+  if (s1 === s2) return true;
+  if (s1.startsWith("'")) s1 = s1.substring(1).trim();
+  if (s2.startsWith("'")) s2 = s2.substring(1).trim();
+  if (s1 === s2) return true;
+  var clean1 = s1.replace(/^0+/, "");
+  var clean2 = s2.replace(/^0+/, "");
+  if (clean1 && clean2 && clean1 === clean2) return true;
+  return false;
+}
+
 function handleSaveExam(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
@@ -945,7 +961,7 @@ function handleSaveExam(payload) {
   // Nếu đã có mã đề, tìm dòng để cập nhật
   if (maDe) {
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]).trim() === maDe && String(data[i][2]).trim().toLowerCase() === usernameGV.toLowerCase()) {
+      if (String(data[i][0]).trim() === maDe && isSameTeacherAccount(data[i][2], usernameGV)) {
         const rowNum = i + 1;
         sheetDeThi.getRange(rowNum, 2).setValue(tenKyThi);
         sheetDeThi.getRange(rowNum, 4).setValue(lopChoPhep);
@@ -960,10 +976,11 @@ function handleSaveExam(payload) {
     }
   }
 
-  // Nếu tạo mới
+  // Nếu tạo mới: Ép kiểu chuỗi nếu là số có tiền tố 0 để Google Sheets không làm mất số 0
   if (!updated) {
     maDe = "DE_" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + "_" + Math.floor(Math.random() * 1000);
-    const newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
+    const safeGvToSave = (usernameGV.startsWith("0") || /^\d+$/.test(usernameGV)) ? ("'" + usernameGV) : usernameGV;
+    const newRow = [maDe, tenKyThi, safeGvToSave, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
     sheetDeThi.appendRow(newRow);
   }
 
@@ -993,9 +1010,8 @@ function handleGetTeacherExams(payload) {
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     if (!row[0]) continue;
-    const rowGV = String(row[2]).trim().toLowerCase();
 
-    if (rowGV === usernameGV) {
+    if (isSameTeacherAccount(row[2], usernameGV)) {
       const cheDoXemText = String(row[cols.reviewCol] || "").trim();
       const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
       const jsonRaw = row[cols.jsonCol];
@@ -1057,7 +1073,7 @@ function handleToggleExamStatus(payload) {
   const data = sheetDeThi.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === maDe) {
-      if (usernameGV && String(data[i][2]).trim().toLowerCase() !== usernameGV) {
+      if (usernameGV && !isSameTeacherAccount(data[i][2], usernameGV)) {
         return createJsonResponse({ success: false, message: "Bạn không có quyền sửa đề thi này!" });
       }
       sheetDeThi.getRange(i + 1, 6).setValue(newStatus);
@@ -1088,7 +1104,7 @@ function handleDeleteExam(payload) {
   const data = sheetDeThi.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === maDe) {
-      if (usernameGV && String(data[i][2]).trim().toLowerCase() !== usernameGV) {
+      if (usernameGV && !isSameTeacherAccount(data[i][2], usernameGV)) {
         return createJsonResponse({ success: false, message: "Bạn không có quyền xóa đề thi này!" });
       }
       sheetDeThi.deleteRow(i + 1);
@@ -1124,7 +1140,7 @@ function handleGetTeacherResults(payload) {
     const rowGV = String(row[8]).trim().toLowerCase();
     const rowMaDe = String(row[7]).trim();
 
-    if (rowGV === usernameGV) {
+    if (isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -1186,7 +1202,7 @@ function handleGetStudentsForTeacher(payload) {
   if (sheetGV) {
     const dataGV = sheetGV.getDataRange().getValues();
     for (let i = 1; i < dataGV.length; i++) {
-      if (String(dataGV[i][0]).trim().toLowerCase() === usernameGV) {
+      if (isSameTeacherAccount(dataGV[i][0], usernameGV)) {
         allowedClassesStr = String(dataGV[i][3] || "").trim();
         break;
       }
@@ -1307,7 +1323,7 @@ function handleUpdateTeacherPassword(payload) {
   const dataGV = sheetGV.getDataRange().getValues();
   // Sheet DATA_GIAOVIEN: Cột 0: Tài khoản GV | Cột 1: Mật khẩu | Cột 2: Họ tên GV | Cột 3: Lớp giảng dạy | Cột 4: Trường
   for (let i = 1; i < dataGV.length; i++) {
-    if (String(dataGV[i][0]).trim().toUpperCase() === usernameGV.toUpperCase()) {
+    if (isSameTeacherAccount(dataGV[i][0], usernameGV)) {
       const currentPass = String(dataGV[i][1] !== null && dataGV[i][1] !== undefined ? dataGV[i][1] : "").trim();
 
       // Nếu có truyền oldPassword thì kiểm tra mật khẩu cũ

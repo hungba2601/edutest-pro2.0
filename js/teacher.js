@@ -2704,11 +2704,31 @@ if (btnDividePoints) {
 // ============================================================================
 // QUẢN LÝ BỘ NHỚ TẠM (LOCALSTORAGE CACHE) ĐỀ THI CHO GIÁO VIÊN
 // ============================================================================
+function getTeacherUsernameVariants() {
+  const raw = String(currentTeacher?.username || "").trim();
+  const variants = [raw];
+  if (raw.startsWith("0")) {
+    variants.push(raw.replace(/^0+/, ""));
+  } else if (/^\d+$/.test(raw)) {
+    variants.push("0" + raw);
+  }
+  return [...new Set(variants.filter(Boolean))];
+}
+
 function getCachedExams() {
   try {
-    const key = "cached_teacher_exams_" + (currentTeacher?.username || "gv01");
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    const variants = getTeacherUsernameVariants();
+    for (const v of variants) {
+      const key = "cached_teacher_exams_" + v;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    }
+    const fallbackKey = "cached_teacher_exams_" + (currentTeacher?.username || "gv01");
+    const rawFb = localStorage.getItem(fallbackKey);
+    return rawFb ? JSON.parse(rawFb) : [];
   } catch (e) {
     return [];
   }
@@ -2716,8 +2736,13 @@ function getCachedExams() {
 
 function saveCachedExams(exams) {
   try {
-    const key = "cached_teacher_exams_" + (currentTeacher?.username || "gv01");
-    localStorage.setItem(key, JSON.stringify(exams));
+    const variants = getTeacherUsernameVariants();
+    for (const v of variants) {
+      const key = "cached_teacher_exams_" + v;
+      localStorage.setItem(key, JSON.stringify(exams));
+    }
+    const fallbackKey = "cached_teacher_exams_" + (currentTeacher?.username || "gv01");
+    localStorage.setItem(fallbackKey, JSON.stringify(exams));
   } catch (e) {
     console.warn("Lỗi lưu cache đề thi:", e);
   }
@@ -3238,48 +3263,54 @@ async function loadTeacherExams(isManualRefresh = false) {
     btnRefresh.classList.add("is-loading");
   }
 
-  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT
+  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT (DUYỆT QUA CÁC BIẾN THỂ TÀI KHOẢN: CÓ SỐ 0 VÀ KHÔNG CÓ SỐ 0)
   let loadedFromServer = null;
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5s timeout
+  const usernameVariants = getTeacherUsernameVariants();
 
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "getTeacherExams",
-        usernameGV: currentTeacher.username
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-
-    const rawText = await res.text();
-    if (rawText && !rawText.trim().startsWith("<")) {
-      const data = JSON.parse(rawText);
-      if (data && Array.isArray(data.exams)) {
-        loadedFromServer = data.exams;
-      }
-    }
-  } catch (postErr) {
-    console.warn("Lỗi đồng bộ ngầm POST:", postErr.message);
-  }
-
-  // 3. Fallback GET nếu POST không có kết quả và chưa có dữ liệu hiển thị
-  if (!loadedFromServer && (!currentExamsList || currentExamsList.length === 0)) {
+  for (const uGV of usernameVariants) {
     try {
-      const getUrl = `${API_URL}?action=getTeacherExams&usernameGV=${encodeURIComponent(currentTeacher.username)}&_t=${Date.now()}`;
-      const getRes = await fetch(getUrl);
-      const getText = await getRes.text();
-      if (getText && !getText.trim().startsWith("<")) {
-        const data = JSON.parse(getText);
-        if (data && Array.isArray(data.exams)) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5s timeout
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "getTeacherExams",
+          usernameGV: uGV
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      const rawText = await res.text();
+      if (rawText && !rawText.trim().startsWith("<")) {
+        const data = JSON.parse(rawText);
+        if (data && Array.isArray(data.exams) && data.exams.length > 0) {
           loadedFromServer = data.exams;
+          break; // Đã tìm thấy đề thi với biến thể này
         }
       }
-    } catch (getErr) {
-      console.warn("Lỗi đồng bộ ngầm GET:", getErr.message);
+    } catch (postErr) {
+      console.warn(`Lỗi đồng bộ ngầm POST (${uGV}):`, postErr.message);
+    }
+
+    // Fallback GET cho biến thể này nếu POST chưa ra đề
+    if (!loadedFromServer) {
+      try {
+        const getUrl = `${API_URL}?action=getTeacherExams&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
+        const getRes = await fetch(getUrl);
+        const getText = await getRes.text();
+        if (getText && !getText.trim().startsWith("<")) {
+          const data = JSON.parse(getText);
+          if (data && Array.isArray(data.exams) && data.exams.length > 0) {
+            loadedFromServer = data.exams;
+            break;
+          }
+        }
+      } catch (getErr) {
+        console.warn(`Lỗi đồng bộ ngầm GET (${uGV}):`, getErr.message);
+      }
     }
   }
 
@@ -3288,8 +3319,8 @@ async function loadTeacherExams(isManualRefresh = false) {
     btnRefresh.classList.remove("is-loading");
   }
 
-  // 4. Nếu máy chủ phản hồi danh sách mới -> Cập nhật bảng và lưu cache
-  if (loadedFromServer) {
+  // 3. Nếu máy chủ phản hồi danh sách mới -> Cập nhật bảng và lưu cache
+  if (loadedFromServer && loadedFromServer.length > 0) {
     currentExamsList = loadedFromServer;
     saveCachedExams(currentExamsList);
     renderTeacherExamsTable(currentExamsList, false);
@@ -3639,18 +3670,35 @@ async function loadTeacherResults(filterMaDe = "ALL") {
   populateResultClassDropdown();
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "getTeacherResults",
-        usernameGV: currentTeacher.username,
-        maDe: filterMaDe
-      })
-    });
+    let resultsFound = [];
+    const usernameVariants = getTeacherUsernameVariants();
 
-    const data = await res.json();
-    currentRawResultsList = (data.results || []).map(r => ({
+    for (const uGV of usernameVariants) {
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "getTeacherResults",
+            usernameGV: uGV,
+            maDe: filterMaDe
+          })
+        });
+
+        const rawText = await res.text();
+        if (rawText && !rawText.trim().startsWith("<")) {
+          const data = JSON.parse(rawText);
+          if (data && Array.isArray(data.results)) {
+            resultsFound = data.results;
+            if (resultsFound.length > 0) break; // Ưu tiên biến thể có bài nộp
+          }
+        }
+      } catch (errVar) {
+        console.warn(`Thử lấy kết quả với ${uGV} không thành công:`, errVar);
+      }
+    }
+
+    currentRawResultsList = (resultsFound || []).map(r => ({
       ...r,
       lop: normalizeClassName(r.lop)
     }));
@@ -4661,39 +4709,53 @@ async function loadTeacherStudents(forceRefresh = false) {
 
   try {
     let result = null;
+    const usernameVariants = getTeacherUsernameVariants();
 
-    // Thử gửi POST
-    try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "getStudentsForTeacher",
-          usernameGV: currentTeacher.username
-        })
-      });
+    for (const uGV of usernameVariants) {
+      // Thử gửi POST
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "getStudentsForTeacher",
+            usernameGV: uGV
+          })
+        });
 
-      const rawText = await response.text();
-      if (rawText && !rawText.trim().startsWith("<")) {
-        result = JSON.parse(rawText);
-      } else {
-        console.warn("POST trả về HTML, tự động chuyển sang chế độ GET fallback...");
+        const rawText = await response.text();
+        if (rawText && !rawText.trim().startsWith("<")) {
+          const parsed = JSON.parse(rawText);
+          if (parsed && parsed.success && Array.isArray(parsed.students) && parsed.students.length > 0) {
+            result = parsed;
+            break;
+          } else if (parsed && parsed.success) {
+            result = parsed;
+          }
+        }
+      } catch (postErr) {
+        console.warn(`Lỗi POST load students (${uGV}):`, postErr);
       }
-    } catch (postErr) {
-      console.warn("Lỗi POST, thử GET fallback:", postErr);
-    }
 
-    // Tự động fallback sang GET nếu POST bị Google Redirect HTML
-    if (!result || !result.success) {
-      const getUrl = `${API_URL}?action=getStudentsForTeacher&usernameGV=${encodeURIComponent(currentTeacher.username)}&_t=${Date.now()}`;
-      const getResponse = await fetch(getUrl);
-      const getRawText = await getResponse.text();
+      // Tự động fallback sang GET nếu POST chưa ra học sinh
+      if (!result || !result.students || result.students.length === 0) {
+        try {
+          const getUrl = `${API_URL}?action=getStudentsForTeacher&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
+          const getResponse = await fetch(getUrl);
+          const getRawText = await getResponse.text();
 
-      if (getRawText && !getRawText.trim().startsWith("<")) {
-        result = JSON.parse(getRawText);
-      } else {
-        console.error("Dữ liệu từ Google Apps Script:", getRawText.slice(0, 300));
-        throw new Error("Phản hồi từ Google Apps Script chứa trang HTML. Vui lòng kiểm tra quyền Deploy Web App thành 'Anyone'.");
+          if (getRawText && !getRawText.trim().startsWith("<")) {
+            const parsedGet = JSON.parse(getRawText);
+            if (parsedGet && parsedGet.success && Array.isArray(parsedGet.students) && parsedGet.students.length > 0) {
+              result = parsedGet;
+              break;
+            } else if (parsedGet && parsedGet.success) {
+              result = parsedGet;
+            }
+          }
+        } catch (getErr) {
+          console.warn(`Lỗi GET load students (${uGV}):`, getErr);
+        }
       }
     }
 
