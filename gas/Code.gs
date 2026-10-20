@@ -1358,7 +1358,7 @@ function handleUpdateTeacherPassword(payload) {
 // ============================================================================
 
 /**
- * Lấy danh sách đề thi đang "Mở" phù hợp với lớp của học sinh
+ * Lấy danh sách đề thi đang "Mở" phù hợp với lớp của học sinh (kèm trạng thái đã làm / chưa làm)
  */
 function handleGetStudentExams(payload) {
   const ss = getSpreadsheet();
@@ -1371,8 +1371,33 @@ function handleGetStudentExams(payload) {
   const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const studentClass = formatClassValue(payload.lop || "").trim().toUpperCase();
+  const usernameHS = String(payload.usernameHS || "").trim();
   const data = sheetDeThi.getDataRange().getValues();
   const availableExams = [];
+
+  // Tra cứu các đề thi mà học sinh này đã từng nộp bài trong DATA_KETQUA
+  const completedExamsMap = {};
+  if (usernameHS) {
+    try {
+      const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
+      if (sheetKetQua) {
+        const kqData = sheetKetQua.getDataRange().getValues();
+        for (let k = 1; k < kqData.length; k++) {
+          const rHs = String(kqData[k][0] || "").trim();
+          const rMaDe = String(kqData[k][7] || "").trim();
+          if (rHs.toUpperCase() === usernameHS.toUpperCase() && rMaDe) {
+            completedExamsMap[rMaDe] = {
+              daLam: true,
+              diemTong: Number(kqData[k][9]) || 0,
+              thoiGianNop: formatDateValue(kqData[k][11]) || String(kqData[k][11] || "")
+            };
+          }
+        }
+      }
+    } catch (eKq) {
+      Logger.log("Lỗi tra cứu DATA_KETQUA học sinh: " + eKq.toString());
+    }
+  }
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -1450,8 +1475,11 @@ function handleGetStudentExams(payload) {
           }))
         };
 
+        const maDeKey = String(row[0]).trim();
+        const examRecord = completedExamsMap[maDeKey];
+
         availableExams.push({
-          maDe: String(row[0]),
+          maDe: maDeKey,
           tenKyThi: String(row[1]),
           usernameGV: String(row[2]),
           lopChoPhep: String(row[3]),
@@ -1461,7 +1489,10 @@ function handleGetStudentExams(payload) {
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
-          tuLuan: safeTuLuan
+          tuLuan: safeTuLuan,
+          daLam: !!examRecord,
+          diemDaLam: examRecord ? examRecord.diemTong : null,
+          thoiGianNopGanNhat: examRecord ? examRecord.thoiGianNop : ""
         });
       }
     }
@@ -1629,6 +1660,29 @@ function handleSubmitExam(payload) {
   const choXemLaiBai = (originalExamData.choXemLaiBai !== false);
   const essayDetailsForStudent = [];
 
+  // Tra cứu xem học sinh này đã từng nộp bài thi này trong DATA_KETQUA chưa
+  let existingKqRowIndex = -1;
+  const kqData = sheetKetQua.getDataRange().getValues();
+  for (let r = 1; r < kqData.length; r++) {
+    const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+    const rMaDe = String(kqData[r][7] || "").trim();
+    if (rHs === usernameHS.toUpperCase() && rMaDe === maDe) {
+      existingKqRowIndex = r;
+      break;
+    }
+  }
+
+  // QUY TẮC 1: ĐỐI VỚI THI / KIỂM TRA CHÍNH THỨC (Khóa xem bài)
+  // Học sinh CHỈ ĐƯỢC LÀM 1 LẦN DUY NHẤT. Nếu đã có kết quả thì KHÔNG cho làm lại!
+  if (!choXemLaiBai && existingKqRowIndex !== -1) {
+    return createJsonResponse({
+      success: false,
+      daLamRoi: true,
+      message: "Bạn đã hoàn thành bài kiểm tra chính thức này rồi! Kỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để bảo đảm tính công bằng."
+    });
+  }
+
+  // Xử lý lưu tự luận vào DATA_TULUAN
   if (essayCount > 0) {
     try {
       const sheetTuLuan = ensureTuLuanSheet(ss, essayCount);
@@ -1669,9 +1723,28 @@ function handleSubmitExam(payload) {
         });
       }
 
-      // Thêm 2 cột cuối: Điểm Tự Luận (GV chấm), Nhận xét của GV (để trống cho GV chấm)
+      // Thêm 2 cột cuối: Điểm Tự Luận (GV chấm), Nhận xét của GV
       rowTuLuan.push("", "");
-      sheetTuLuan.appendRow(rowTuLuan);
+
+      // Nếu là Ôn tập và đã từng nộp tự luận trước đó -> Cập nhật ghi đè vào đúng dòng cũ
+      let existingTuLuanRow = -1;
+      const tlData = sheetTuLuan.getDataRange().getValues();
+      for (let t = 1; t < tlData.length; t++) {
+        if (String(tlData[t][0]).trim().toUpperCase() === usernameHS.toUpperCase() && String(tlData[t][7]).trim() === maDe) {
+          existingTuLuanRow = t + 1;
+          break;
+        }
+      }
+
+      if (existingTuLuanRow > 0) {
+        // Cập nhật lại thời gian nộp và câu trả lời các câu tự luận
+        sheetTuLuan.getRange(existingTuLuanRow, 10, 1, essayCount + 1).setValues([[
+          thoiGianNop,
+          ...rowTuLuan.slice(10, 10 + essayCount)
+        ]]);
+      } else {
+        sheetTuLuan.appendRow(rowTuLuan);
+      }
     } catch (tuLuanErr) {
       Logger.log("Lỗi ghi DATA_TULUAN: " + tuLuanErr.toString());
     }
@@ -1686,27 +1759,45 @@ function handleSubmitExam(payload) {
     tuLuan: essayDetailsForStudent
   };
 
-  sheetKetQua.appendRow([
-    usernameHS,
-    lop.includes("/") ? "'" + lop : lop,
-    hoTen,
-    ngaySinh,
-    gioiTinh,
-    truong,
-    thoiGianVaoThi || thoiGianNop,
-    maDe,
-    usernameGV,
-    diemTracNghiem,
-    soCauDungSaiText,
-    thoiGianNop,
-    JSON.stringify(fullDetailObject)
-  ]);
+  // QUY TẮC 2: ĐỐI VỚI ĐỀ ÔN TẬP / LUYỆN TẬP
+  // Cho làm nhiều lần và GHI NHẬN KẾT QUẢ LẦN CUỐI CÙNG (cập nhật đè dòng cũ)
+  if (choXemLaiBai && existingKqRowIndex !== -1) {
+    const targetRow = existingKqRowIndex + 1;
+    sheetKetQua.getRange(targetRow, 7, 1, 7).setValues([[
+      thoiGianVaoThi || thoiGianNop,
+      maDe,
+      usernameGV,
+      diemTracNghiem,
+      soCauDungSaiText,
+      thoiGianNop,
+      JSON.stringify(fullDetailObject)
+    ]]);
+  } else {
+    // Nếu học sinh nộp lần đầu tiên
+    sheetKetQua.appendRow([
+      usernameHS,
+      lop.includes("/") ? "'" + lop : lop,
+      hoTen,
+      ngaySinh,
+      gioiTinh,
+      truong,
+      thoiGianVaoThi || thoiGianNop,
+      maDe,
+      usernameGV,
+      diemTracNghiem,
+      soCauDungSaiText,
+      thoiGianNop,
+      JSON.stringify(fullDetailObject)
+    ]);
+  }
 
   const choXemDiem = (originalExamData.choXemDiem !== false);
 
   return createJsonResponse({
     success: true,
-    message: "Nộp bài thành công!",
+    message: (choXemLaiBai && existingKqRowIndex !== -1) 
+      ? "Đã nộp bài & cập nhật kết quả lần làm bài mới nhất thành công!" 
+      : "Nộp bài thành công!",
     diemTong: diemTracNghiem,
     diemTracNghiem: diemTracNghiem,
     tongDiemTracNghiem: tongDiemTracNghiem,

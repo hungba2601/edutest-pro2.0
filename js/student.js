@@ -312,6 +312,63 @@ async function loadAvailableExams() {
     const hasTuLuan = !!(exam.tuLuan && (exam.tuLuan.noiDung || exam.tuLuan.linkForm));
     const isAllowReview = (exam.choXemLaiBai !== false);
     const isAllowScore = (exam.choXemDiem !== false);
+    const hasDone = !!exam.daLam;
+
+    // Thiết kế trạng thái hiển thị theo loại kỳ thi
+    let statusBadgeHtml = "";
+    let actionBtnHtml = "";
+    let noticeAlertHtml = "";
+
+    if (!isAllowReview) {
+      // 1. THI / KIỂM TRA CHÍNH THỨC: CHỈ LÀM 1 LẦN
+      if (hasDone) {
+        statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 700;">🚫 ĐÃ LÀM BÀI (KHÓA LÀM LẠI)</span>`;
+        noticeAlertHtml = `
+          <div style="margin-top: 0.75rem; padding: 0.65rem 0.85rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem; line-height: 1.45;">
+            ⚠️ <strong>Bạn đã hoàn thành bài thi này!</strong><br>
+            Kỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để ghi nhận điểm vào bảng điểm. Bạn không thể làm lại.
+          </div>
+        `;
+        actionBtnHtml = `
+          <button type="button" class="btn-start-exam btn-exam-locked" data-index="${idx}" style="background: #94a3b8; cursor: not-allowed; box-shadow: none; opacity: 0.9;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+            <span>Đã Nộp Bài (Chỉ thi 1 lần)</span>
+          </button>
+        `;
+      } else {
+        statusBadgeHtml = `<span class="badge-review-tag locked" title="Khóa xem lại đề và đáp án để bảo mật kỳ thi">🔒 Thi chính thức (1 lần)</span>`;
+        actionBtnHtml = `
+          <button type="button" class="btn-start-exam" data-index="${idx}">
+            <span>Bắt Đầu Làm Bài</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        `;
+      }
+    } else {
+      // 2. ÔN TẬP / LUYỆN TẬP: LÀM NHIỀU LẦN (GHI NHẬN LẦN CUỐI CÙNG)
+      if (hasDone) {
+        statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; font-weight: 700;">🔄 ĐÃ LÀM (LUYỆN TẬP TIẾP ĐƯỢC)</span>`;
+        noticeAlertHtml = `
+          <div style="margin-top: 0.75rem; padding: 0.55rem 0.85rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; color: #166534; font-size: 0.82rem; line-height: 1.45;">
+            📖 <strong>Chế độ Ôn tập:</strong> Bạn được làm bài nhiều lần để rèn luyện. Kết quả nộp bài sẽ <strong>ghi nhận lần làm cuối cùng</strong>.
+          </div>
+        `;
+        actionBtnHtml = `
+          <button type="button" class="btn-start-exam" data-index="${idx}" style="background: linear-gradient(135deg, #059669, #047857);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            <span>Luyện Tập Lại (Ghi nhận lần cuối)</span>
+          </button>
+        `;
+      } else {
+        statusBadgeHtml = `<span class="badge-review-tag allowed" title="Cho phép học sinh xem lại bài làm và đáp án sau khi nộp">📖 Ôn tập (Làm nhiều lần)</span>`;
+        actionBtnHtml = `
+          <button type="button" class="btn-start-exam" data-index="${idx}">
+            <span>Bắt Đầu Làm Bài</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        `;
+      }
+    }
 
     card.innerHTML = `
       <div class="exam-card-top">
@@ -320,9 +377,7 @@ async function loadAvailableExams() {
             <span class="dot-pulsing"></span>
             <span>Đang Mở Thi</span>
           </span>
-          ${isAllowReview 
-            ? `<span class="badge-review-tag allowed" title="Cho phép học sinh xem lại bài làm và đáp án sau khi nộp">📖 Ôn tập</span>`
-            : `<span class="badge-review-tag locked" title="Khóa xem lại đề và đáp án để bảo mật kỳ thi">🔒 Thi chính thức</span>`}
+          ${statusBadgeHtml}
           ${isAllowScore 
             ? `<span class="badge-score-tag allowed" title="Cho phép học sinh xem điểm số ngay sau khi nộp bài"><i class="fas fa-check-circle"></i> Cho xem điểm</span>`
             : `<span class="badge-score-tag locked" title="Khóa xem điểm - Điểm số được bảo mật, Giáo viên sẽ công bố sau"><i class="fas fa-lock"></i> Khóa xem điểm</span>`}
@@ -347,7 +402,7 @@ async function loadAvailableExams() {
         </div>
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <span>Chế độ sau thi: <strong style="color: ${isAllowReview ? '#10b981' : '#f59e0b'};">${isAllowReview ? 'Cho xem lại bài & đáp án' : 'Khóa xem bài & đáp án'}</strong></span>
+          <span>Chế độ kỳ thi: <strong style="color: ${isAllowReview ? '#10b981' : '#f59e0b'};">${isAllowReview ? 'Ôn tập (Làm nhiều lần, lấy điểm lần cuối)' : 'Thi chính thức (Chỉ làm 1 lần)'}</strong></span>
         </div>
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
@@ -361,10 +416,10 @@ async function loadAvailableExams() {
         ` : ''}
       </div>
 
-      <button type="button" class="btn-start-exam" data-index="${idx}">
-        <span>Bắt Đầu Làm Bài</span>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-      </button>
+      ${noticeAlertHtml}
+      <div style="margin-top: 1rem;">
+        ${actionBtnHtml}
+      </div>
     `;
 
     grid.appendChild(card);
@@ -374,9 +429,33 @@ async function loadAvailableExams() {
   grid.querySelectorAll(".btn-start-exam").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const idx = parseInt(e.currentTarget.dataset.index);
-      enterExamRoom(availableExams[idx]);
+      const exam = availableExams[idx];
+      if (!exam) return;
+
+      const isAllowReview = (exam.choXemLaiBai !== false);
+      if (!isAllowReview && exam.daLam) {
+        showToast("Đã hoàn thành", "Bạn đã nộp bài kiểm tra chính thức này rồi! Kỳ thi chính thức chỉ được làm bài 1 lần duy nhất.", "error", 5000);
+        alert(`⚠️ THÔNG BÁO:\n\nBạn đã hoàn thành bài kiểm tra chính thức: "${exam.tenKyThi}" rồi!\n\nKỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để đảm bảo tính công bằng. Bạn không thể làm lại.`);
+        return;
+      }
+
+      enterExamRoom(exam);
     });
   });
+
+  // Tự động kiểm tra nếu vào link trực tiếp phòng thi qua URL ?exam=...
+  if (urlParams) {
+    const directExamCode = urlParams.get("exam");
+    if (directExamCode) {
+      const directExam = availableExams.find(e => e.maDe === directExamCode);
+      if (directExam && directExam.choXemLaiBai === false && directExam.daLam) {
+        showToast("Đã hoàn thành", `Bạn đã hoàn thành bài kiểm tra "${directExam.tenKyThi}" rồi!`, "error", 6000);
+        setTimeout(() => {
+          alert(`⚠️ BẠN ĐÃ LÀM BÀI NÀY RỒI!\n\nBài kiểm tra: "${directExam.tenKyThi}" (${directExam.maDe}) là kỳ thi chính thức (chỉ được làm 1 lần).\nĐiểm số của bạn đã được ghi nhận vào hệ thống. Bạn không thể làm lại.`);
+        }, 350);
+      }
+    }
+  }
 }
 
 // Lấy danh sách đề thi từ localStorage phù hợp với lớp học sinh
@@ -402,11 +481,27 @@ function shuffleArray(array) {
 function enterExamRoom(exam) {
   const isAllowReview = (exam.choXemLaiBai !== false);
   const isAllowScore = (exam.choXemDiem !== false);
-  const modeText = isAllowReview ? "ÔN TẬP (Xem được bài làm & đáp án sau khi nộp)" : "THI CHÍNH THỨC (Khóa xem bài & đáp án nhằm bảo mật đề)";
-  const scoreText = isAllowScore ? "Hiện điểm ngay khi nộp" : "Khóa xem điểm (GV công bố sau)";
 
-  if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ bài làm: ${modeText}.\n• Chế độ xem điểm: ${scoreText}.`)) {
+  // CHẶN KHÔNG CHO VÀO PHÒNG THI NẾU ĐÃ LÀM BÀI THI CHÍNH THỨC
+  if (!isAllowReview && exam.daLam) {
+    alert(`⚠️ BẠN ĐÃ HOÀN THÀNH BÀI THI NÀY RỒI!\n\nBài kiểm tra: "${exam.tenKyThi}" là kỳ thi chính thức (chỉ được làm 1 lần duy nhất).\nĐiểm số đã được ghi nhận. Bạn không thể vào làm lại.`);
     return;
+  }
+
+  // NẾU LÀ ĐỀ ÔN TẬP ĐÃ LÀM: THÔNG BÁO GHI NHẬN KẾT QUẢ LẦN CUỐI
+  if (isAllowReview && exam.daLam) {
+    if (!confirm(`Bạn có chắc chắn muốn làm lại bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ: Ôn tập (Được làm lại nhiều lần).\n• LƯU Ý QUAN TRỌNG: Kết quả nộp bài sẽ ghi nhận lần làm bài cuối cùng này!`)) {
+      return;
+    }
+  } else {
+    const modeText = isAllowReview 
+      ? "ÔN TẬP (Làm nhiều lần, ghi nhận điểm lần cuối, xem được bài làm & đáp án)" 
+      : "THI CHÍNH THỨC (Chỉ làm 1 lần duy nhất, khóa xem bài & đáp án)";
+    const scoreText = isAllowScore ? "Hiện điểm ngay khi nộp" : "Khóa xem điểm (GV công bố sau)";
+
+    if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ bài làm: ${modeText}.\n• Chế độ xem điểm: ${scoreText}.`)) {
+      return;
+    }
   }
 
   // ==========================================================================
@@ -1258,6 +1353,11 @@ async function submitStudentExam(isAutoTimeout = false) {
       lastExamResult = result;
       showExamResultScreen(result);
     } else {
+      if (result && result.daLamRoi) {
+        alert("⚠️ BẠN ĐÃ LÀM BÀI THI NÀY RỒI!\n\n" + (result.message || "Kỳ thi chính thức chỉ cho phép nộp bài 1 lần duy nhất."));
+        window.location.reload();
+        return;
+      }
       alert("Lỗi nộp bài: " + (result?.message || "Không thể lưu kết quả."));
       btnSubmitExam.disabled = false;
       btnSubmitExam.innerHTML = `<span>Thử nộp lại</span>`;
