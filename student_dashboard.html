@@ -461,5 +461,57 @@
     </div>
   </div>
 
+  <!-- ====================================================================
+       MODAL CẢNH BÁO BẮT BUỘC HOÀN THÀNH TẤT CẢ CÂU HỎI TRƯỚC KHI NỘP BÀI
+       ==================================================================== -->
+  <div class="modal-backdrop" id="modalIncompleteExam" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 999999; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;" aria-hidden="true">
+    <div class="modal-card" style="width: 100%; max-width: 520px; background: #ffffff; border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.35); overflow: hidden; display: flex; flex-direction: column; max-height: 88vh;">
+      
+      <!-- Header cảnh báo nổi bật -->
+      <div style="padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: #ffffff; display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid rgba(255,255,255,0.15);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; flex-shrink: 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+            ⚠️
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff; letter-spacing: -0.01em;">CHƯA THỂ NỘP BÀI THI!</h3>
+            <span style="font-size: 0.8rem; opacity: 0.95; font-weight: 500;">Quy định: Bắt buộc hoàn thành tất cả các câu hỏi</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseIncompleteModal" style="background: rgba(255,255,255,0.2); border: none; font-size: 1.2rem; color: #ffffff; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
+      </div>
+
+      <!-- Nội dung danh sách câu chưa làm -->
+      <div style="padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1; background: #f8fafc;">
+        <div style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 12px; padding: 0.85rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span style="font-size: 0.88rem; font-weight: 700; color: #991b1b;">Bạn vẫn còn các câu chưa hoàn thành:</span>
+          </div>
+          <span id="incompleteModalBadge" style="background: #dc2626; color: #ffffff; font-weight: 800; font-size: 0.82rem; padding: 3px 10px; border-radius: 20px; white-space: nowrap;">0 câu</span>
+        </div>
+
+        <p style="margin: 0 0 0.75rem; font-size: 0.82rem; color: #64748b; font-weight: 600;">
+          👉 Bấm vào từng câu bên dưới để chuyển nhanh đến câu đó và làm bài:
+        </p>
+
+        <!-- Danh sách câu chưa làm -->
+        <div id="incompleteQuestionsList" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Item render bằng JS -->
+        </div>
+      </div>
+
+      <!-- Footer chỉ có nút quay lại làm bài -->
+      <div class="modal-footer" style="padding: 1rem 1.5rem; background: #ffffff; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
+        <span style="font-size: 0.8rem; color: #64748b; font-style: italic;">Làm xong hết để mở quyền nộp bài</span>
+        <button type="button" id="btnResumeExamFromModal" style="padding: 0.65rem 1.5rem; font-size: 0.92rem; font-weight: 800; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(37,99,235,0.35); transition: transform 0.15s ease;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          <span>Quay Lại Làm Bài</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
 </body>
 </html>

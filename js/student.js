@@ -788,14 +788,13 @@ function attachStudentAnswerEvents() {
       }
       studentAnswers[qId][subKey] = val;
 
-      // Kiểm tra xem đã làm đủ 4 ý của câu này chưa
+      // Kiểm tra xem đã làm đủ các ý của câu này chưa
       const qObj = (activeExam.cauHoi || []).find(q => (q.id || 0) == qId);
-      const totalSub = (qObj && qObj.y) ? qObj.y.length : 4;
-      const answeredSub = Object.keys(studentAnswers[qId]).length;
+      const subItems = (qObj && qObj.y) ? qObj.y : [];
+      const userAns = studentAnswers[qId] || {};
+      const isAllSubAnswered = subItems.length > 0 && subItems.every(s => userAns[s.key] !== undefined && userAns[s.key] !== null);
 
-      if (answeredSub >= totalSub) {
-        markPaletteAnswered(qId, true);
-      }
+      markPaletteAnswered(qId, isAllSubAnswered);
     });
   });
 
@@ -954,22 +953,214 @@ function markPaletteEssayAnswered(essayId, isAnswered) {
 }
 
 function updatePaletteProgress() {
-  const mcTotal = (activeExam && activeExam.cauHoi) ? activeExam.cauHoi.length : 0;
-  const essayList = getExamEssayQuestions(activeExam ? activeExam.tuLuan : null);
-  const total = mcTotal + essayList.length;
-
-  const answeredMc = Object.keys(studentAnswers).length;
-  const answeredEssay = Object.values(studentEssayAnswers).filter(txt => !!(txt && txt.trim())).length;
-  const totalAnswered = answeredMc + answeredEssay;
+  const status = checkExamCompletionStatus();
+  const total = status.totalQuestionsCount;
+  const answered = status.fullyAnsweredCount;
 
   const progressEl = document.getElementById("answeredCountText");
   if (progressEl) {
-    progressEl.textContent = `Đã làm: ${totalAnswered} / ${total} câu`;
+    progressEl.textContent = `Đã làm: ${answered} / ${total} câu`;
   }
 
   const mobileBadge = document.getElementById("mobileAnsweredBadge");
   if (mobileBadge) {
-    mobileBadge.textContent = `${totalAnswered}/${total}`;
+    mobileBadge.textContent = `${answered}/${total}`;
+  }
+}
+
+/**
+ * Kiểm tra trạng thái hoàn thành tất cả các câu hỏi và các phần trong bài thi
+ */
+function checkExamCompletionStatus() {
+  const questions = (activeExam && activeExam.cauHoi) ? activeExam.cauHoi : [];
+  const essayList = getExamEssayQuestions(activeExam ? activeExam.tuLuan : null);
+  
+  const incompleteItems = [];
+  let fullyAnsweredCount = 0;
+  const totalQuestionsCount = questions.length + essayList.length;
+
+  const part1Questions = questions.filter(q => q.loaiCauHoi !== "true_false");
+  const part2Questions = questions.filter(q => q.loaiCauHoi === "true_false");
+
+  // 1. Kiểm tra Phần I: Trắc nghiệm 4 lựa chọn
+  part1Questions.forEach((q, idx) => {
+    const qId = q.id;
+    const displayNum = q.displayIndex || (idx + 1);
+    const userAns = studentAnswers[qId];
+
+    if (!userAns || typeof userAns !== "string" || !userAns.trim()) {
+      incompleteItems.push({
+        type: "mc",
+        qId: qId,
+        cardId: `q_card_${qId}`,
+        title: `Phần I - Câu ${displayNum}`,
+        description: "Chưa chọn đáp án (A, B, C, D)",
+        sectionBadge: "Trắc nghiệm"
+      });
+    } else {
+      fullyAnsweredCount++;
+    }
+  });
+
+  // 2. Kiểm tra Phần II: Trắc nghiệm Đúng / Sai
+  part2Questions.forEach((q, idx) => {
+    const qId = q.id;
+    const displayNum = q.displayIndex || (part1Questions.length + idx + 1);
+    const subItems = q.y || [];
+    const userAnsMap = (studentAnswers[qId] && typeof studentAnswers[qId] === "object") ? studentAnswers[qId] : {};
+    const missingKeys = [];
+
+    subItems.forEach(sub => {
+      if (userAnsMap[sub.key] === undefined || userAnsMap[sub.key] === null) {
+        missingKeys.push(sub.key);
+      }
+    });
+
+    if (missingKeys.length > 0) {
+      let descText = "";
+      if (missingKeys.length === subItems.length) {
+        descText = "Chưa chọn ý nào (cần chọn đủ cả 4 ý)";
+      } else {
+        descText = `Chưa chọn nhận định ý: ${missingKeys.map(k => `"${k}"`).join(", ")}`;
+      }
+
+      incompleteItems.push({
+        type: "tf",
+        qId: qId,
+        cardId: `q_card_${qId}`,
+        title: `Phần II - Câu ${displayNum} (Đúng / Sai)`,
+        description: descText,
+        sectionBadge: "Đúng / Sai"
+      });
+    } else {
+      fullyAnsweredCount++;
+    }
+  });
+
+  // 3. Kiểm tra Phần III: Tự luận (nếu đề có câu hỏi tự luận)
+  essayList.forEach((item, idx) => {
+    const essayId = item.id || (idx + 1);
+    const ans = studentEssayAnswers[essayId];
+
+    if (!ans || typeof ans !== "string" || !ans.trim()) {
+      incompleteItems.push({
+        type: "essay",
+        qId: essayId,
+        cardId: `essay_card_${essayId}`,
+        title: `Phần III - Câu tự luận ${essayId}`,
+        description: "Chưa nhập nội dung bài làm tự luận",
+        sectionBadge: "Tự luận"
+      });
+    } else {
+      fullyAnsweredCount++;
+    }
+  });
+
+  return {
+    isComplete: incompleteItems.length === 0,
+    incompleteItems: incompleteItems,
+    fullyAnsweredCount: fullyAnsweredCount,
+    totalQuestionsCount: totalQuestionsCount,
+    unansweredCount: incompleteItems.length
+  };
+}
+
+/**
+ * Hiển thị Hộp thoại Cảnh báo Bắt buộc hoàn thành 100% trước khi nộp
+ */
+function showIncompleteExamModal(status) {
+  const modal = document.getElementById("modalIncompleteExam");
+  if (!modal) {
+    alert(`CẢNH BÁO: Bạn vẫn còn ${status.unansweredCount} câu chưa hoàn thành!\nQuy định: Bạn bắt buộc phải làm đầy đủ tất cả các câu và các phần mới được nộp bài.`);
+    return;
+  }
+
+  const badge = document.getElementById("incompleteModalBadge");
+  if (badge) {
+    badge.textContent = `Còn thiếu ${status.unansweredCount} câu`;
+  }
+
+  const listContainer = document.getElementById("incompleteQuestionsList");
+  if (listContainer) {
+    listContainer.innerHTML = "";
+    status.incompleteItems.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "incomplete-q-row";
+      row.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        background: #ffffff;
+        border: 1.5px solid #fecaca;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      `;
+
+      row.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <strong style="color: #0f172a; font-size: 0.92rem;">${item.title}</strong>
+            <span style="font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #fee2e2; color: #dc2626;">${item.sectionBadge}</span>
+          </div>
+          <span style="font-size: 0.8rem; color: #dc2626; font-weight: 600;">👉 ${item.description}</span>
+        </div>
+        <div style="font-size: 0.82rem; font-weight: 700; color: #2563eb; display: flex; align-items: center; gap: 4px; background: #eff6ff; padding: 6px 12px; border-radius: 8px; border: 1px solid #bfdbfe; flex-shrink: 0;">
+          <span>Làm ngay</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      `;
+
+      // Hover style
+      row.addEventListener("mouseenter", () => {
+        row.style.borderColor = "#2563eb";
+        row.style.transform = "translateX(4px)";
+        row.style.boxShadow = "0 4px 12px rgba(37,99,235,0.15)";
+      });
+      row.addEventListener("mouseleave", () => {
+        row.style.borderColor = "#fecaca";
+        row.style.transform = "translateX(0)";
+        row.style.boxShadow = "0 1px 3px rgba(0,0,0,0.03)";
+      });
+
+      // Bấm vào chuyển thẳng đến câu chưa làm
+      row.addEventListener("click", () => {
+        modal.style.display = "none";
+        jumpAndHighlightQuestionCard(item.cardId);
+      });
+
+      listContainer.appendChild(row);
+    });
+  }
+
+  modal.style.display = "flex";
+}
+
+/**
+ * Cuộn mượt và highlight câu hỏi cần làm
+ */
+function jumpAndHighlightQuestionCard(cardId) {
+  const card = document.getElementById(cardId);
+  if (card) {
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    
+    // Thêm hiệu ứng viền đỏ nhấp nháy thu hút sự chú ý
+    card.style.transition = "all 0.3s ease";
+    card.style.outline = "3px solid #ef4444";
+    card.style.boxShadow = "0 0 25px rgba(239, 68, 68, 0.45)";
+    
+    setTimeout(() => {
+      card.style.outline = "";
+      card.style.boxShadow = "";
+    }, 2800);
+
+    // Nếu là câu tự luận, focus luôn vào textarea
+    const textarea = card.querySelector("textarea");
+    if (textarea) {
+      setTimeout(() => textarea.focus(), 400);
+    }
   }
 }
 
@@ -978,20 +1169,39 @@ function updatePaletteProgress() {
 // ============================================================================
 const btnSubmitExam = document.getElementById("btnSubmitExam");
 
+// Gắn sự kiện nút đóng modal cảnh báo chưa hoàn thành
+const btnCloseIncompleteModal = document.getElementById("btnCloseIncompleteModal");
+if (btnCloseIncompleteModal) {
+  btnCloseIncompleteModal.addEventListener("click", () => {
+    const m = document.getElementById("modalIncompleteExam");
+    if (m) m.style.display = "none";
+  });
+}
+
+const btnResumeExamFromModal = document.getElementById("btnResumeExamFromModal");
+if (btnResumeExamFromModal) {
+  btnResumeExamFromModal.addEventListener("click", () => {
+    const modal = document.getElementById("modalIncompleteExam");
+    if (modal) modal.style.display = "none";
+
+    const status = checkExamCompletionStatus();
+    if (status.incompleteItems.length > 0) {
+      jumpAndHighlightQuestionCard(status.incompleteItems[0].cardId);
+    }
+  });
+}
+
 btnSubmitExam.addEventListener("click", () => {
-  const mcTotal = (activeExam && activeExam.cauHoi) ? activeExam.cauHoi.length : 0;
-  const essayList = getExamEssayQuestions(activeExam ? activeExam.tuLuan : null);
-  const total = mcTotal + essayList.length;
+  const status = checkExamCompletionStatus();
 
-  const answeredMc = Object.keys(studentAnswers).length;
-  const answeredEssay = Object.values(studentEssayAnswers).filter(txt => !!(txt && txt.trim())).length;
-  const totalAnswered = answeredMc + answeredEssay;
-  const unanswered = total - totalAnswered;
-
-  let confirmMsg = "Bạn có chắc chắn muốn nộp bài thi ngay bây giờ?";
-  if (unanswered > 0) {
-    confirmMsg = `CẢNH BÁO: Bạn vẫn còn ${unanswered} câu chưa hoàn thành (trắc nghiệm hoặc tự luận)!\nBạn có chắc chắn muốn nộp bài thi không?`;
+  // BẮT BUỘC: Nếu chưa làm hết tất cả các câu/phần thì TUYỆT ĐỐI KHÔNG CHO NỘP!
+  if (!status.isComplete) {
+    showIncompleteExamModal(status);
+    return;
   }
+
+  // Đã làm đủ 100% tất cả các câu
+  const confirmMsg = `Bạn đã hoàn thành đầy đủ tất cả ${status.totalQuestionsCount}/${status.totalQuestionsCount} câu hỏi!\nBạn có chắc chắn muốn nộp bài thi ngay bây giờ?`;
 
   if (confirm(confirmMsg)) {
     submitStudentExam(false);
@@ -999,6 +1209,10 @@ btnSubmitExam.addEventListener("click", () => {
 });
 
 async function submitStudentExam(isAutoTimeout = false) {
+  // Đóng modal cảnh báo chưa làm xong nếu đang mở
+  const incModal = document.getElementById("modalIncompleteExam");
+  if (incModal) incModal.style.display = "none";
+
   // Dừng đồng hồ
   if (timerInterval) clearInterval(timerInterval);
 
