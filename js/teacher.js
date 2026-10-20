@@ -2191,6 +2191,21 @@ function renderQuestionsPreview(questions) {
   let runningId = 0;
   let totalPoints = 0;
 
+  // Chuẩn hóa điểm ban đầu và tính tổng điểm từng phần
+  mcQuestions.forEach(q => {
+    if (q.diem === undefined || q.diem === null || isNaN(Number(q.diem)) || Number(q.diem) <= 0) q.diem = 1;
+  });
+  tfQuestions.forEach(q => {
+    if (q.diem === undefined || q.diem === null || isNaN(Number(q.diem)) || Number(q.diem) <= 0) q.diem = 1;
+  });
+  essayQuestions.forEach(eq => {
+    if (eq.diem === undefined || eq.diem === null || isNaN(Number(eq.diem)) || Number(eq.diem) <= 0) eq.diem = 1;
+  });
+
+  const mcPartPoints = Math.round(mcQuestions.reduce((sum, q) => sum + (Number(q.diem) || 0), 0) * 100) / 100;
+  const tfPartPoints = Math.round(tfQuestions.reduce((sum, q) => sum + (Number(q.diem) || 0), 0) * 100) / 100;
+  const essayPartPoints = Math.round(essayQuestions.reduce((sum, eq) => sum + (Number(eq.diem) || 0), 0) * 100) / 100;
+
   // ==========================================
   // PHẦN I: TRẮC NGHIỆM 4 LỰA CHỌN
   // ==========================================
@@ -2198,11 +2213,25 @@ function renderQuestionsPreview(questions) {
     const headerI = document.createElement("div");
     headerI.className = "preview-section-header mc-section";
     headerI.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
         <span class="preview-section-badge" style="color: #1e40af;">PHẦN I</span>
         <span>Câu hỏi trắc nghiệm nhiều phương án lựa chọn</span>
       </div>
-      <span style="font-size: 0.8rem; font-weight: 700; color: #2563eb;">${mcQuestions.length} câu</span>
+
+      <div class="section-points-control-wrap">
+        <div class="section-points-box" style="border-color: #bfdbfe;" title="Nhập tổng số điểm cho Phần I">
+          <span style="font-size: 0.78rem; font-weight: 700; color: #1e40af; white-space: nowrap;">Điểm tổng phần:</span>
+          <input type="number" id="inputTotalPointsPartI" class="section-total-points-input" data-part="mc" min="0.1" max="100" step="0.25" value="${mcPartPoints}" style="border-color: #93c5fd; color: #1e3a8a; background: #ffffff;" aria-label="Tổng điểm Phần I">
+          <span style="font-size: 0.78rem; font-weight: 700; color: #1e40af;">đ</span>
+        </div>
+
+        <button type="button" class="btn-divide-part-points" data-part="mc" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); box-shadow: 0 2px 6px rgba(37,99,235,0.25);" title="Tự động chia đều tổng điểm cho tất cả các câu trong Phần I">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Tự động chia điểm</span>
+        </button>
+
+        <span style="font-size: 0.8rem; font-weight: 800; color: #2563eb; background: #dbeafe; padding: 3px 8px; border-radius: 6px; border: 1px solid #bfdbfe; white-space: nowrap;">${mcQuestions.length} câu</span>
+      </div>
     `;
     container.appendChild(headerI);
 
@@ -2226,11 +2255,25 @@ function renderQuestionsPreview(questions) {
     const headerII = document.createElement("div");
     headerII.className = "preview-section-header tf-section";
     headerII.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
         <span class="preview-section-badge" style="color: #86198f;">PHẦN II</span>
         <span>Câu hỏi trắc nghiệm Đúng / Sai</span>
       </div>
-      <span style="font-size: 0.8rem; font-weight: 700; color: #9333ea;">${tfQuestions.length} câu</span>
+
+      <div class="section-points-control-wrap">
+        <div class="section-points-box" style="border-color: #f5d0fe;" title="Nhập tổng số điểm cho Phần II">
+          <span style="font-size: 0.78rem; font-weight: 700; color: #86198f; white-space: nowrap;">Điểm tổng phần:</span>
+          <input type="number" id="inputTotalPointsPartII" class="section-total-points-input" data-part="tf" min="0.1" max="100" step="0.25" value="${tfPartPoints}" style="border-color: #e9d5ff; color: #6b21a8; background: #ffffff;" aria-label="Tổng điểm Phần II">
+          <span style="font-size: 0.78rem; font-weight: 700; color: #86198f;">đ</span>
+        </div>
+
+        <button type="button" class="btn-divide-part-points" data-part="tf" style="background: linear-gradient(135deg, #9333ea, #7e22ce); box-shadow: 0 2px 6px rgba(147,51,234,0.25);" title="Tự động chia đều tổng điểm cho tất cả các câu trong Phần II">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Tự động chia điểm</span>
+        </button>
+
+        <span style="font-size: 0.8rem; font-weight: 800; color: #9333ea; background: #f3e8ff; padding: 3px 8px; border-radius: 6px; border: 1px solid #e9d5ff; white-space: nowrap;">${tfQuestions.length} câu</span>
+      </div>
     `;
     container.appendChild(headerII);
 
@@ -2254,11 +2297,25 @@ function renderQuestionsPreview(questions) {
     const headerIII = document.createElement("div");
     headerIII.className = "preview-section-header essay-section";
     headerIII.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
         <span class="preview-section-badge" style="color: #065f46;">PHẦN III</span>
         <span>Câu hỏi Tự Luận (Học sinh gõ bài làm, GV chấm điểm)</span>
       </div>
-      <span style="font-size: 0.8rem; font-weight: 700; color: #059669;">${essayQuestions.length} câu</span>
+
+      <div class="section-points-control-wrap">
+        <div class="section-points-box" style="border-color: #a7f3d0;" title="Nhập tổng số điểm cho Phần III">
+          <span style="font-size: 0.78rem; font-weight: 700; color: #065f46; white-space: nowrap;">Điểm tổng phần:</span>
+          <input type="number" id="inputTotalPointsPartIII" class="section-total-points-input" data-part="essay" min="0.1" max="100" step="0.25" value="${essayPartPoints}" style="border-color: #6ee7b7; color: #047857; background: #ffffff;" aria-label="Tổng điểm Phần III">
+          <span style="font-size: 0.78rem; font-weight: 700; color: #065f46;">đ</span>
+        </div>
+
+        <button type="button" class="btn-divide-part-points" data-part="essay" style="background: linear-gradient(135deg, #059669, #047857); box-shadow: 0 2px 6px rgba(5,150,105,0.25);" title="Tự động chia đều tổng điểm cho tất cả các câu trong Phần III">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <span>Tự động chia điểm</span>
+        </button>
+
+        <span style="font-size: 0.8rem; font-weight: 800; color: #059669; background: #d1fae5; padding: 3px 8px; border-radius: 6px; border: 1px solid #a7f3d0; white-space: nowrap;">${essayQuestions.length} câu</span>
+      </div>
     `;
     container.appendChild(headerIII);
 
@@ -2432,6 +2489,7 @@ function attachPreviewEvents() {
       if (parsedQuestions[idx]) {
         parsedQuestions[idx].diem = val;
         updateStats();
+        updateSectionPointsSum();
       }
     });
 
@@ -2444,6 +2502,7 @@ function attachPreviewEvents() {
       if (parsedQuestions[idx]) {
         parsedQuestions[idx].diem = val;
         updateStats();
+        updateSectionPointsSum();
       }
     });
   });
@@ -2460,6 +2519,7 @@ function attachPreviewEvents() {
         const leftInp = document.querySelector(`.essay-point-input[data-index="${eqIdx}"]`);
         if (leftInp) leftInp.value = val;
         updateStats();
+        updateSectionPointsSum();
       }
     });
   });
@@ -2574,6 +2634,125 @@ function attachPreviewEvents() {
       showToast("Đã xóa", "Đã xóa 1 câu hỏi tự luận.", "info", 1500);
     });
   });
+
+  // 8. Lắng nghe nút Tự động chia điểm cho từng phần
+  document.querySelectorAll(".btn-divide-part-points").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const partType = btn.dataset.part;
+      dividePointsForSection(partType);
+    });
+  });
+
+  // 9. Nhấn Enter trên ô nhập tổng điểm của từng phần để chia ngay
+  document.querySelectorAll(".section-total-points-input").forEach(inp => {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const partType = inp.dataset.part;
+        dividePointsForSection(partType);
+      }
+    });
+  });
+}
+
+/**
+ * Tự động chia đều tổng điểm cho từng câu hỏi trong 1 phần cụ thể (Phần I, II, hoặc III)
+ */
+function dividePointsForSection(partType) {
+  let targetQuestions = [];
+  let inputElId = "";
+  let partName = "";
+
+  if (partType === "mc") {
+    targetQuestions = (parsedQuestions || []).filter(q => q.loaiCauHoi !== "true_false");
+    inputElId = "inputTotalPointsPartI";
+    partName = "Phần I (Trắc nghiệm nhiều lựa chọn)";
+  } else if (partType === "tf") {
+    targetQuestions = (parsedQuestions || []).filter(q => q.loaiCauHoi === "true_false");
+    inputElId = "inputTotalPointsPartII";
+    partName = "Phần II (Trắc nghiệm Đúng / Sai)";
+  } else if (partType === "essay") {
+    targetQuestions = parsedEssayQuestions || [];
+    inputElId = "inputTotalPointsPartIII";
+    partName = "Phần III (Tự luận)";
+  }
+
+  const count = targetQuestions.length;
+  if (count === 0) {
+    showToast("Không có câu hỏi", `Chưa có câu hỏi nào trong ${partName} để chia điểm!`, "warning", 3000);
+    return;
+  }
+
+  const inputEl = document.getElementById(inputElId);
+  let totalPartPoints = inputEl ? parseFloat(inputEl.value) : 0;
+  if (isNaN(totalPartPoints) || totalPartPoints <= 0) {
+    showToast("Điểm không hợp lệ", "Vui lòng nhập tổng điểm phần lớn hơn 0 để chia đều!", "warning", 3000);
+    if (inputEl) inputEl.focus();
+    return;
+  }
+
+  // Làm tròn 2 số thập phân chuẩn giáo dục
+  let eachPoint = Math.round((totalPartPoints / count) * 100) / 100;
+  if (eachPoint <= 0) eachPoint = 0.05;
+
+  if (partType === "essay") {
+    targetQuestions.forEach((eq, eqIdx) => {
+      eq.diem = eachPoint;
+      const inp = document.querySelector(`.q-essay-points-input[data-index="${eqIdx}"]`);
+      if (inp) inp.value = eachPoint;
+      const leftInp = document.querySelector(`.essay-point-input[data-index="${eqIdx}"]`);
+      if (leftInp) leftInp.value = eachPoint;
+    });
+  } else {
+    targetQuestions.forEach(q => {
+      q.diem = eachPoint;
+      const realIdx = parsedQuestions.indexOf(q);
+      if (realIdx !== -1) {
+        const inp = document.querySelector(`.q-points-input[data-index="${realIdx}"]`);
+        if (inp) inp.value = eachPoint;
+      }
+    });
+  }
+
+  const actualSum = Math.round(eachPoint * count * 100) / 100;
+  if (inputEl) inputEl.value = actualSum;
+
+  updateStats();
+  updateSectionPointsSum();
+
+  showToast(
+    `Đã chia đều điểm ${partType === "mc" ? "Phần I" : (partType === "tf" ? "Phần II" : "Phần III")}`,
+    `Đã chia đều ${actualSum} điểm cho ${count} câu (${eachPoint} đ/câu).`,
+    "success",
+    3500
+  );
+}
+
+/**
+ * Tự động cập nhật tổng điểm hiển thị ở tiêu đề từng phần theo thời gian thực
+ */
+function updateSectionPointsSum() {
+  const mcQuestions = (parsedQuestions || []).filter(q => q.loaiCauHoi !== "true_false");
+  const tfQuestions = (parsedQuestions || []).filter(q => q.loaiCauHoi === "true_false");
+  const essayQuestions = parsedEssayQuestions || [];
+
+  const inputI = document.getElementById("inputTotalPointsPartI");
+  if (inputI && document.activeElement !== inputI) {
+    const sumI = Math.round(mcQuestions.reduce((acc, q) => acc + (Number(q.diem) || 0), 0) * 100) / 100;
+    inputI.value = sumI;
+  }
+
+  const inputII = document.getElementById("inputTotalPointsPartII");
+  if (inputII && document.activeElement !== inputII) {
+    const sumII = Math.round(tfQuestions.reduce((acc, q) => acc + (Number(q.diem) || 0), 0) * 100) / 100;
+    inputII.value = sumII;
+  }
+
+  const inputIII = document.getElementById("inputTotalPointsPartIII");
+  if (inputIII && document.activeElement !== inputIII) {
+    const sumIII = Math.round(essayQuestions.reduce((acc, eq) => acc + (Number(eq.diem) || 0), 0) * 100) / 100;
+    inputIII.value = sumIII;
+  }
 }
 
 // ============================================================================
@@ -2671,30 +2850,35 @@ function addNewManualQuestion(type = "multiple_choice") {
 const btnDividePoints = document.getElementById("btnDividePointsEvenly");
 if (btnDividePoints) {
   btnDividePoints.addEventListener("click", () => {
-    if (!parsedQuestions || parsedQuestions.length === 0) {
+    const totalCount = (parsedQuestions || []).length + (parsedEssayQuestions || []).length;
+    if (totalCount === 0) {
       showToast("Chưa có câu hỏi", "Vui lòng tải file hoặc thêm câu hỏi trước khi chia điểm!", "warning", 3000);
       return;
     }
 
-    const n = parsedQuestions.length;
-    // Làm tròn 2 số thập phân: ví dụ 12 câu -> 0.83 đ/câu, 10 câu -> 1.0 đ/câu, 20 câu -> 0.5 đ/câu
-    const eachPoint = Math.round((10 / n) * 100) / 100;
+    // Làm tròn 2 số thập phân: ví dụ 20 câu -> 0.5 đ/câu, 40 câu -> 0.25 đ/câu, 30 câu -> 0.33 đ/câu
+    const eachPoint = Math.round((10 / totalCount) * 100) / 100;
 
-    parsedQuestions.forEach((q, idx) => {
+    (parsedQuestions || []).forEach((q, idx) => {
       q.diem = eachPoint;
       const inp = document.querySelector(`.q-points-input[data-index="${idx}"]`);
       if (inp) inp.value = eachPoint;
     });
 
-    updateStats(
-      parsedQuestions.length,
-      parsedQuestions.filter(q => q.loaiCauHoi !== 'true_false').length,
-      parsedQuestions.filter(q => q.loaiCauHoi === 'true_false').length
-    );
+    (parsedEssayQuestions || []).forEach((eq, eqIdx) => {
+      eq.diem = eachPoint;
+      const inp = document.querySelector(`.q-essay-points-input[data-index="${eqIdx}"]`);
+      if (inp) inp.value = eachPoint;
+      const leftInp = document.querySelector(`.essay-point-input[data-index="${eqIdx}"]`);
+      if (leftInp) leftInp.value = eachPoint;
+    });
+
+    updateStats();
+    updateSectionPointsSum();
 
     showToast(
       "Đã chia đều 10 điểm", 
-      `Đã cập nhật ${eachPoint} điểm cho mỗi câu (${n} câu). Tổng: ${Math.round(eachPoint * n * 100) / 100} đ!`, 
+      `Đã cập nhật ${eachPoint} điểm cho mỗi câu (${totalCount} câu toàn đề).`, 
       "success", 
       3000
     );

@@ -2202,6 +2202,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   font-size: 0.88rem;
   font-weight: 700;
   border: 1px solid transparent;
+  flex-wrap: wrap;
 }
 .preview-section-header.mc-section {
   background: #eff6ff;
@@ -2220,6 +2221,59 @@ input:checked + .slider:before { transform: translateX(22px); }
   border-left: 4px solid #059669;
   border-color: #a7f3d0;
   color: #065f46;
+}
+.section-points-control-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.section-points-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.section-total-points-input {
+  width: 58px;
+  height: 26px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.88rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  outline: none;
+  transition: all 0.2s ease;
+  padding: 0 2px;
+}
+.section-total-points-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+.btn-divide-part-points {
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 8px;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.btn-divide-part-points:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+.btn-divide-part-points:active {
+  transform: translateY(0);
 }
 .preview-section-badge {
   font-size: 0.75rem;
