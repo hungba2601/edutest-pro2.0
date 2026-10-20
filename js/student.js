@@ -441,6 +441,7 @@ function enterExamRoom(exam) {
   };
 
   examStartTime = new Date();
+  isSubmittingExam = false;
   studentAnswers = {};
   studentEssayAnswers = {};
   lastExamResult = null;
@@ -1208,7 +1209,12 @@ btnSubmitExam.addEventListener("click", () => {
   }
 });
 
+let isSubmittingExam = false;
+
 async function submitStudentExam(isAutoTimeout = false) {
+  if (isSubmittingExam) return;
+  isSubmittingExam = true;
+
   // Đóng modal cảnh báo chưa làm xong nếu đang mở
   const incModal = document.getElementById("modalIncompleteExam");
   if (incModal) incModal.style.display = "none";
@@ -1219,7 +1225,11 @@ async function submitStudentExam(isAutoTimeout = false) {
   btnSubmitExam.disabled = true;
   btnSubmitExam.innerHTML = `<span>Đang chấm điểm...</span>`;
 
-  showToast("Đang xử lý", "Hệ thống đang chấm điểm và ghi nhận bài thi...", "info", 3000);
+  if (isAutoTimeout) {
+    showToast("Hết giờ làm bài!", "Đã hết thời gian làm bài, hệ thống đang tự động thu và nộp bài thi của bạn...", "warning", 5000);
+  } else {
+    showToast("Đang xử lý", "Hệ thống đang chấm điểm và ghi nhận bài thi...", "info", 3000);
+  }
 
   const payload = {
     action: "submitExam",
