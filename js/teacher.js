@@ -5938,6 +5938,68 @@ function initCentralHubModal() {
     });
   }
 
+  // Nút Sao chép toàn bộ mã nguồn Teacher_Code.gs cho Server Riêng
+  const btnCopyTeacherGasCode = document.getElementById("btnCopyTeacherGasCode");
+  const btnCopyTeacherGasCodeText = document.getElementById("btnCopyTeacherGasCodeText");
+  if (btnCopyTeacherGasCode) {
+    btnCopyTeacherGasCode.addEventListener("click", async () => {
+      let codeContent = window.TEACHER_GAS_CODE || "";
+
+      // Nếu chưa có trong window (ví dụ mở trên server mạng), thử fetch file
+      if (!codeContent) {
+        try {
+          const resp = await fetch("gas/Teacher_Code.gs?v=" + Date.now());
+          if (resp.ok) {
+            codeContent = await resp.text();
+            window.TEACHER_GAS_CODE = codeContent;
+          }
+        } catch (fetchErr) {
+          console.warn("Không thể fetch Teacher_Code.gs:", fetchErr);
+        }
+      }
+
+      if (!codeContent) {
+        showToast("Lỗi sao chép", "Chưa tải được mã nguồn Teacher_Code.gs!", "error", 3000);
+        return;
+      }
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(codeContent);
+        } else {
+          // Fallback cho trình duyệt cũ hoặc một số môi trường
+          const ta = document.createElement("textarea");
+          ta.value = codeContent;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+        }
+
+        // Đổi trạng thái nút thành công
+        if (btnCopyTeacherGasCodeText) btnCopyTeacherGasCodeText.textContent = "✅ Đã Copy Xong!";
+        btnCopyTeacherGasCode.style.background = "linear-gradient(135deg, #059669, #047857)";
+        setTimeout(() => {
+          if (btnCopyTeacherGasCodeText) btnCopyTeacherGasCodeText.textContent = "Sao Chép Mã Code (.gs)";
+          btnCopyTeacherGasCode.style.background = "";
+        }, 3000);
+
+        showToast(
+          "Đã sao chép thành công!",
+          "Đã copy toàn bộ mã nguồn Teacher_Code.gs! Thầy/Cô hãy mở Google Sheet > Tiện ích mở rộng > Apps Script > Dán (Ctrl+V) và Triển khai làm Web App.",
+          "success",
+          7000
+        );
+
+      } catch (copyErr) {
+        console.error("Lỗi clipboard:", copyErr);
+        showToast("Lỗi", "Không thể truy cập Clipboard: " + copyErr.message, "error", 4000);
+      }
+    });
+  }
+
   // Nút Khôi phục URL Mặc định
   if (btnResetHubServerUrl) {
     btnResetHubServerUrl.addEventListener("click", () => {
