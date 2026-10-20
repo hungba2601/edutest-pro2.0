@@ -223,6 +223,13 @@ window.addEventListener("DOMContentLoaded", () => {
   // Tải danh sách đề thi của giáo viên
   loadTeacherExams();
 
+  // Tải ngầm danh sách học sinh để sẵn sàng ngay cho Tab 2 (Xem kết quả theo CSDL gốc) & Tab 3
+  setTimeout(() => {
+    if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
+      loadTeacherStudents(false).catch(err => console.log("Preload students background:", err));
+    }
+  }, 800);
+
   // Lắng nghe sự kiện gõ phím để xóa cảnh báo lỗi khi nhập tên kỳ kiểm tra
   const examTitleInput = document.getElementById("examTitle");
   if (examTitleInput) {
@@ -253,6 +260,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnLogout").addEventListener("click", () => {
     localStorage.removeItem("currentUser");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("custom_gas_api_url");
     window.location.href = "index.html";
   });
 });
@@ -3339,6 +3347,9 @@ function renderTeacherExamsTable(examsList, isFromCache) {
       </td>
       <td>
         <div class="table-actions-cell">
+          <button type="button" class="btn-action-results" data-made="${exam.maDe}" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700;" title="Xem bảng điểm và kết quả của đề thi này">
+            📊 Điểm
+          </button>
           <button type="button" class="btn-action-copy-link" data-made="${exam.maDe}" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; font-weight: 700;" title="Sao chép link làm bài gửi học sinh (kết nối đúng Google Sheet của thầy/cô)">
             🔗 Link thi
           </button>
@@ -3393,6 +3404,29 @@ function attachExamTableEvents(tbody) {
     btn.addEventListener("click", (e) => {
       const maDe = e.currentTarget.dataset.made;
       openExamForEditing(maDe);
+    });
+  });
+
+  // 1.5. Gắn sự kiện Xem điểm thi nhanh từ danh sách đề
+  tbody.querySelectorAll(".btn-action-results").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const maDe = e.currentTarget.dataset.made;
+      const tabBtnResults = document.getElementById("tabBtnResults");
+      const tabResults = document.getElementById("tabResults");
+      const tabCreate = document.getElementById("tabCreate");
+      const tabStudents = document.getElementById("tabStudents");
+      if (tabBtnResults && tabResults) {
+        [document.getElementById("tabBtnCreate"), tabBtnResults, document.getElementById("tabBtnStudents")].forEach(b => b && b.classList.remove("active"));
+        [tabCreate, tabResults, tabStudents].forEach(t => t && (t.style.display = "none"));
+        tabBtnResults.classList.add("active");
+        tabResults.style.display = "block";
+
+        const selectExam = document.getElementById("selectFilterExam");
+        if (selectExam) {
+          selectExam.value = maDe;
+        }
+        loadTeacherResults(maDe);
+      }
     });
   });
 
@@ -3492,25 +3526,117 @@ async function toggleExamStatusApi(maDe, newStatus) {
 // ============================================================================
 // 8. TAB 2: XEM KẾT QUẢ VÀ THỐNG KÊ (DASHBOARD)
 // ============================================================================
+// ============================================================================
+// 8. TAB 2: XEM KẾT QUẢ VÀ THỐNG KÊ (DASHBOARD)
+// ============================================================================
+let currentRawResultsList = [];        // Dữ liệu bài nộp lấy trực tiếp từ DATA_KETQUA
+let currentDisplayedResultsList = [];  // Dữ liệu đã ghép với CSDL gốc của lớp (đúng thứ tự sổ điểm)
+
 function updateFilterExamDropdown(exams) {
-  const select = document.getElementById("selectFilterExam");
-  select.innerHTML = `<option value="ALL">-- Tất cả bài kiểm tra (${exams.length} đề) --</option>`;
+  const selectExam = document.getElementById("selectFilterExam");
+  if (!selectExam) return;
+  const currentVal = selectExam.value;
+
+  selectExam.innerHTML = `<option value="ALL">-- Tất cả bài kiểm tra (${exams.length} đề) --</option>`;
   exams.forEach(ex => {
     const opt = document.createElement("option");
     opt.value = ex.maDe;
     opt.textContent = `[${ex.maDe}] ${ex.tenKyThi}`;
-    select.appendChild(opt);
+    selectExam.appendChild(opt);
+  });
+
+  if (currentVal && Array.from(selectExam.options).some(o => o.value === currentVal)) {
+    selectExam.value = currentVal;
+  }
+
+  // Cập nhật luôn danh sách lớp vào dropdown chọn lớp của Tab 2
+  populateResultClassDropdown();
+}
+
+function populateResultClassDropdown() {
+  const selectClass = document.getElementById("selectFilterResultClass");
+  if (!selectClass) return;
+
+  const currentVal = selectClass.value;
+  // Tập hợp danh sách lớp từ teacherAllClassesList hoặc currentTeacherStudents
+  const classSet = new Set();
+  (teacherAllClassesList || []).forEach(c => c && classSet.add(normalizeClassName(c)));
+  (currentTeacherStudents || []).forEach(st => st.lop && classSet.add(normalizeClassName(st.lop)));
+
+  const sortedClasses = Array.from(classSet).sort((a, b) => {
+    const ga = parseInt(getGradeFromClass(a)) || 0;
+    const gb = parseInt(getGradeFromClass(b)) || 0;
+    if (ga !== gb) return ga - gb;
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  });
+
+  selectClass.innerHTML = `<option value="ALL">-- Tất cả các lớp (${sortedClasses.length} lớp) --</option>`;
+  sortedClasses.forEach(cls => {
+    const opt = document.createElement("option");
+    opt.value = cls;
+    opt.textContent = `Lớp ${cls}`;
+    selectClass.appendChild(opt);
+  });
+
+  if (currentVal && Array.from(selectClass.options).some(o => o.value === currentVal)) {
+    selectClass.value = currentVal;
+  }
+}
+
+// Bắt sự kiện lọc kết quả
+const btnFilterResults = document.getElementById("btnFilterResults");
+if (btnFilterResults) {
+  btnFilterResults.addEventListener("click", () => {
+    const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+    loadTeacherResults(selectedMaDe);
   });
 }
 
-document.getElementById("btnFilterResults").addEventListener("click", () => {
-  const selectedMaDe = document.getElementById("selectFilterExam").value;
-  loadTeacherResults(selectedMaDe);
-});
+const selectFilterExamElem = document.getElementById("selectFilterExam");
+if (selectFilterExamElem) {
+  selectFilterExamElem.addEventListener("change", () => {
+    applyResultsFiltersAndRender();
+  });
+}
 
+const selectFilterResultClassElem = document.getElementById("selectFilterResultClass");
+if (selectFilterResultClassElem) {
+  selectFilterResultClassElem.addEventListener("change", () => {
+    applyResultsFiltersAndRender();
+  });
+}
+
+const chkIncludeNotSubmittedElem = document.getElementById("chkIncludeNotSubmitted");
+if (chkIncludeNotSubmittedElem) {
+  chkIncludeNotSubmittedElem.addEventListener("change", () => {
+    applyResultsFiltersAndRender();
+  });
+}
+
+/**
+ * Tải kết quả bài thi từ Google Sheets
+ */
 async function loadTeacherResults(filterMaDe = "ALL") {
   const tbody = document.getElementById("resultsTableBody");
-  tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Đang tải bảng điểm kết quả...</td></tr>`;
+  if (tbody) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Đang tải bảng điểm kết quả...</td></tr>`;
+  }
+
+  // Đảm bảo danh sách học sinh CSDL gốc đã được tải
+  if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
+    const cached = getCachedTeacherStudents();
+    if (cached && Array.isArray(cached.students) && cached.students.length > 0) {
+      currentTeacherStudents = cached.students.map(st => ({ ...st, lop: normalizeClassName(st.lop) }));
+    } else {
+      try {
+        await loadTeacherStudents(false);
+      } catch (e) {
+        console.warn("Không thể tải CSDL học sinh gốc cho Tab 2:", e);
+      }
+    }
+  }
+
+  populateResultClassDropdown();
 
   try {
     const res = await fetch(API_URL, {
@@ -3524,25 +3650,163 @@ async function loadTeacherResults(filterMaDe = "ALL") {
     });
 
     const data = await res.json();
-    currentResultsList = data.results || [];
+    currentRawResultsList = (data.results || []).map(r => ({
+      ...r,
+      lop: normalizeClassName(r.lop)
+    }));
 
-    // Tính toán KPI
-    computeAndRenderMetrics(currentResultsList);
-
-    // Render bảng học sinh
-    renderResultsTable(currentResultsList);
+    // Đồng bộ vào biến toàn cục và hiển thị
+    currentResultsList = currentRawResultsList;
+    applyResultsFiltersAndRender();
 
   } catch (err) {
     console.error("Lỗi lấy kết quả thi:", err);
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #f87171;">Lỗi tải kết quả: ${err.message}</td></tr>`;
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #f87171;">Lỗi tải kết quả: ${err.message}</td></tr>`;
+    }
   }
 }
 
-function computeAndRenderMetrics(results) {
-  const total = results.length;
-  document.getElementById("metricTotalSubmissions").textContent = total;
+/**
+ * Ghép nối danh sách bài nộp với CSDL học sinh gốc của lớp
+ * Giữ nguyên 100% thứ tự STT / Alpha trong sổ điểm gốc của từng lớp!
+ */
+function applyResultsFiltersAndRender() {
+  const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+  const selectedClass = document.getElementById("selectFilterResultClass")?.value || "ALL";
+  const includeNotSubmitted = document.getElementById("chkIncludeNotSubmitted") ? document.getElementById("chkIncludeNotSubmitted").checked : true;
 
-  if (total === 0) {
+  // 1. Lọc các bài nộp thô theo bài kiểm tra
+  let filteredSubmissions = currentRawResultsList;
+  if (selectedMaDe && selectedMaDe !== "ALL") {
+    filteredSubmissions = filteredSubmissions.filter(r => r.maDe === selectedMaDe);
+  }
+
+  // 2. Nếu Thầy/Cô chọn "Hiện đủ danh sách lớp theo CSDL gốc"
+  if (includeNotSubmitted) {
+    // Lấy toàn bộ học sinh gốc của giáo viên (đã đúng thứ tự từ trên xuống dưới trong Sheet)
+    let baseStudents = currentTeacherStudents || [];
+    if (baseStudents.length === 0) {
+      const cached = getCachedTeacherStudents();
+      if (cached && Array.isArray(cached.students)) {
+        baseStudents = cached.students;
+      }
+    }
+
+    // Xác định các lớp cần hiển thị
+    let targetStudents = baseStudents;
+    if (selectedClass && selectedClass !== "ALL") {
+      targetStudents = baseStudents.filter(s => normalizeClassName(s.lop) === normalizeClassName(selectedClass));
+    } else if (selectedMaDe && selectedMaDe !== "ALL") {
+      // Nếu chọn đề cụ thể mà chọn "Tất cả các lớp", chỉ lấy học sinh thuộc các lớp được phép thi của đề đó
+      const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
+      const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
+      if (rawAllowed && !rawAllowed.toUpperCase().includes("ALL") && !rawAllowed.toUpperCase().includes("TẤT CẢ")) {
+        const allowedList = rawAllowed.split(/[,;\s]+/).map(normalizeClassName).filter(Boolean);
+        targetStudents = baseStudents.filter(s => allowedList.includes(normalizeClassName(s.lop)));
+      }
+    }
+
+    // Ghép từng học sinh gốc với bài làm trong DATA_KETQUA
+    const mergedList = targetStudents.map((st, idx) => {
+      const stUser = String(st.username || "").trim().toLowerCase();
+      const stName = String(st.hoTen || "").trim().toLowerCase();
+      const stClass = normalizeClassName(st.lop);
+
+      // Tìm bài nộp khớp với học sinh (lấy bài nộp mới nhất)
+      const sub = [...filteredSubmissions].reverse().find(r => {
+        const rUser = String(r.usernameHS || "").trim().toLowerCase();
+        if (rUser && stUser && rUser === stUser) return true;
+        const rName = String(r.hoTen || "").trim().toLowerCase();
+        const rClass = normalizeClassName(r.lop);
+        return rName === stName && rClass === stClass;
+      });
+
+      if (sub) {
+        return {
+          stt: idx + 1,
+          usernameHS: st.username,
+          hoTen: st.hoTen,
+          lop: stClass,
+          ngaySinh: st.ngaySinh,
+          gioiTinh: st.gioiTinh,
+          truong: st.truong,
+          maDe: sub.maDe || selectedMaDe,
+          diemTong: sub.diemTong !== undefined ? Number(sub.diemTong) : 0,
+          soCauDungSai: sub.soCauDungSai || "--",
+          thoiGianNop: sub.thoiGianNop || "--",
+          chiTietTraLoi: sub.chiTietTraLoi || "[]",
+          baiLamTuLuan: sub.baiLamTuLuan || [],
+          isSubmitted: true,
+          subRecord: sub
+        };
+      } else {
+        return {
+          stt: idx + 1,
+          usernameHS: st.username,
+          hoTen: st.hoTen,
+          lop: stClass,
+          ngaySinh: st.ngaySinh,
+          gioiTinh: st.gioiTinh,
+          truong: st.truong,
+          maDe: selectedMaDe !== "ALL" ? selectedMaDe : "--",
+          diemTong: "", // ĐỂ TRỐNG Ô ĐIỂM ĐỂ COPY-PASTE THẲNG VÀO SỔ ĐIỂM!
+          soCauDungSai: "",
+          thoiGianNop: "",
+          chiTietTraLoi: "[]",
+          baiLamTuLuan: [],
+          isSubmitted: false,
+          subRecord: null
+        };
+      }
+    });
+
+    currentDisplayedResultsList = mergedList;
+  } else {
+    // Chỉ hiển thị các bài đã nộp
+    if (selectedClass && selectedClass !== "ALL") {
+      filteredSubmissions = filteredSubmissions.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
+    }
+    currentDisplayedResultsList = filteredSubmissions.map((r, idx) => ({
+      stt: idx + 1,
+      usernameHS: r.usernameHS,
+      hoTen: r.hoTen,
+      lop: normalizeClassName(r.lop),
+      ngaySinh: r.ngaySinh,
+      gioiTinh: r.gioiTinh,
+      truong: r.truong,
+      maDe: r.maDe,
+      diemTong: Number(r.diemTong) || 0,
+      soCauDungSai: r.soCauDungSai || "--",
+      thoiGianNop: r.thoiGianNop || "--",
+      chiTietTraLoi: r.chiTietTraLoi || "[]",
+      baiLamTuLuan: r.baiLamTuLuan || [],
+      isSubmitted: true,
+      subRecord: r
+    }));
+  }
+
+  // Cập nhật thống kê KPI và vẽ bảng
+  computeAndRenderMetrics(currentDisplayedResultsList);
+  renderResultsTable(currentDisplayedResultsList);
+}
+
+function computeAndRenderMetrics(results) {
+  const totalStudents = results.length;
+  const submittedList = results.filter(r => r.isSubmitted);
+  const submittedCount = submittedList.length;
+
+  const metricTotalSubmissions = document.getElementById("metricTotalSubmissions");
+  if (metricTotalSubmissions) {
+    if (totalStudents > submittedCount) {
+      const pct = totalStudents > 0 ? Math.round((submittedCount / totalStudents) * 100) : 0;
+      metricTotalSubmissions.innerHTML = `${submittedCount} <span style="font-size: 0.82rem; font-weight: 600; color: #64748b;">/ ${totalStudents} HS (${pct}%)</span>`;
+    } else {
+      metricTotalSubmissions.textContent = submittedCount;
+    }
+  }
+
+  if (submittedCount === 0) {
     document.getElementById("metricAvgScore").textContent = "0.0";
     document.getElementById("metricHighLow").textContent = "0.0 / 0.0";
     document.getElementById("metricPassRate").textContent = "0%";
@@ -3554,7 +3818,7 @@ function computeAndRenderMetrics(results) {
   let min = Infinity;
   let passedCount = 0;
 
-  results.forEach(r => {
+  submittedList.forEach(r => {
     const score = Number(r.diemTong) || 0;
     sum += score;
     if (score > max) max = score;
@@ -3562,10 +3826,10 @@ function computeAndRenderMetrics(results) {
     if (score >= 5.0) passedCount++;
   });
 
-  const avg = total > 0 ? (Math.round((sum / total) * 100) / 100) : 0;
-  const passRate = total > 0 ? Math.round((passedCount / total) * 100) : 0;
-  const displayMax = total > 0 ? (Math.round(max * 100) / 100) : 0;
-  const displayMin = total > 0 ? (Math.round(min * 100) / 100) : 0;
+  const avg = submittedCount > 0 ? (Math.round((sum / submittedCount) * 100) / 100) : 0;
+  const passRate = submittedCount > 0 ? Math.round((passedCount / submittedCount) * 100) : 0;
+  const displayMax = submittedCount > 0 ? (Math.round(max * 100) / 100) : 0;
+  const displayMin = submittedCount > 0 ? (Math.round(min * 100) / 100) : 0;
 
   document.getElementById("metricAvgScore").textContent = avg;
   document.getElementById("metricHighLow").textContent = `${displayMax} / ${displayMin}`;
@@ -3574,30 +3838,32 @@ function computeAndRenderMetrics(results) {
 
 function renderResultsTable(results) {
   const tbody = document.getElementById("resultsTableBody");
+  if (!tbody) return;
+
   if (!results || results.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Chưa có học sinh nào nộp bài cho kỳ thi này.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Chưa có học sinh nào phù hợp với bộ lọc này.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = "";
   results.forEach((row, idx) => {
-    const score = Number(row.diemTong) || 0;
-    const displayScore = Math.round(score * 100) / 100;
-    let badgeClass = "low";
-    if (score >= 8.0) badgeClass = "high";
-    else if (score >= 5.0) badgeClass = "med";
+    const isSubmitted = row.isSubmitted;
+    let scoreBadgeHtml = "";
+    let dungSaiHtml = "";
+    let thoiGianNopHtml = "";
+    let actionButtonsHtml = "";
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${idx + 1}</td>
-      <td><strong>${row.lop}</strong></td>
-      <td>${row.hoTen}</td>
-      <td>${formatDob(row.ngaySinh)}</td>
-      <td>${row.gioiTinh}</td>
-      <td><span class="score-badge ${badgeClass}">${displayScore}</span></td>
-      <td>${row.soCauDungSai || "--"}</td>
-      <td style="font-size: 0.8rem; color: #94a3b8;">${row.thoiGianNop}</td>
-      <td>
+    if (isSubmitted) {
+      const score = Number(row.diemTong) || 0;
+      const displayScore = Math.round(score * 100) / 100;
+      let badgeClass = "low";
+      if (score >= 8.0) badgeClass = "high";
+      else if (score >= 5.0) badgeClass = "med";
+
+      scoreBadgeHtml = `<span class="score-badge ${badgeClass}">${displayScore}</span>`;
+      dungSaiHtml = `<span style="font-weight: 600; color: #1e293b;">${row.soCauDungSai || "--"}</span>`;
+      thoiGianNopHtml = `<span style="font-size: 0.8rem; color: #64748b;">${row.thoiGianNop}</span>`;
+      actionButtonsHtml = `
         <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
           <button type="button" class="btn-secondary-sm btn-view-detail" data-index="${idx}">
             Xem bài làm
@@ -3608,7 +3874,33 @@ function renderResultsTable(results) {
             </svg>
           </button>
         </div>
+      `;
+    } else {
+      // Học sinh chưa làm bài
+      scoreBadgeHtml = `<span class="score-badge not-submitted" style="background: #f1f5f9; color: #64748b; border: 1.5px dashed #cbd5e1; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">Chưa làm bài</span>`;
+      dungSaiHtml = `<span style="color: #cbd5e1;">--</span>`;
+      thoiGianNopHtml = `<span style="font-size: 0.78rem; color: #94a3b8; font-style: italic;">Chưa nộp</span>`;
+      actionButtonsHtml = `<span style="font-size: 0.78rem; color: #cbd5e1; font-style: italic;">Chưa có bài thi</span>`;
+    }
+
+    const tr = document.createElement("tr");
+    if (!isSubmitted) {
+      tr.style.background = "#fcfdfd";
+    }
+
+    tr.innerHTML = `
+      <td>${row.stt || idx + 1}</td>
+      <td><strong>${row.lop}</strong></td>
+      <td>
+        <strong style="color: #0f172a;">${row.hoTen}</strong>
+        <div style="font-size: 0.72rem; color: #94a3b8; font-family: monospace;">${row.usernameHS}</div>
       </td>
+      <td>${formatDob(row.ngaySinh)}</td>
+      <td>${row.gioiTinh}</td>
+      <td>${scoreBadgeHtml}</td>
+      <td>${dungSaiHtml}</td>
+      <td>${thoiGianNopHtml}</td>
+      <td>${actionButtonsHtml}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -3616,71 +3908,119 @@ function renderResultsTable(results) {
   // Gắn sự kiện xem modal chi tiết bài làm
   tbody.querySelectorAll(".btn-view-detail").forEach(btn => {
     btn.addEventListener("click", (e) => {
-      const idx = parseInt(e.target.dataset.index);
-      openStudentDetailModal(results[idx]);
+      const idx = parseInt(btn.dataset.index);
+      const record = results[idx]?.subRecord || results[idx];
+      if (record) openStudentDetailModal(record);
+    });
+  });
+
+  // Gắn sự kiện xóa kết quả
+  tbody.querySelectorAll(".btn-delete-result").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      const idx = parseInt(btn.dataset.index);
+      const item = results[idx];
+      if (!item) return;
+
+      if (!confirm(`Bạn có chắc chắn muốn xóa kết quả thi của học sinh "${item.hoTen}" (${item.usernameHS}) khỏi Google Sheets không?`)) {
+        return;
+      }
+
+      btn.disabled = true;
+      try {
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "deleteStudentResult",
+            usernameGV: currentTeacher.username,
+            usernameHS: item.usernameHS,
+            maDe: item.maDe
+          })
+        });
+        const res = await resp.json();
+        if (res && res.success) {
+          showToast("Đã xóa", `Đã xóa bài thi của học sinh ${item.hoTen}!`, "success", 3000);
+          const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+          loadTeacherResults(selectedMaDe);
+        } else {
+          throw new Error(res ? res.message : "Xóa thất bại!");
+        }
+      } catch (delErr) {
+        alert("Lỗi khi xóa bài làm: " + delErr.message);
+        btn.disabled = false;
+      }
     });
   });
 }
 
 // Tìm kiếm nhanh học sinh
-document.getElementById("searchStudentInput").addEventListener("input", (e) => {
-  const query = e.target.value.toLowerCase().trim();
-  const filtered = currentResultsList.filter(r => 
-    (r.hoTen && r.hoTen.toLowerCase().includes(query)) ||
-    (r.lop && r.lop.toLowerCase().includes(query)) ||
-    (r.usernameHS && r.usernameHS.toLowerCase().includes(query))
-  );
-  renderResultsTable(filtered);
-});
+const searchStudentInputElem = document.getElementById("searchStudentInput");
+if (searchStudentInputElem) {
+  searchStudentInputElem.addEventListener("input", (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    const filtered = currentDisplayedResultsList.filter(r => 
+      (r.hoTen && r.hoTen.toLowerCase().includes(query)) ||
+      (r.lop && r.lop.toLowerCase().includes(query)) ||
+      (r.usernameHS && r.usernameHS.toLowerCase().includes(query))
+    );
+    renderResultsTable(filtered);
+  });
+}
 
 // ============================================================================
-// 9. XUẤT FILE EXCEL (.XLSX) VỚI SHEETJS
+// 9. XUẤT FILE EXCEL (.XLSX) VỚI SHEETJS - THEO ĐÚNG THỨ TỰ SỔ ĐIỂM GỐC!
 // ============================================================================
-document.getElementById("btnExportExcel").addEventListener("click", () => {
-  if (!currentResultsList || currentResultsList.length === 0) {
-    showToast("Không có dữ liệu", "Không có kết quả nào để xuất file Excel!", "warning");
-    return;
-  }
+const btnExportExcelElem = document.getElementById("btnExportExcel");
+if (btnExportExcelElem) {
+  btnExportExcelElem.addEventListener("click", () => {
+    if (!currentDisplayedResultsList || currentDisplayedResultsList.length === 0) {
+      showToast("Không có dữ liệu", "Không có kết quả nào để xuất file Excel!", "warning");
+      return;
+    }
 
-  if (typeof XLSX === "undefined") {
-    showToast("Lỗi", "Thư viện SheetJS chưa được nạp!", "error");
-    return;
-  }
+    if (typeof XLSX === "undefined") {
+      showToast("Lỗi", "Thư viện SheetJS chưa được nạp!", "error");
+      return;
+    }
 
-  // Định dạng dữ liệu bảng tính
-  const exportData = currentResultsList.map((row, idx) => ({
-    "STT": idx + 1,
-    "Mã Học Sinh": row.usernameHS,
-    "Họ và Tên": row.hoTen,
-    "Lớp": row.lop,
-    "Ngày Sinh": formatDob(row.ngaySinh),
-    "Giới Tính": row.gioiTinh,
-    "Trường": row.truong,
-    "Mã Đề Thi": row.maDe,
-    "Điểm Tổng": row.diemTong,
-    "Số Câu Đúng": row.soCauDungSai,
-    "Thời Gian Nộp": row.thoiGianNop
-  }));
+    // Định dạng dữ liệu bảng tính:
+    // Học sinh chưa thi: cột Điểm Tổng để TRỐNG ("") để thầy/cô copy thẳng vào sổ điểm điện tử!
+    const exportData = currentDisplayedResultsList.map((row, idx) => ({
+      "STT": idx + 1,
+      "Mã Học Sinh": row.usernameHS,
+      "Họ và Tên": row.hoTen,
+      "Lớp": row.lop,
+      "Ngày Sinh": formatDob(row.ngaySinh),
+      "Giới Tính": row.gioiTinh,
+      "Trường": row.truong,
+      "Trạng Thái": row.isSubmitted ? "Đã nộp bài" : "Chưa làm bài",
+      "Điểm Tổng": row.isSubmitted ? (Number(row.diemTong) || 0) : "", // Ô TRỐNG nếu chưa làm bài!
+      "Số Câu Đúng": row.isSubmitted ? row.soCauDungSai : "",
+      "Thời Gian Nộp": row.isSubmitted ? row.thoiGianNop : ""
+    }));
 
-  // Tạo worksheet và workbook
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Diem_Trac_Nghiem");
+    // Tạo worksheet và workbook
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Bang_Diem");
 
-  // Đặt tên file xuất
-  const selectedMaDe = document.getElementById("selectFilterExam").value;
-  const fileName = `Bang_Diem_Trac_Nghiem_${selectedMaDe}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    // Đặt tên file xuất thân thiện
+    const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+    const selectedClass = document.getElementById("selectFilterResultClass")?.value || "ALL";
+    const classTag = selectedClass !== "ALL" ? `Lop_${selectedClass.replace(/[\/\\?%*:|"<>]/g, "-")}_` : "";
+    const fileName = `Bang_Diem_${classTag}${selectedMaDe}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-  XLSX.writeFile(workbook, fileName);
-  showToast("Thành công", `Đã xuất file Excel trắc nghiệm: ${fileName}`, "success");
-});
+    XLSX.writeFile(workbook, fileName);
+    showToast("Thành công", `Đã xuất file Excel chuẩn thứ tự lớp: ${fileName}`, "success", 4000);
+  });
+}
 
 // ============================================================================
 // 9.1. XUẤT FILE EXCEL PHẦN TỰ LUẬN (.XLSX) ĐỂ GIÁO VIÊN CHẤM NHANH
 // ============================================================================
 function exportEssayResultsExcel() {
-  if (!currentResultsList || currentResultsList.length === 0) {
-    showToast("Không có dữ liệu", "Không có kết quả bài thi nào để xuất file tự luận!", "warning");
+  if (!currentDisplayedResultsList || currentDisplayedResultsList.length === 0) {
+    showToast("Không có dữ liệu", "Không có bài thi nào để xuất file tự luận!", "warning");
     return;
   }
 
@@ -3689,16 +4029,8 @@ function exportEssayResultsExcel() {
     return;
   }
 
-  const selectedMaDe = document.getElementById("selectFilterExam").value;
-  let targetResults = currentResultsList;
-  if (selectedMaDe && selectedMaDe !== "ALL") {
-    targetResults = currentResultsList.filter(r => r.maDe === selectedMaDe);
-  }
-
-  if (targetResults.length === 0) {
-    showToast("Không có bài nộp", `Không tìm thấy bài thi nào cho mã đề ${selectedMaDe}!`, "warning");
-    return;
-  }
+  const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+  const targetResults = currentDisplayedResultsList;
 
   // Tìm đề thi tương ứng để lấy danh sách câu hỏi tự luận
   const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
@@ -3729,8 +4061,9 @@ function exportEssayResultsExcel() {
       "Ngày Sinh": formatDob(row.ngaySinh),
       "Giới Tính": row.gioiTinh || "",
       "Trường": row.truong || "",
+      "Trạng Thái": row.isSubmitted ? "Đã nộp bài" : "Chưa làm bài",
       "Mã Đề Thi": row.maDe || "",
-      "Thời Gian Nộp": row.thoiGianNop || ""
+      "Thời Gian Nộp": row.isSubmitted ? row.thoiGianNop : ""
     };
 
     const essayAnswers = row.baiLamTuLuan || [];
@@ -3744,11 +4077,13 @@ function exportEssayResultsExcel() {
       }
 
       let ansText = "";
-      const foundAns = essayAnswers.find(a => (a.id || 0) == c);
-      if (foundAns) {
-        ansText = foundAns.baiLam || foundAns.traLoi || "";
-      } else if (essayAnswers[c - 1]) {
-        ansText = essayAnswers[c - 1].baiLam || essayAnswers[c - 1].traLoi || "";
+      if (row.isSubmitted) {
+        const foundAns = essayAnswers.find(a => (a.id || 0) == c);
+        if (foundAns) {
+          ansText = foundAns.baiLam || foundAns.traLoi || "";
+        } else if (essayAnswers[c - 1]) {
+          ansText = essayAnswers[c - 1].baiLam || essayAnswers[c - 1].traLoi || "";
+        }
       }
 
       rowObj[colName] = ansText;
@@ -3772,6 +4107,7 @@ function exportEssayResultsExcel() {
     { wch: 10 },
     { wch: 20 },
     { wch: 14 },
+    { wch: 14 },
     { wch: 20 }
   ];
 
@@ -3786,9 +4122,11 @@ function exportEssayResultsExcel() {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "ChamTuLuan");
 
-  const fileName = `Bang_Cham_Tu_Luan_${selectedMaDe}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  XLSX.writeFile(workbook, fileName);
+  const selectedClass = document.getElementById("selectFilterResultClass")?.value || "ALL";
+  const classTag = selectedClass !== "ALL" ? `Lop_${selectedClass.replace(/[\/\\?%*:|"<>]/g, "-")}_` : "";
+  const fileName = `Bang_Cham_Tu_Luan_${classTag}${selectedMaDe}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
+  XLSX.writeFile(workbook, fileName);
   showToast("Xuất Excel thành công", `Đã tạo file danh sách chấm tự luận: ${fileName}`, "success", 4000);
 }
 
@@ -4179,6 +4517,59 @@ function buildGradeAndClassFilters(apiClasses) {
  */
 
 /**
+ * Chuẩn hóa tên lớp học sinh (Xử lý toàn diện mọi trường hợp lớp có dấu "/" như 8/3, 8/4, 9/2 bị Google Sheets hoặc JS biến thành Date String)
+ */
+function normalizeClassName(val) {
+  if (val === null || val === undefined || val === "") return "";
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const d = val.getDate();
+    const m = val.getMonth() + 1;
+    if (d >= 6 && d <= 12 && m >= 1 && m <= 15) return `${d}/${m}`;
+    if (m >= 6 && m <= 12 && d >= 1 && d <= 15) return `${m}/${d}`;
+    if (d >= 1 && d <= 5 && m >= 1 && m <= 15) return `${d}/${m}`;
+    return `${d}/${m}`;
+  }
+  let s = String(val).trim();
+  if (s.startsWith("'")) s = s.substring(1).trim();
+
+  // 1. Chuỗi Date tiếng Anh (VD: "Sun Mar 08 2026 ...")
+  if (s.includes("GMT") || /^[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}/.test(s)) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const day = d.getDate();
+      const month = d.getMonth() + 1;
+      if (day >= 6 && day <= 12 && month >= 1 && month <= 15) return `${day}/${month}`;
+      if (month >= 6 && month <= 12 && day >= 1 && day <= 15) return `${month}/${day}`;
+      return `${day}/${month}`;
+    }
+  }
+
+  // 2. Chuỗi ISO (VD: "2026-02-09T00:00:00.000Z")
+  if (s.includes("T") && s.includes("-")) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const day = d.getDate();
+      const month = d.getMonth() + 1;
+      if (day >= 6 && day <= 12 && month >= 1 && month <= 15) return `${day}/${month}`;
+      if (month >= 6 && month <= 12 && day >= 1 && day <= 15) return `${month}/${day}`;
+      return `${day}/${month}`;
+    }
+  }
+
+  // 3. Chuỗi ngày tháng dạng "08/03/2026"
+  const mDate = s.match(/^0?(\d{1,2})[-/]0?(\d{1,2})[-/]\d{4}$/);
+  if (mDate) {
+    const n1 = parseInt(mDate[1], 10);
+    const n2 = parseInt(mDate[2], 10);
+    if (n1 >= 6 && n1 <= 12 && n2 >= 1 && n2 <= 15) return `${n1}/${n2}`;
+    if (n2 >= 6 && n2 <= 12 && n1 >= 1 && n1 <= 15) return `${n2}/${n1}`;
+    return `${n1}/${n2}`;
+  }
+
+  return s;
+}
+
+/**
  * Lấy dữ liệu học sinh đã lưu trong bộ nhớ đệm trình duyệt (LocalStorage Cache)
  * Tự động vô hiệu hóa cache nếu lớp giảng dạy của giáo viên thay đổi
  */
@@ -4212,11 +4603,18 @@ function getCachedTeacherStudents() {
 function saveCachedTeacherStudents(students, classes) {
   if (!currentTeacher || !currentTeacher.username) return;
   try {
+    const cleanStudents = (students || []).map(st => ({
+      ...st,
+      lop: normalizeClassName(st.lop)
+    }));
+    const cleanClasses = (classes || []).map(normalizeClassName).filter(Boolean);
+    const uniqueClasses = [...new Set(cleanClasses)];
+
     const cacheData = {
       timestamp: Date.now(),
       lopGiangDay: String(currentTeacher.lopGiangDay || "").trim().toUpperCase(),
-      classes: classes || [],
-      students: students || []
+      classes: uniqueClasses,
+      students: cleanStudents
     };
     localStorage.setItem("edutest_students_cache_" + currentTeacher.username, JSON.stringify(cacheData));
   } catch (e) {
@@ -4303,13 +4701,19 @@ async function loadTeacherStudents(forceRefresh = false) {
       throw new Error(result?.message || "Không thể tải danh sách học sinh từ Google Sheets.");
     }
 
-    currentTeacherStudents = result.students || [];
+    currentTeacherStudents = (result.students || []).map(st => ({
+      ...st,
+      lop: normalizeClassName(st.lop)
+    }));
+    const freshClasses = (result.classes && result.classes.length > 0)
+      ? result.classes.map(normalizeClassName).filter(Boolean)
+      : [...new Set(currentTeacherStudents.map(s => s.lop).filter(Boolean))];
 
     // LƯU VÀO BỘ NHỚ TRÌNH DUYỆT (LOCALSTORAGE CACHE) ĐỂ CÁC LẦN SAU MỞ TỨC THÌ
-    saveCachedTeacherStudents(currentTeacherStudents, result.classes || []);
+    saveCachedTeacherStudents(currentTeacherStudents, freshClasses);
 
     // Xây dựng danh sách Checkboxes Khối & Lớp
-    buildGradeAndClassFilters(result.classes || []);
+    buildGradeAndClassFilters(freshClasses);
 
     applyStudentFilters();
     showToast("Đã đồng bộ", `Đã lưu bộ nhớ đệm ${currentTeacherStudents.length} học sinh thành công (Các lần sau sẽ mở tức thì)!`, "success", 3000);
@@ -5012,6 +5416,7 @@ function initTeacherAccountDropdownAndModals() {
       if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi cổng Giáo Viên?")) {
         localStorage.removeItem("currentUser");
         localStorage.removeItem("userRole");
+        localStorage.removeItem("custom_gas_api_url");
         window.location.href = "index.html";
       }
     });
@@ -5393,3 +5798,370 @@ function filterAndRenderStudents() {
     applyStudentFilters();
   }
 }
+
+// ============================================================================
+// KHỞI TẠO TÍNH NĂNG ĐỒNG BỘ TRẠM TRUNG TÂM (CENTRAL HUB)
+// ============================================================================
+function initCentralHubModal() {
+  const centralHubModal = document.getElementById("centralHubModal");
+  const btnSyncToCentralHub = document.getElementById("btnSyncToCentralHub");
+  const btnOpenHubModal = document.getElementById("btnOpenHubModal");
+  const btnCloseHubModal = document.getElementById("btnCloseHubModal");
+  const btnCancelHubModal = document.getElementById("btnCancelHubModal");
+
+  const hubInfoGvName = document.getElementById("hubInfoGvName");
+  const hubInfoGvSchool = document.getElementById("hubInfoGvSchool");
+  const hubInfoServerTypeBadge = document.getElementById("hubInfoServerTypeBadge");
+  const hubInfoServerUrlInput = document.getElementById("hubInfoServerUrlInput");
+  const btnCopyHubServerUrl = document.getElementById("btnCopyHubServerUrl");
+  const hubStatusMessageBox = document.getElementById("hubStatusMessageBox");
+
+  const btnTestHubConnection = document.getElementById("btnTestHubConnection");
+  const btnExecuteHubSync = document.getElementById("btnExecuteHubSync");
+  const btnExecuteHubSyncText = document.getElementById("btnExecuteHubSyncText");
+  const hubSyncSpinner = document.getElementById("hubSyncSpinner");
+
+  if (!centralHubModal) return;
+
+  function setHubStatus(type, msg) {
+    if (!hubStatusMessageBox) return;
+    hubStatusMessageBox.style.display = "block";
+    if (type === "loading") {
+      hubStatusMessageBox.style.background = "#eff6ff";
+      hubStatusMessageBox.style.border = "1.5px solid #bfdbfe";
+      hubStatusMessageBox.style.color = "#1d4ed8";
+    } else if (type === "success") {
+      hubStatusMessageBox.style.background = "#f0fdf4";
+      hubStatusMessageBox.style.border = "1.5px solid #86efac";
+      hubStatusMessageBox.style.color = "#15803d";
+    } else if (type === "error") {
+      hubStatusMessageBox.style.background = "#fef2f2";
+      hubStatusMessageBox.style.border = "1.5px solid #fecaca";
+      hubStatusMessageBox.style.color = "#b91c1c";
+    } else {
+      hubStatusMessageBox.style.background = "#f8fafc";
+      hubStatusMessageBox.style.border = "1.5px solid #cbd5e1";
+      hubStatusMessageBox.style.color = "#334155";
+    }
+    hubStatusMessageBox.innerHTML = msg;
+  }
+
+  function openModal() {
+    if (hubInfoGvName) hubInfoGvName.textContent = currentTeacher ? `${currentTeacher.hoTenGV || ""} (${currentTeacher.username})` : "--";
+    if (hubInfoGvSchool) hubInfoGvSchool.textContent = (currentTeacher && currentTeacher.truong) ? currentTeacher.truong : "Chưa cấu hình trường";
+    
+    const isCustomServer = localStorage.getItem("custom_gas_api_url");
+    if (hubInfoServerTypeBadge) {
+      if (isCustomServer) {
+        hubInfoServerTypeBadge.textContent = "Google Sheet Cá Nhân (Riêng)";
+        hubInfoServerTypeBadge.style.background = "#ecfdf5";
+        hubInfoServerTypeBadge.style.color = "#047857";
+        hubInfoServerTypeBadge.style.border = "1px solid #a7f3d0";
+      } else {
+        hubInfoServerTypeBadge.textContent = "Google Sheet Mặc Định Hệ Thống";
+        hubInfoServerTypeBadge.style.background = "#eff6ff";
+        hubInfoServerTypeBadge.style.color = "#1d4ed8";
+        hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+      }
+    }
+
+    if (hubInfoServerUrlInput) {
+      hubInfoServerUrlInput.value = API_URL;
+    }
+
+    if (hubStatusMessageBox) {
+      hubStatusMessageBox.style.display = "none";
+    }
+
+    const studentCount = Array.isArray(currentTeacherStudents) ? currentTeacherStudents.length : 0;
+    setHubStatus("info", `📊 Sẵn sàng đồng bộ: <strong>${studentCount}</strong> học sinh hiện có trong Sheet sang Trạm Trung Tâm.`);
+
+    centralHubModal.style.display = "flex";
+  }
+
+  function closeModal() {
+    centralHubModal.style.display = "none";
+  }
+
+  const btnPasteHubServerUrl = document.getElementById("btnPasteHubServerUrl");
+  const btnResetHubServerUrl = document.getElementById("btnResetHubServerUrl");
+  const btnClearHubServerUrl = document.getElementById("btnClearHubServerUrl");
+
+  if (btnSyncToCentralHub) btnSyncToCentralHub.addEventListener("click", openModal);
+  if (btnOpenHubModal) btnOpenHubModal.addEventListener("click", openModal);
+  if (btnCloseHubModal) btnCloseHubModal.addEventListener("click", closeModal);
+  if (btnCancelHubModal) btnCancelHubModal.addEventListener("click", closeModal);
+
+  // Nút X màu đỏ: Xóa nhanh URL
+  if (btnClearHubServerUrl) {
+    btnClearHubServerUrl.addEventListener("click", () => {
+      if (hubInfoServerUrlInput) {
+        hubInfoServerUrlInput.value = "";
+        hubInfoServerUrlInput.focus();
+        showToast("Đã xóa", "Đã xóa trắng ô nhập URL! Thầy/Cô hãy dán link mới vào.", "info", 2000);
+      }
+    });
+  }
+
+  // Nút Sao chép URL
+  if (btnCopyHubServerUrl) {
+    btnCopyHubServerUrl.addEventListener("click", () => {
+      const currentVal = hubInfoServerUrlInput ? hubInfoServerUrlInput.value.trim() : API_URL;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(currentVal);
+        showToast("Đã chép", "Đã sao chép URL Web App vào bộ nhớ tạm", "success", 2000);
+      }
+    });
+  }
+
+  // Nút Dán nhanh URL từ Clipboard
+  if (btnPasteHubServerUrl) {
+    btnPasteHubServerUrl.addEventListener("click", async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim()) {
+            if (hubInfoServerUrlInput) hubInfoServerUrlInput.value = text.trim();
+            showToast("Đã dán", "Đã dán URL Web App mới vào ô nhập!", "info", 2000);
+          } else {
+            showToast("Clipboard trống", "Vui lòng sao chép link Web App trước", "warning", 3000);
+          }
+        } else {
+          if (hubInfoServerUrlInput) {
+            hubInfoServerUrlInput.focus();
+            hubInfoServerUrlInput.select();
+          }
+        }
+      } catch (err) {
+        if (hubInfoServerUrlInput) hubInfoServerUrlInput.focus();
+      }
+    });
+  }
+
+  // Nút Khôi phục URL Mặc định
+  if (btnResetHubServerUrl) {
+    btnResetHubServerUrl.addEventListener("click", () => {
+      localStorage.removeItem("custom_gas_api_url");
+      API_URL = DEFAULT_GAS_API_URL;
+      if (hubInfoServerUrlInput) hubInfoServerUrlInput.value = DEFAULT_GAS_API_URL;
+      if (hubInfoServerTypeBadge) {
+        hubInfoServerTypeBadge.textContent = "Google Sheet Mặc Định Hệ Thống";
+        hubInfoServerTypeBadge.style.background = "#eff6ff";
+        hubInfoServerTypeBadge.style.color = "#1d4ed8";
+        hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+      }
+      showToast("Khôi phục thành công", "Đã đặt lại về máy chủ Google Sheet mặc định!", "info", 3000);
+    });
+  }
+
+  // 1. Kiểm tra kết nối Trạm Trung Tâm & Máy chủ riêng
+  if (btnTestHubConnection) {
+    btnTestHubConnection.addEventListener("click", async () => {
+      btnTestHubConnection.disabled = true;
+      const originalText = btnTestHubConnection.innerHTML;
+      btnTestHubConnection.innerHTML = "<span>⏳ Đang kiểm tra...</span>";
+      
+      const testServerUrl = hubInfoServerUrlInput ? (hubInfoServerUrlInput.value || "").trim() : API_URL;
+
+      if (!testServerUrl || !testServerUrl.startsWith("https://script.google.com/macros/s/") || !testServerUrl.includes("/exec")) {
+        setHubStatus("error", "URL Google Apps Script không hợp lệ! Vui lòng nhập link kết thúc bằng <code>/exec</code>.");
+        btnTestHubConnection.disabled = false;
+        btnTestHubConnection.innerHTML = originalText;
+        return;
+      }
+
+      setHubStatus("loading", `Đang kiểm tra kết nối tới Máy chủ riêng và Trạm Trung Tâm...`);
+
+      try {
+        // Kiểm tra ping tới Sheet riêng của GV & kiểm đếm học sinh
+        let studentCountNotice = "";
+        try {
+          const respPing = await fetch(`${testServerUrl}?action=getStudentsForTeacher&usernameGV=${encodeURIComponent(currentTeacher?.username || "")}&_t=${Date.now()}`, { method: "GET" });
+          if (respPing.ok) {
+            const rawPingText = await respPing.text();
+            if (rawPingText && !rawPingText.trim().startsWith("<")) {
+              const pingJson = JSON.parse(rawPingText);
+              if (pingJson && pingJson.success && Array.isArray(pingJson.students)) {
+                studentCountNotice = ` (Phát hiện <strong>${pingJson.students.length} học sinh</strong> trong Sheet riêng)`;
+              }
+            }
+          }
+        } catch (pingErr) {
+          console.warn("Ping đếm học sinh không phản hồi GET, thử ping cơ bản...", pingErr);
+          const basicPing = await fetch(`${testServerUrl}?action=getTeacherExams&gv=test_ping`, { method: "GET" });
+          if (!basicPing.ok) {
+            throw new Error(`Máy chủ riêng phản hồi mã lỗi HTTP ${basicPing.status}. Khi triển khai (Deploy) hãy chắc chắn chọn 'Anyone' (Bất kỳ ai).`);
+          }
+        }
+
+        // Kiểm tra ping tới Trạm Trung Tâm
+        const respHub = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory`, { method: "GET" });
+        if (respHub.ok) {
+          setHubStatus("success", `✅ <strong>KẾT NỐI XUẤT SẮC! (HTTP 200 OK)</strong>${studentCountNotice}<br>Cả Google Sheet riêng của Thầy/Cô và Trạm Trung Tâm đều đang phản hồi rất tốt. Sẵn sàng bấm Đồng Bộ!`);
+          showToast("Kết nối thành công! 🎉", `Máy chủ riêng phản hồi tốt!${studentCountNotice ? " " + studentCountNotice.replace(/<[^>]+>/g, '') : ""}`, "success", 4000);
+        } else {
+          setHubStatus("success", `✅ <strong>Sheet riêng phản hồi tốt!</strong>${studentCountNotice} (Đang sẵn sàng đồng bộ)`);
+        }
+      } catch (err) {
+        setHubStatus("error", `❌ <strong>Kết nối thất bại:</strong> ${err.message}<br><small>Gợi ý: Khi tạo New Deployment trên Google Sheet, mục <strong>Who has access (Ai có quyền truy cập)</strong> bắt buộc phải chọn là <strong>Anyone (Bất kỳ ai)</strong>.</small>`);
+        showToast("Lỗi kết nối", err.message, "error", 5000);
+      } finally {
+        btnTestHubConnection.disabled = false;
+        btnTestHubConnection.innerHTML = originalText;
+      }
+    });
+  }
+
+  // 2. Thực hiện đồng bộ lên Hub
+  if (btnExecuteHubSync) {
+    btnExecuteHubSync.addEventListener("click", async () => {
+      if (!currentTeacher || !currentTeacher.username) {
+        showToast("Lỗi", "Không tìm thấy thông tin tài khoản giáo viên!", "error");
+        return;
+      }
+
+      const inputUrl = hubInfoServerUrlInput ? (hubInfoServerUrlInput.value || "").trim() : API_URL;
+
+      if (!inputUrl || !inputUrl.startsWith("https://script.google.com/macros/s/") || !inputUrl.includes("/exec")) {
+        setHubStatus("error", "URL Google Apps Script không hợp lệ! Vui lòng dán đúng đường link kết thúc bằng <code>/exec</code>.");
+        showToast("URL không hợp lệ", "URL Web App phải có dạng https://script.google.com/macros/s/.../exec", "error", 5000);
+        if (hubInfoServerUrlInput) hubInfoServerUrlInput.focus();
+        return;
+      }
+
+      btnExecuteHubSync.disabled = true;
+      if (btnExecuteHubSyncText) btnExecuteHubSyncText.textContent = "Đang đọc Sheet riêng...";
+      if (hubSyncSpinner) hubSyncSpinner.style.display = "inline-block";
+
+      try {
+        // BƯỚC 1: NẾU DÙNG SHEET RIÊNG, LẬP TỨC ĐỌC DANH SÁCH HỌC SINH TỪ SHEET ĐÓ TRƯỚC
+        if (inputUrl !== DEFAULT_GAS_API_URL) {
+          setHubStatus("loading", `⏳ Đang đọc danh sách học sinh từ Google Sheet riêng của Thầy/Cô...`);
+          let freshSheetData = null;
+
+          // Thử POST
+          try {
+            const sResp = await fetch(inputUrl, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: JSON.stringify({
+                action: "getStudentsForTeacher",
+                usernameGV: currentTeacher.username
+              })
+            });
+            const sText = await sResp.text();
+            if (sText && !sText.trim().startsWith("<")) {
+              freshSheetData = JSON.parse(sText);
+            }
+          } catch (postErr) {
+            console.warn("POST đọc danh sách HS từ Sheet riêng thất bại, thử GET fallback...", postErr);
+          }
+
+          // Fallback GET
+          if (!freshSheetData || !freshSheetData.success) {
+            const getUrl = `${inputUrl}?action=getStudentsForTeacher&usernameGV=${encodeURIComponent(currentTeacher.username)}&_t=${Date.now()}`;
+            const gResp = await fetch(getUrl);
+            const gText = await gResp.text();
+            if (gText && !gText.trim().startsWith("<")) {
+              freshSheetData = JSON.parse(gText);
+            }
+          }
+
+          if (!freshSheetData || !freshSheetData.success || !Array.isArray(freshSheetData.students)) {
+            throw new Error(freshSheetData?.message || "Không thể đọc dữ liệu từ URL Google Sheet riêng này! Hãy chắc chắn Thầy/Cô đã dán đúng file code vào Apps Script và chọn Deploy quyền 'Anyone' (Bất kỳ ai).");
+          }
+
+          // Cập nhật danh sách học sinh chính xác từ Google Sheet riêng vào bộ nhớ
+          currentTeacherStudents = (freshSheetData.students || []).map(st => ({
+            ...st,
+            lop: normalizeClassName(st.lop)
+          }));
+          const freshClasses = (freshSheetData.classes && freshSheetData.classes.length > 0)
+            ? freshSheetData.classes.map(normalizeClassName).filter(Boolean)
+            : [...new Set(currentTeacherStudents.map(s => s.lop).filter(Boolean))];
+
+          // Lưu URL riêng này vào hệ thống của máy giáo viên
+          localStorage.setItem("custom_gas_api_url", inputUrl);
+          API_URL = inputUrl;
+          if (hubInfoServerTypeBadge) {
+            hubInfoServerTypeBadge.textContent = "Google Sheet Cá Nhân (Riêng)";
+            hubInfoServerTypeBadge.style.background = "#ecfdf5";
+            hubInfoServerTypeBadge.style.color = "#047857";
+            hubInfoServerTypeBadge.style.border = "1px solid #a7f3d0";
+          }
+
+          // Cập nhật ngay bộ nhớ đệm và giao diện bảng danh sách học sinh trên màn hình
+          saveCachedTeacherStudents(currentTeacherStudents, freshClasses);
+          buildGradeAndClassFilters(freshClasses);
+          applyStudentFilters();
+
+        } else {
+          // Khôi phục URL mặc định của Admin
+          localStorage.removeItem("custom_gas_api_url");
+          API_URL = DEFAULT_GAS_API_URL;
+          if (hubInfoServerTypeBadge) {
+            hubInfoServerTypeBadge.textContent = "Google Sheet Mặc Định (Chung)";
+            hubInfoServerTypeBadge.style.background = "#eff6ff";
+            hubInfoServerTypeBadge.style.color = "#1d4ed8";
+            hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+          }
+        }
+
+        // BƯỚC 2: CHUẨN BỊ VÀ GỬI DANH SÁCH HỌC SINH MỚI LÊN TRẠM TRUNG TÂM (HUB)
+        if (btnExecuteHubSyncText) btnExecuteHubSyncText.textContent = "Đang đồng bộ lên Hub...";
+        setHubStatus("loading", `⏳ Đang nén danh bạ (${currentTeacherStudents.length} học sinh) và đồng bộ lên Trạm Trung Tâm...`);
+
+        const studentsToSend = (Array.isArray(currentTeacherStudents) ? currentTeacherStudents : []).map(s => ({
+          username: s.username || "",
+          hoTen: s.hoTen || "",
+          lop: s.lop || "",
+          truong: s.truong || (currentTeacher ? currentTeacher.truong : "") || ""
+        }));
+
+        const payload = {
+          action: "syncTeacherAndStudentsToHub",
+          usernameGV: currentTeacher.username,
+          hoTenGV: currentTeacher.hoTenGV || "",
+          truong: currentTeacher.truong || "",
+          serverUrl: inputUrl,
+          students: studentsToSend
+        };
+
+        const resp = await fetch(DEFAULT_GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) {
+          throw new Error(`Máy chủ Trạm Trung Tâm phản hồi mã lỗi HTTP ${resp.status}`);
+        }
+
+        const res = await resp.json();
+        if (res && res.success) {
+          setHubStatus("success", `🎉 <strong>ĐỒNG BỘ THÀNH CÔNG RỰC RỠ!</strong><br>${res.message || "Đã ghi nhận máy chủ và danh bạ học sinh lên Trạm Trung Tâm."}<br><small>Từ nay học sinh mở web chính chỉ cần gõ mã là tự động kết nối vào Google Sheet của thầy/cô!</small>`);
+          showToast("Đồng bộ thành công! 🌐", `Đã đồng bộ ${studentsToSend.length} học sinh của Sheet riêng lên Trạm Trung Tâm!`, "success", 6000);
+        } else {
+          throw new Error(res ? res.message : "Trạm Trung Tâm phản hồi lỗi không xác định!");
+        }
+
+      } catch (err) {
+        console.error("Lỗi đồng bộ Trạm Trung Tâm:", err);
+        setHubStatus("error", `❌ <strong>Lỗi đồng bộ:</strong> ${err.message}`);
+        showToast("Đồng bộ thất bại", err.message, "error", 5000);
+      } finally {
+        btnExecuteHubSync.disabled = false;
+        if (btnExecuteHubSyncText) btnExecuteHubSyncText.textContent = "🚀 Bắt đầu Đồng Bộ Lên Hub";
+        if (hubSyncSpinner) hubSyncSpinner.style.display = "none";
+      }
+    });
+  }
+}
+
+// Khởi tạo tính năng Central Hub khi DOM sẵn sàng
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCentralHubModal);
+} else {
+  initCentralHubModal();
+}
+

@@ -15,7 +15,7 @@ if (serverFromUrl) {
 }
 
 const API_URL = serverFromUrl || 
-  (typeof localStorage !== "undefined" ? (localStorage.getItem("student_gas_api_url") || localStorage.getItem("custom_gas_api_url")) : null) || 
+  (typeof localStorage !== "undefined" ? localStorage.getItem("student_gas_api_url") : null) || 
   DEFAULT_GAS_API_URL;
 
 // ============================================================================
@@ -88,7 +88,8 @@ window.addEventListener("DOMContentLoaded", () => {
 
   if (!rawUser || role !== "HS") {
     alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Học sinh.");
-    window.location.href = "index.html";
+    const currentQuery = window.location.search || "";
+    window.location.href = "index.html" + currentQuery;
     return;
   }
 
@@ -118,6 +119,8 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btnLogout").addEventListener("click", () => {
     localStorage.removeItem("currentUser");
     localStorage.removeItem("userRole");
+    localStorage.removeItem("student_gas_api_url");
+    localStorage.removeItem("student_gas_api_url");
     window.location.href = "index.html";
   });
 
@@ -240,36 +243,52 @@ async function loadAvailableExams() {
   grid.innerHTML = `
     <div class="loading-state-card">
       <div class="spinner" style="display: block; width: 30px; height: 30px; margin: 0 auto 1rem;"></div>
-      <p>Đang tải danh sách bài kiểm tra cho lớp ${currentStudent.lop}...</p>
+      <p>Đang tải danh sách bài kiểm tra cho lớp ${escapeHtml(currentStudent.lop)}...</p>
     </div>
   `;
 
   let exams = [];
 
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "getStudentExams",
-        lop: currentStudent.lop,
-        usernameHS: currentStudent.username
-      })
-    });
+    let data = null;
+    // 1. Thử gửi POST lên Google Sheet của giáo viên phụ trách phòng thi
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          action: "getStudentExams",
+          lop: currentStudent.lop,
+          usernameHS: currentStudent.username
+        })
+      });
+      const text = await res.text();
+      if (text && !text.trim().startsWith("<")) {
+        data = JSON.parse(text);
+      }
+    } catch (postErr) {
+      console.warn("POST getStudentExams thất bại, thử GET fallback:", postErr);
+    }
 
-    const data = await res.json();
+    // 2. Tự động fallback sang GET nếu POST bị redirect hoặc lỗi CORS
+    if (!data || !data.success) {
+      const getUrl = `${API_URL}?action=getStudentExams&lop=${encodeURIComponent(currentStudent.lop)}&usernameHS=${encodeURIComponent(currentStudent.username)}&_t=${Date.now()}`;
+      const getRes = await fetch(getUrl);
+      const getText = await getRes.text();
+      if (getText && !getText.trim().startsWith("<")) {
+        data = JSON.parse(getText);
+      }
+    }
+
     if (data && Array.isArray(data.exams)) {
       exams = data.exams;
     }
   } catch (err) {
-    console.warn("Không thể tải từ máy chủ Apps Script, kích hoạt bộ nhớ đệm cục bộ:", err);
+    console.warn("Không thể tải danh sách bài kiểm tra từ máy chủ:", err);
   }
 
-  // FALLBACK LOCAL STORAGE: Nếu server không có bài hoặc offline, tìm trong các đề của giáo viên đã lưu
-  if (!exams || exams.length === 0) {
-    exams = getLocalAvailableExams(currentStudent.lop);
-  }
-
+  // Danh sách đề thi CHỈ lấy từ đúng máy chủ Google Sheets của giáo viên phụ trách phòng thi!
+  // Tuyệt đối KHÔNG lấy đề thi lưu tạm của giáo viên khác trên máy tính này.
   availableExams = exams;
 
   if (availableExams.length === 0) {
@@ -362,49 +381,7 @@ async function loadAvailableExams() {
 
 // Lấy danh sách đề thi từ localStorage phù hợp với lớp học sinh
 function getLocalAvailableExams(studentClass) {
-  const result = [];
-  const normalizedClass = String(studentClass || "").trim().toUpperCase();
-
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key.startsWith("cached_teacher_exams_")) {
-      try {
-        const examsList = JSON.parse(localStorage.getItem(key)) || [];
-        examsList.forEach(ex => {
-          const status = String(ex.trangThai || "").trim().toLowerCase();
-          if (status === "mở") {
-            const allowed = String(ex.lopChoPhep || "").trim().toUpperCase();
-            const isMatch = !allowed || allowed === "ALL" || allowed === "TẤT CẢ" || 
-                            allowed.split(/[,;\s]+/).map(s => s.trim()).includes(normalizedClass);
-
-            if (isMatch) {
-              const duLieu = ex.duLieuDe || {};
-              const questions = duLieu.cauHoi || ex.cauHoi || [];
-              const choXem = (ex.choXemLaiBai !== false && duLieu.choXemLaiBai !== false);
-              const choDiem = (ex.choXemDiem !== false && duLieu.choXemDiem !== false);
-
-              result.push({
-                maDe: ex.maDe,
-                tenKyThi: ex.tenKyThi,
-                usernameGV: ex.usernameGV || key.replace("cached_teacher_exams_", ""),
-                lopChoPhep: ex.lopChoPhep,
-                thoiGian: Number(ex.thoiGian) || 45,
-                trangThai: "Mở",
-                soCauHoi: questions.length,
-                cauHoi: questions,
-                choXemLaiBai: choXem,
-                choXemDiem: choDiem,
-                tuLuan: duLieu.tuLuan || ex.tuLuan || {}
-              });
-            }
-          }
-        });
-      } catch (e) {
-        console.error("Lỗi đọc cache đề thi:", e);
-      }
-    }
-  }
-  return result;
+  return [];
 }
 
 /**
@@ -1789,7 +1766,9 @@ function initStudentAccountDropdownAndModals() {
     btnLogoutDrop.addEventListener("click", () => {
       if (confirm("Bạn có chắc chắn muốn đăng xuất khỏi cổng Học Sinh?")) {
         localStorage.removeItem("currentUser");
-        localStorage.removeItem("userRole");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("student_gas_api_url");
+    localStorage.removeItem("student_gas_api_url");
         window.location.href = "index.html";
       }
     });

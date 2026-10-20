@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=2.7">
+  <link rel="stylesheet" href="css/style.css?v=2.8">
 
   <!-- Inline Modal Popup Styles (Đảm bảo 100% hiển thị hộp thoại popup chính giữa màn hình) -->
   <style>
@@ -166,6 +166,33 @@
       <!-- Login Form -->
       <form id="loginForm" autocomplete="on" novalidate>
         
+        <!-- Teacher Selection Field (Dành riêng cho Học sinh) -->
+        <div class="form-group" id="teacherSelectGroup">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label for="selectTeacherServer" class="form-label" style="margin: 0; font-weight: 700; color: #1e293b;">
+              Thầy/Cô phụ trách phòng thi
+            </label>
+            <span id="badgeTeacherAutoDetect" style="font-size: 0.74rem; color: #16a34a; font-weight: 700; display: none;">
+              ✓ Nhận từ liên kết
+            </span>
+          </div>
+          <div class="input-container">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 21v-4"/>
+              </svg>
+            </span>
+            <select id="selectTeacherServer" class="form-input" style="padding-left: 2.75rem; cursor: pointer; font-weight: 600; color: #0f172a;">
+              <option value="">🌐 Kết nối tự động (Trạm Trung Tâm)</option>
+            </select>
+          </div>
+          <span style="font-size: 0.72rem; color: #64748b; margin-top: 4px; display: block;">
+            💡 Chọn đúng Thầy/Cô để đăng nhập thẳng vào phòng thi, chống nghẽn mạng 100%
+          </span>
+        </div>
+
         <!-- Username Field -->
         <div class="form-group">
           <label for="usernameInput" class="form-label" id="usernameLabel">Tài khoản học sinh</label>
@@ -432,6 +459,6 @@
   <!-- Gas Code.gs source content -->
   <script src="js/gas_code_content.js"></script>
   <!-- Login Logic Script -->
-  <script src="js/auth.js?v=2.5"></script>
+  <script src="js/auth.js?v=2.8"></script>
 </body>
 </html>
