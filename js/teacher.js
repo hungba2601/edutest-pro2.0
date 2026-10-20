@@ -6000,24 +6000,30 @@ function initCentralHubModal() {
     });
   }
 
-  // Nút Sao chép toàn bộ mã nguồn Teacher_Code.gs cho Server Riêng
+  // Nút Sao chép toàn bộ mã nguồn Teacher_Code.gs cho Server Riêng (Chuẩn 5 Sheet, không tạo 2 sheet HUB)
   const btnCopyTeacherGasCode = document.getElementById("btnCopyTeacherGasCode");
   const btnCopyTeacherGasCodeText = document.getElementById("btnCopyTeacherGasCodeText");
   if (btnCopyTeacherGasCode) {
     btnCopyTeacherGasCode.addEventListener("click", async () => {
-      let codeContent = window.TEACHER_GAS_CODE || "";
+      let codeContent = "";
 
-      // Nếu chưa có trong window (ví dụ mở trên server mạng), thử fetch file
-      if (!codeContent) {
-        try {
-          const resp = await fetch("gas/Teacher_Code.gs?v=" + Date.now());
-          if (resp.ok) {
-            codeContent = await resp.text();
-            window.TEACHER_GAS_CODE = codeContent;
+      // Ưu tiên nạp bản mới nhất từ file gas/Teacher_Code.gs nếu chạy trên web/server
+      try {
+        const resp = await fetch("gas/Teacher_Code.gs?v=" + Date.now());
+        if (resp.ok) {
+          const text = await resp.text();
+          if (text && text.trim().length > 500) {
+            codeContent = text;
+            window.TEACHER_GAS_CODE = text;
           }
-        } catch (fetchErr) {
-          console.warn("Không thể fetch Teacher_Code.gs:", fetchErr);
         }
+      } catch (fetchErr) {
+        // Môi trường offline hoặc file:// -> Sử dụng biến nhúng sẵn
+      }
+
+      // Nếu chưa có từ fetch, dùng biến nhúng từ gas_code_content.js
+      if (!codeContent) {
+        codeContent = window.TEACHER_GAS_CODE || "";
       }
 
       if (!codeContent) {

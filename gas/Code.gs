@@ -234,7 +234,8 @@ function doGet(e) {
         case "addStudent":
           return handleAddStudent(payload);
         case "ensureDeThiColumns":
-          ensureDeThiSheetColumns(ss.getSheetByName(SHEETS.DETHI));
+          const ssEnsure = getSpreadsheet();
+          ensureDeThiSheetColumns(ssEnsure.getSheetByName(SHEETS.DETHI));
           return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
         case "verifyAdminPassword":
           return handleVerifyAdminPassword(payload);

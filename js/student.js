@@ -1231,6 +1231,7 @@ function showIncompleteExamModal(status) {
     });
   }
 
+  initIncompleteExamModalEvents();
   modal.style.display = "flex";
 }
 
@@ -1257,6 +1258,12 @@ function jumpAndHighlightQuestionCard(cardId) {
     if (textarea) {
       setTimeout(() => textarea.focus(), 400);
     }
+  } else {
+    // Nếu không tìm thấy thẻ card id cụ thể, cuộn mượt về khung câu hỏi làm bài
+    const qContainer = document.getElementById("examQuestionsContainer");
+    if (qContainer) {
+      qContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 }
 
@@ -1265,26 +1272,64 @@ function jumpAndHighlightQuestionCard(cardId) {
 // ============================================================================
 const btnSubmitExam = document.getElementById("btnSubmitExam");
 
-// Gắn sự kiện nút đóng modal cảnh báo chưa hoàn thành
-const btnCloseIncompleteModal = document.getElementById("btnCloseIncompleteModal");
-if (btnCloseIncompleteModal) {
-  btnCloseIncompleteModal.addEventListener("click", () => {
-    const m = document.getElementById("modalIncompleteExam");
-    if (m) m.style.display = "none";
-  });
+// Hàm đóng modal cảnh báo câu hỏi chưa hoàn thành
+function closeIncompleteExamModal() {
+  const modal = document.getElementById("modalIncompleteExam");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+window.closeIncompleteExamModal = closeIncompleteExamModal;
+
+// Hàm quay lại bài làm từ modal: đóng modal và cuộn tới câu chưa làm để thí sinh làm tiếp
+function closeIncompleteExamModalAndResume() {
+  closeIncompleteExamModal();
+  try {
+    const status = checkExamCompletionStatus();
+    if (status && status.incompleteItems && status.incompleteItems.length > 0) {
+      const firstIncomplete = status.incompleteItems[0];
+      jumpAndHighlightQuestionCard(firstIncomplete.cardId);
+    } else {
+      const qContainer = document.getElementById("examQuestionsContainer");
+      if (qContainer) {
+        qContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  } catch (err) {
+    console.warn("Lỗi khi quay lại bài làm:", err);
+    const qContainer = document.getElementById("examQuestionsContainer");
+    if (qContainer) {
+      qContainer.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+}
+window.closeIncompleteExamModalAndResume = closeIncompleteExamModalAndResume;
+
+// Khởi tạo các sự kiện click cho modal Incomplete Exam
+function initIncompleteExamModalEvents() {
+  const btnClose = document.getElementById("btnCloseIncompleteModal");
+  if (btnClose) {
+    btnClose.onclick = closeIncompleteExamModal;
+  }
+  const btnResume = document.getElementById("btnResumeExamFromModal");
+  if (btnResume) {
+    btnResume.onclick = closeIncompleteExamModalAndResume;
+  }
+  const modal = document.getElementById("modalIncompleteExam");
+  if (modal) {
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closeIncompleteExamModal();
+      }
+    };
+  }
 }
 
-const btnResumeExamFromModal = document.getElementById("btnResumeExamFromModal");
-if (btnResumeExamFromModal) {
-  btnResumeExamFromModal.addEventListener("click", () => {
-    const modal = document.getElementById("modalIncompleteExam");
-    if (modal) modal.style.display = "none";
-
-    const status = checkExamCompletionStatus();
-    if (status.incompleteItems.length > 0) {
-      jumpAndHighlightQuestionCard(status.incompleteItems[0].cardId);
-    }
-  });
+// Đăng ký sự kiện khi DOM tải xong hoặc đã sẵn sàng
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initIncompleteExamModalEvents);
+} else {
+  initIncompleteExamModalEvents();
 }
 
 btnSubmitExam.addEventListener("click", () => {
