@@ -1221,10 +1221,24 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
       <!-- Modal Body -->
       <div class="modal-body" style="padding: 1.5rem; background: #ffffff; display: flex; flex-direction: column; gap: 1rem;">
         
-        <!-- Hộp giải thích nguyên lý hoạt động -->
-        <div style="background: #eef2ff; border: 1.5px solid #c7d2fe; border-radius: 12px; padding: 0.9rem 1.15rem; font-size: 0.85rem; color: #3730a3; line-height: 1.45;">
-          <strong>💡 Giải pháp không cần học sinh cấu hình URL:</strong><br>
-          Khi thầy/cô bấm <em>Đồng bộ</em>, URL Google Sheet riêng và danh sách học sinh của thầy/cô sẽ được ghi danh lên <strong>Trạm Trung Tâm</strong>. Học sinh ở nhà chỉ cần mở web và gõ tài khoản $\rightarrow$ Hệ thống tự nhận diện và chuyển tiếp vào đúng Google Sheet của thầy/cô!
+        <!-- Hướng dẫn tạo URL Web App riêng trên Google Sheet -->
+        <div style="background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%); border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 0.95rem 1.15rem; font-size: 0.82rem; color: #1e3a8a; line-height: 1.5;">
+          <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.45rem;">
+            <span style="font-size: 1.1rem;">📘</span>
+            <strong style="font-size: 0.88rem; color: #1e40af;">Hướng dẫn 4 bước tạo URL Web App trên Google Sheet riêng:</strong>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.35rem; color: #1e293b;">
+            <div><strong>Bước 1:</strong> Bấm nút <span style="background: #dcfce7; color: #15803d; font-weight: 700; padding: 1px 6px; border-radius: 4px; border: 1px solid #86efac;">Sao Chép Mã Code (.gs)</span> màu xanh bên dưới.</div>
+            <div><strong>Bước 2:</strong> Mở Google Sheet của Thầy/Cô $\rightarrow$ Chọn <strong>Tiện ích mở rộng (Extensions)</strong> $\rightarrow$ <strong>Apps Script</strong>.</div>
+            <div><strong>Bước 3:</strong> Xóa code cũ, dán code vừa copy vào (`Ctrl + A` rồi `Ctrl + V`) $\rightarrow$ Bấm nút <strong>Lưu (Ctrl + S)</strong>.</div>
+            <div><strong>Bước 4:</strong> Bấm <strong>Triển khai (Deploy)</strong> $\rightarrow$ <strong>Tùy chọn triển khai mới (New deployment)</strong>:
+              <ul style="margin: 0.25rem 0 0 1.25rem; padding: 0; color: #334155;">
+                <li>Chọn loại: <strong>Ứng dụng web (Web app)</strong></li>
+                <li>Thực thi dưới dạng: <strong>Tôi (Me)</strong> | Ai có quyền truy cập: <strong style="color: #dc2626;">Bất kỳ ai (Anyone)</strong></li>
+              </ul>
+              $\rightarrow$ Bấm <strong>Triển khai</strong> $\rightarrow$ Copy <strong>URL ứng dụng web</strong> (đuôi <code>/exec</code>) dán vào ô bên dưới!
+            </div>
+          </div>
         </div>
 
         <!-- Thông tin giáo viên & máy chủ hiện hành -->
