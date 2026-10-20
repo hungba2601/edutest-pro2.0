@@ -1038,6 +1038,10 @@ function handleGetTeacherExams(payload) {
         choXemDiem = (duLieuDeParsed.choXemDiem !== false);
       }
 
+      const essayList = (duLieuDeParsed.tuLuan && Array.isArray(duLieuDeParsed.tuLuan.danhSachCauHoi)) ? duLieuDeParsed.tuLuan.danhSachCauHoi : [];
+      const soCauTuLuan = essayList.length > 0 ? essayList.length : (duLieuDeParsed.tuLuan && duLieuDeParsed.tuLuan.noiDung ? 1 : 0);
+      const hasTuLuan = !!(duLieuDeParsed.tuLuan && (duLieuDeParsed.tuLuan.noiDung || duLieuDeParsed.tuLuan.linkForm || essayList.length > 0));
+
       exams.push({
         maDe: String(row[0]),
         tenKyThi: String(row[1]),
@@ -1048,7 +1052,8 @@ function handleGetTeacherExams(payload) {
         choXemLaiBai: choXemLaiBai,
         choXemDiem: choXemDiem,
         soCauHoi: (duLieuDeParsed.cauHoi || []).length,
-        hasTuLuan: !!(duLieuDeParsed.tuLuan && (duLieuDeParsed.tuLuan.noiDung || duLieuDeParsed.tuLuan.linkForm)),
+        soCauTuLuan: soCauTuLuan,
+        hasTuLuan: hasTuLuan,
         duLieuDe: duLieuDeParsed
       });
     }

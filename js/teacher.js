@@ -3038,6 +3038,7 @@ btnSaveExam.addEventListener("click", async () => {
     lopChoPhep: selectedClasses,
     thoiGian: thoiGian,
     soCauHoi: parsedQuestions.length,
+    soCauTuLuan: parsedEssayQuestions.length,
     hasTuLuan: !!(parsedEssayQuestions.length > 0 || essayFormLink),
     choXemLaiBai: choXemLaiBai,
     choXemDiem: choXemDiem,
@@ -3289,11 +3290,30 @@ function cancelEditingMode() {
 }
 
 /**
+ * Trợ giúp lấy chính xác số lượng câu hỏi tự luận của đề thi
+ */
+function getExamEssayCount(exam) {
+  if (!exam) return 0;
+  if (typeof exam.soCauTuLuan === "number" && exam.soCauTuLuan > 0) return exam.soCauTuLuan;
+  const tuLuan = exam.duLieuDe?.tuLuan;
+  if (!tuLuan) return 0;
+  if (Array.isArray(tuLuan.danhSachCauHoi) && tuLuan.danhSachCauHoi.length > 0) {
+    return tuLuan.danhSachCauHoi.length;
+  }
+  if (tuLuan.noiDung && String(tuLuan.noiDung).trim().length > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+/**
  * Xem nhanh toàn bộ đề thi trong Modal pop-up (Cố định chính giữa màn hình, chữ đậm nét tương phản cao)
  */
 function previewExamModal(maDe) {
   const exam = currentExamsList.find(e => e.maDe === maDe);
   if (!exam) return;
+
+  const essayCount = getExamEssayCount(exam);
 
   document.getElementById("modalStudentTitle").textContent = `Xem nhanh: [${exam.maDe}] ${exam.tenKyThi}`;
   const body = document.getElementById("modalStudentContent");
@@ -3302,7 +3322,8 @@ function previewExamModal(maDe) {
       <div>
         Thời gian: <strong style="color: #0f172a; font-weight: 800;">${exam.thoiGian} phút</strong> | 
         Lớp thi: <strong style="color: #1d4ed8; font-weight: 800;">${exam.lopChoPhep}</strong> | 
-        Số lượng: <strong style="color: #1d4ed8; font-weight: 800;">${exam.soCauHoi} câu</strong>
+        Số câu TN: <strong style="color: #1d4ed8; font-weight: 800;">${exam.soCauHoi || 0} câu</strong>
+        ${essayCount > 0 ? ` | Tự luận: <strong style="color: #047857; font-weight: 800;">${essayCount} câu</strong>` : ''}
       </div>
       <div>
         Trạng thái: <strong style="color: ${exam.trangThai === 'Mở' ? '#16a34a' : '#dc2626'}; font-weight: 800; background: #ffffff; padding: 0.2rem 0.65rem; border-radius: 6px; border: 1px solid #cbd5e1;">${exam.trangThai === 'Mở' ? '🟢 Đang Mở' : '🔴 Đang Đóng'}</strong>
@@ -3391,18 +3412,37 @@ function previewExamModal(maDe) {
 
   // Tự luận
   const tuLuan = exam.duLieuDe?.tuLuan;
-  if (tuLuan && (tuLuan.noiDung || tuLuan.linkForm)) {
+  const essayQuestions = Array.isArray(tuLuan?.danhSachCauHoi) && tuLuan.danhSachCauHoi.length > 0
+    ? tuLuan.danhSachCauHoi
+    : (tuLuan?.noiDung ? [{ id: 1, noiDung: tuLuan.noiDung, diem: 1 }] : []);
+
+  if (essayQuestions.length > 0 || tuLuan?.linkForm) {
     const essayDiv = document.createElement("div");
     essayDiv.style.background = "#faf5ff";
     essayDiv.style.border = "1.5px dashed #a855f7";
     essayDiv.style.borderRadius = "10px";
     essayDiv.style.padding = "1.15rem";
     essayDiv.style.marginTop = "1rem";
-    essayDiv.innerHTML = `
-      <h4 style="color: #7e22ce; margin-bottom: 0.5rem; font-weight: 800;">📝 Phần Tự Luận:</h4>
-      ${tuLuan.noiDung ? `<p style="font-size: 0.95rem; color: #0f172a; font-weight: 600; line-height: 1.55; margin-bottom: 0.6rem;">${tuLuan.noiDung}</p>` : ''}
-      ${tuLuan.linkForm ? `<a href="${tuLuan.linkForm}" target="_blank" rel="noopener" style="color: #2563eb; text-decoration: underline; font-size: 0.9rem; font-weight: 700;">Mở Google Form làm bài tự luận ↗</a>` : ''}
-    `;
+    
+    let essayHtml = `<h4 style="color: #7e22ce; margin-bottom: 0.75rem; font-weight: 800;">📝 Phần Tự Luận${essayQuestions.length > 0 ? ` (${essayQuestions.length} câu)` : ''}:</h4>`;
+    if (essayQuestions.length > 0) {
+      essayQuestions.forEach((eq, eqIdx) => {
+        essayHtml += `
+          <div style="background: #ffffff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 0.85rem 1rem; margin-bottom: 0.65rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <strong style="color: #7e22ce; font-size: 0.95rem;">Câu ${eqIdx + 1} (Tự luận)</strong>
+              <span style="font-size: 0.82rem; font-weight: 800; color: #7e22ce; background: #f3e8ff; border: 1px solid #d8b4fe; padding: 0.15rem 0.55rem; border-radius: 6px;">${eq.diem !== undefined ? eq.diem : 1} đ</span>
+            </div>
+            <p style="font-size: 0.93rem; color: #0f172a; font-weight: 600; line-height: 1.55; margin: 0;">${eq.noiDung || ''}</p>
+            ${eq.dapAn ? `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #059669; background: #ecfdf5; padding: 0.4rem 0.6rem; border-radius: 6px;"><strong>Đáp án mẫu:</strong> ${eq.dapAn}</div>` : ''}
+          </div>
+        `;
+      });
+    }
+    if (tuLuan?.linkForm) {
+      essayHtml += `<a href="${tuLuan.linkForm}" target="_blank" rel="noopener" style="display: inline-block; margin-top: 0.5rem; color: #2563eb; text-decoration: underline; font-size: 0.9rem; font-weight: 700;">Mở Google Form làm bài tự luận ↗</a>`;
+    }
+    essayDiv.innerHTML = essayHtml;
     body.appendChild(essayDiv);
   }
 
@@ -3533,6 +3573,15 @@ function renderTeacherExamsTable(examsList, isFromCache) {
     const isOpening = exam.trangThai === "Mở";
     const isReviewAllowed = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
     const isScoreAllowed = (exam.choXemDiem !== false && exam.duLieuDe?.choXemDiem !== false);
+    const essayCount = getExamEssayCount(exam);
+
+    let tuLuanBadge = '<span style="color: #94a3b8; font-weight: 500;">Không</span>';
+    if (essayCount > 0) {
+      tuLuanBadge = `<span style="font-weight: 700; color: #047857; background: #ecfdf5; padding: 2px 8px; border-radius: 6px; border: 1px solid #a7f3d0; white-space: nowrap;">${essayCount} câu</span>`;
+    } else if (exam.hasTuLuan || (exam.duLieuDe?.tuLuan?.linkForm)) {
+      tuLuanBadge = `<span style="font-weight: 600; color: #0284c7; background: #f0f9ff; padding: 2px 8px; border-radius: 6px; border: 1px solid #bae6fd; white-space: nowrap;">Form tự luận</span>`;
+    }
+
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
@@ -3543,8 +3592,8 @@ function renderTeacherExamsTable(examsList, isFromCache) {
       </td>
       <td><span style="color: #a78bfa;">${exam.lopChoPhep}</span></td>
       <td>${exam.thoiGian} phút</td>
-      <td>${exam.soCauHoi} câu</td>
-      <td>${exam.hasTuLuan ? '<span style="color: #34d399;">Có tự luận</span>' : '<span style="color: #64748b;">Không</span>'}</td>
+      <td>${exam.soCauHoi || 0} câu</td>
+      <td>${tuLuanBadge}</td>
       <td>
         <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
           ${isReviewAllowed 
