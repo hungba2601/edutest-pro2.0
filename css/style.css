@@ -606,116 +606,7 @@ body[data-role="GV"] .btn-submit:hover:not(:disabled) {
   40%, 60% { transform: translate3d(6px, 0, 0); }
 }
 
-/* ==========================================================================
-   BACKEND CONFIG MODAL & FLOATING BUTTON (TRANG ĐĂNG NHẬP)
-   ========================================================================== */
-.btn-floating-backend {
-  position: fixed !important;
-  top: 1.25rem !important;
-  right: 1.25rem !important;
-  z-index: 1000 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
-  padding: 0.55rem 1.15rem !important;
-  border-radius: 9999px !important;
-  background: rgba(255, 255, 255, 0.95) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  border: 1.5px solid #0284c7 !important;
-  color: #0284c7 !important;
-  font-size: 0.85rem !important;
-  font-weight: 700 !important;
-  cursor: pointer !important;
-  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.18) !important;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-.btn-floating-backend:hover {
-  background: #0284c7 !important;
-  color: #ffffff !important;
-  transform: translateY(-2px) !important;
-  box-shadow: 0 8px 20px rgba(2, 132, 199, 0.3) !important;
-}
 
-.modal-backend-backdrop {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  background: rgba(15, 23, 42, 0.72) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  z-index: 999999 !important;
-  display: none !important; /* MẶC ĐỊNH BẮT BUỘC ẨN */
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 1.25rem !important;
-  box-sizing: border-box !important;
-}
-
-.modal-backend-backdrop.is-active,
-.modal-backend-backdrop.show {
-  display: flex !important; /* CHỈ HIỂN THỊ DẠNG HỘP THOẠI POPUP KHI KÍCH HOẠT */
-}
-
-.modal-backend-dialog {
-  max-width: 640px !important;
-  width: 100% !important;
-  background: #ffffff !important;
-  border-radius: 20px !important;
-  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.5), 0 0 30px rgba(2, 132, 199, 0.2) !important;
-  border: 1.5px solid #bae6fd !important;
-  overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
-  max-height: 90vh !important;
-  margin: auto !important;
-  animation: modalBackendPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
-}
-
-@keyframes modalBackendPop {
-  0% { opacity: 0; transform: scale(0.95) translateY(10px); }
-  100% { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.modal-backend-header {
-  padding: 1.25rem 1.5rem;
-  background: #0f172a;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.modal-backend-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.modal-backend-footer {
-  padding: 1rem 1.5rem;
-  background: #f8fafc;
-  border-top: 1.5px solid #e2e8f0;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-@media (max-width: 640px) {
-  .btn-floating-backend {
-    top: 0.75rem;
-    right: 0.75rem;
-    padding: 0.45rem 0.85rem;
-    font-size: 0.78rem;
-  }
-}
 
 /* ==========================================================================
    USER PROFILE DROPDOWN & ACCOUNT MODALS (CHO CẢ HỌC SINH VÀ GIÁO VIÊN)
@@ -997,4 +888,228 @@ body[data-role="GV"] .btn-submit:hover:not(:disabled) {
   background: rgba(245, 158, 11, 0.15);
   color: #d97706;
   border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+/* ==========================================================================
+   URGENT TEACHER SELECT STYLES (CẢNH BÁO BẮT BUỘC CHỌN THẦY/CÔ PHÒNG THI)
+   ========================================================================== */
+.urgent-teacher-box {
+  background: linear-gradient(145deg, #fff5f5 0%, #fee2e2 60%, #fef2f2 100%);
+  border: 2px solid #ef4444;
+  border-radius: 16px;
+  padding: 12px 14px 14px;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.15), 0 0 0 1px rgba(239, 68, 68, 0.1);
+  position: relative;
+  transition: all 0.25s ease;
+}
+
+.urgent-teacher-box:hover {
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.22), 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+.urgent-teacher-box.is-selected {
+  border-color: #22c55e;
+  background: linear-gradient(145deg, #f0fdf4 0%, #ecfdf5 100%);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.15);
+}
+
+.urgent-teacher-box.is-selected .urgent-teacher-label {
+  color: #15803d;
+}
+
+.urgent-teacher-box.is-selected .select-teacher-urgent {
+  border-color: #22c55e !important;
+  color: #166534 !important;
+}
+
+.urgent-teacher-box.is-selected .urgent-teacher-icon {
+  color: #16a34a !important;
+}
+
+.teacher-urgent-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.urgent-teacher-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-weight: 800;
+  color: #b91c1c;
+  font-size: 0.88rem;
+  letter-spacing: -0.01em;
+}
+
+.urgent-pulse-indicator {
+  display: inline-flex;
+  position: relative;
+  width: 9px;
+  height: 9px;
+}
+
+.urgent-pulse-indicator span {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #ef4444;
+}
+
+.urgent-pulse-indicator .ping {
+  animation: urgentPing 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.75;
+}
+
+@keyframes urgentPing {
+  75%, 100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.badge-urgent-mandatory {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  letter-spacing: 0.4px;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+  animation: badgeGlow 2s ease-in-out infinite;
+}
+
+@keyframes badgeGlow {
+  0%, 100% {
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+    background: #dc2626;
+  }
+  50% {
+    box-shadow: 0 2px 12px rgba(239, 68, 68, 0.65);
+    background: #ef4444;
+  }
+}
+
+.badge-autodetect-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+}
+
+.select-teacher-urgent {
+  border: 2px solid #ef4444 !important;
+  color: #991b1b !important;
+  font-weight: 700 !important;
+  font-size: 0.92rem !important;
+  padding-left: 2.75rem !important;
+  background-color: #ffffff !important;
+  cursor: pointer;
+  border-radius: 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.select-teacher-urgent:focus {
+  border-color: #b91c1c !important;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.25) !important;
+  outline: none;
+}
+
+.urgent-teacher-icon {
+  color: #dc2626;
+  transition: color 0.2s ease;
+}
+
+.teacher-danger-notice {
+  margin-top: 0.65rem;
+  background: #ffffff;
+  border: 1.5px solid #fca5a5;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #7f1d1d;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.06);
+}
+
+.teacher-danger-notice-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 800;
+  color: #b91c1c;
+  margin-bottom: 0.35rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.teacher-danger-notice-body {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-danger-notice-body li {
+  position: relative;
+  padding-left: 1.25rem;
+  margin-bottom: 0.25rem;
+  color: #450a0a;
+}
+
+.teacher-danger-notice-body li:last-child {
+  margin-bottom: 0;
+}
+
+.teacher-danger-notice-body li::before {
+  content: "•";
+  position: absolute;
+  left: 0.35rem;
+  font-weight: 800;
+  color: #dc2626;
+}
+
+.teacher-danger-notice-body .danger-bold {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.teacher-selection-active-info {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: #166534;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.shake-urgent {
+  animation: urgentShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+}
+
+@keyframes urgentShake {
+  10%, 90% { transform: translate3d(-3px, 0, 0); }
+  20%, 80% { transform: translate3d(5px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-7px, 0, 0); }
+  40%, 60% { transform: translate3d(7px, 0, 0); }
 }

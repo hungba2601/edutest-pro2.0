@@ -12,99 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=2.8">
-
-  <!-- Inline Modal Popup Styles (Đảm bảo 100% hiển thị hộp thoại popup chính giữa màn hình) -->
-  <style>
-    .btn-floating-backend {
-      position: fixed !important;
-      top: 1.25rem !important;
-      right: 1.25rem !important;
-      z-index: 9999 !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      gap: 0.5rem !important;
-      padding: 0.55rem 1.15rem !important;
-      border-radius: 9999px !important;
-      background: #ffffff !important;
-      border: 1.5px solid #0284c7 !important;
-      color: #0284c7 !important;
-      font-size: 0.85rem !important;
-      font-weight: 700 !important;
-      cursor: pointer !important;
-      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.2) !important;
-      transition: all 0.2s ease !important;
-    }
-    .btn-floating-backend:hover {
-      background: #0284c7 !important;
-      color: #ffffff !important;
-      transform: translateY(-2px) !important;
-    }
-    .modal-backend-backdrop {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      background: rgba(15, 23, 42, 0.72) !important;
-      backdrop-filter: blur(8px) !important;
-      -webkit-backdrop-filter: blur(8px) !important;
-      z-index: 999999 !important;
-      display: none !important; /* MẶC ĐỊNH BẮT BUỘC ẨN */
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 1.25rem !important;
-      box-sizing: border-box !important;
-    }
-    .modal-backend-backdrop.is-active,
-    .modal-backend-backdrop.show {
-      display: flex !important; /* CHỈ HIỂN THỊ KHI CÓ CLASS IS-ACTIVE */
-    }
-    .modal-backend-dialog {
-      background: #ffffff !important;
-      border-radius: 20px !important;
-      box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.55), 0 0 35px rgba(2, 132, 199, 0.2) !important;
-      border: 1.5px solid #bae6fd !important;
-      overflow: hidden !important;
-      display: flex !important;
-      flex-direction: column !important;
-      max-height: 90vh !important;
-      margin: auto !important;
-      width: 100% !important;
-      animation: modalBackendPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
-    }
-    .modal-backend-header {
-      padding: 1.15rem 1.4rem !important;
-      background: #0f172a !important;
-      display: flex !important;
-      justify-content: space-between !important;
-      align-items: center !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-    }
-    .modal-backend-body {
-      padding: 1.4rem !important;
-      overflow-y: auto !important;
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 1rem !important;
-      background: #ffffff !important;
-    }
-    .modal-backend-footer {
-      padding: 0.9rem 1.4rem !important;
-      background: #f8fafc !important;
-      border-top: 1.5px solid #e2e8f0 !important;
-      display: flex !important;
-      justify-content: flex-end !important;
-      align-items: center !important;
-      gap: 0.65rem !important;
-    }
-    @keyframes modalBackendPop {
-      0% { opacity: 0; transform: scale(0.92) translateY(12px); }
-      100% { opacity: 1; transform: scale(1) translateY(0); }
-    }
-  </style>
+  <link rel="stylesheet" href="css/style.css?v=3.0">
 </head>
 <body data-role="HS">
 
@@ -166,31 +74,61 @@
       <!-- Login Form -->
       <form id="loginForm" autocomplete="on" novalidate>
         
-        <!-- Teacher Selection Field (Dành riêng cho Học sinh) -->
-        <div class="form-group" id="teacherSelectGroup">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-            <label for="selectTeacherServer" class="form-label" style="margin: 0; font-weight: 700; color: #1e293b;">
-              Thầy/Cô phụ trách phòng thi
+        <!-- Teacher Selection Field (Dành riêng cho Học sinh - CẢNH BÁO BẮT BUỘC) -->
+        <div class="form-group urgent-teacher-box" id="teacherSelectGroup">
+          <div class="teacher-urgent-header">
+            <label for="selectTeacherServer" class="urgent-teacher-label">
+              <span class="urgent-pulse-indicator" aria-hidden="true">
+                <span class="ping"></span>
+                <span></span>
+              </span>
+              <span>⚠️ THẦY / CÔ PHỤ TRÁCH PHÒNG THI</span>
+              <span style="color: #dc2626; font-weight: 800;">(*)</span>
             </label>
-            <span id="badgeTeacherAutoDetect" style="font-size: 0.74rem; color: #16a34a; font-weight: 700; display: none;">
-              ✓ Nhận từ liên kết
-            </span>
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              <span class="badge-urgent-mandatory">BẮT BUỘC CHỌN</span>
+              <span id="badgeTeacherAutoDetect" class="badge-autodetect-tag" style="display: none;">
+                ✓ Nhận từ liên kết
+              </span>
+            </div>
           </div>
           <div class="input-container">
-            <span class="input-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <span class="input-icon urgent-teacher-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
                 <circle cx="12" cy="10" r="3"/>
                 <path d="M12 21v-4"/>
               </svg>
             </span>
-            <select id="selectTeacherServer" class="form-input" style="padding-left: 2.75rem; cursor: pointer; font-weight: 600; color: #0f172a;">
-              <option value="">🌐 Kết nối tự động (Trạm Trung Tâm)</option>
+            <select id="selectTeacherServer" class="form-input select-teacher-urgent" required>
+              <option value="">-- ⚠️ BẮT BUỘC: BẤM VÀO ĐÂY ĐỂ CHỌN THẦY / CÔ --</option>
             </select>
           </div>
-          <span style="font-size: 0.72rem; color: #64748b; margin-top: 4px; display: block;">
-            💡 Chọn đúng Thầy/Cô để đăng nhập thẳng vào phòng thi, chống nghẽn mạng 100%
-          </span>
+
+          <!-- Hộp thông báo cảnh báo nguy hiểm màu đỏ -->
+          <div class="teacher-danger-notice" id="teacherDangerNotice">
+            <div class="teacher-danger-notice-header">
+              <span style="font-size: 1rem;">🚨</span>
+              <span>CẢNH BÁO BẮT BUỘC TỪ HỆ THỐNG:</span>
+            </div>
+            <ul class="teacher-danger-notice-body">
+              <li>
+                Học sinh <strong>BẮT BUỘC</strong> phải chọn đúng tên Thầy/Cô đang phụ trách kiểm tra lớp của mình.
+              </li>
+              <li>
+                <span class="danger-bold">❌ NẾU KHÔNG CHỌN HOẶC CHỌN SAI:</span> Bạn sẽ <strong>KHÔNG ĐĂNG NHẬP ĐƯỢC</strong> hoặc bài làm nộp nhầm máy chủ dẫn tới <strong>MẤT TOÀN BỘ BÀI THI & ĐẠT 0 ĐIỂM!</strong>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Thông tin xác nhận khi học sinh đã chọn thành công -->
+          <div id="teacherSelectedConfirm" class="teacher-selection-active-info" style="display: none;">
+            <span style="font-size: 1rem;">✅</span>
+            <div>
+              <span>Đang kết nối phòng thi: </span><strong id="teacherSelectedName" style="color: #15803d;">--</strong>
+              <div style="font-size: 0.72rem; color: #166534; font-weight: 500;">(Hãy chắc chắn Thầy/Cô này đúng là người giảng dạy lớp bạn!)</div>
+            </div>
+          </div>
         </div>
 
         <!-- Username Field -->
@@ -283,182 +221,28 @@
       </form>
 
       <!-- Connected Server Status Badge -->
-      <aside class="api-hint-box" id="apiHint" style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border-color: #bae6fd; background: #f0f9ff; color: #0369a1; padding: 0.75rem 1rem; border-radius: 12px; margin-top: 1.25rem;">
+      <aside class="api-hint-box" id="apiHint" style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; border-color: #bae6fd; background: #f0f9ff; color: #0369a1; padding: 0.75rem 1rem; border-radius: 12px; margin-top: 1.25rem;">
         <div style="display: flex; align-items: center; gap: 0.65rem; min-width: 0;">
           <svg style="width: 22px; height: 22px; flex-shrink: 0; color: #0284c7;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
           <div style="font-size: 0.8rem; line-height: 1.35; text-align: left;">
-            <div id="loginServerBadge" style="font-weight: 700; color: #0369a1;">Máy chủ: Google Sheets Mặc định</div>
-            <span id="loginServerSub" style="color: #64748b; font-size: 0.76rem;">Phần mềm độc lập • Tự do dùng Sheet riêng</span>
+            <div id="loginServerBadge" style="font-weight: 700; color: #0369a1;">Hệ thống kết nối tự động Trạm Trung Tâm</div>
+            <span id="loginServerSub" style="color: #64748b; font-size: 0.76rem;">Phòng thi & máy chủ được điều phối tự động</span>
           </div>
         </div>
-        <button type="button" id="btnConfigBackendInline" style="flex-shrink: 0; background: #ffffff; border: 1.5px solid #0284c7; color: #0284c7; padding: 0.35rem 0.65rem; border-radius: 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
-          ⚙️ Cài đặt
-        </button>
       </aside>
 
     </div>
   </main>
-
-  <!-- Nút Cấu Hình Backend Nổi (Góc Phải Trên) -->
-  <button type="button" id="btnFloatingBackend" class="btn-floating-backend" title="Cấu hình Google Sheet riêng cho từng Giáo viên">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    <span>⚙️ Cấu hình Backend Riêng</span>
-  </button>
-
-  <!-- Modal Nhập Mật Khẩu Bảo Mật Quản Trị -->
-  <div class="modal-backend-backdrop" id="adminAuthModal" style="display: none;" aria-hidden="true">
-    <div class="modal-backend-dialog" style="max-width: 440px;">
-      <!-- Header -->
-      <div class="modal-backend-header" style="background: #0f172a; padding: 1.15rem 1.4rem;">
-        <div style="display: flex; align-items: center; gap: 0.65rem;">
-          <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); display: flex; align-items: center; justify-content: center; color: #ffffff; box-shadow: 0 4px 10px rgba(245, 158, 11, 0.35);">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </div>
-          <div>
-            <h3 style="color: #ffffff; font-size: 1rem; font-weight: 800; margin: 0;">Bảo Mật Cấu Hình Hệ Thống</h3>
-            <p style="color: #94a3b8; font-size: 0.75rem; margin: 0.15rem 0 0;">Yêu cầu mật khẩu quản trị viên để tiếp tục</p>
-          </div>
-        </div>
-        <button type="button" id="btnCloseAdminAuthModal" style="background: none; border: none; color: #94a3b8; font-size: 1.25rem; cursor: pointer; padding: 0.2rem 0.4rem; line-height: 1;">✕</button>
-      </div>
-
-      <!-- Body -->
-      <div class="modal-backend-body" style="padding: 1.4rem;">
-        <p style="font-size: 0.82rem; color: #475569; margin: 0 0 1rem; line-height: 1.5;">
-          Tính năng cấu hình Backend máy chủ được bảo vệ. Vui lòng nhập mật khẩu quản trị để tiếp tục.
-        </p>
-
-        <div style="margin-bottom: 0.5rem;">
-          <label for="adminSecurityPasswordInput" style="display: block; font-size: 0.82rem; font-weight: 700; color: #1e293b; margin-bottom: 0.4rem;">
-            Mật khẩu quản trị
-          </label>
-          <div style="position: relative; display: flex; align-items: center;">
-            <input 
-              type="password" 
-              id="adminSecurityPasswordInput" 
-              class="form-input" 
-              style="width: 100%; font-size: 0.9rem; padding: 0.65rem 2.8rem 0.65rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; outline: none;" 
-              placeholder="Nhập mật khẩu quản trị..."
-              autocomplete="current-password"
-            >
-            <button 
-              type="button" 
-              id="btnToggleAdminPass" 
-              style="position: absolute; right: 0.65rem; background: none; border: none; cursor: pointer; color: #64748b; font-size: 1rem; padding: 0.2rem;" 
-              title="Hiện/Ẩn mật khẩu"
-            >👁</button>
-          </div>
-        </div>
-
-        <!-- Cảnh báo lỗi sai mật khẩu -->
-        <div id="adminSecurityErrorBox" style="display: none; background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 0.65rem 0.85rem; color: #b91c1c; font-size: 0.82rem; line-height: 1.45;">
-          <div style="display: flex; align-items: flex-start; gap: 0.45rem;">
-            <span style="font-size: 1rem; line-height: 1;">❌</span>
-            <span id="adminSecurityErrorMsg">Mật khẩu quản trị không chính xác! Vui lòng kiểm tra lại.</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="modal-backend-footer" style="padding: 0.85rem 1.4rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.65rem;">
-        <button type="button" id="btnCancelAdminAuth" style="padding: 0.55rem 1.15rem; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-weight: 600; color: #475569; font-size: 0.82rem;">Hủy</button>
-        <button type="button" id="btnConfirmAdminAuth" style="padding: 0.55rem 1.35rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: #ffffff; cursor: pointer; font-weight: 700; font-size: 0.82rem; display: flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);">
-          <span>Xác Thực Mật Khẩu</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Cấu hình Backend Google Sheets Cá Nhân (Độc lập 100%) -->
-  <div class="modal-backend-backdrop" id="backendConfigModal" style="display: none;" aria-hidden="true">
-    <div class="modal-backend-dialog">
-      <!-- Header -->
-      <div class="modal-backend-header">
-        <div style="display: flex; align-items: center; gap: 0.75rem;">
-          <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #2563eb 0%, #0284c7 100%); display: flex; align-items: center; justify-content: center; color: #ffffff; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          </div>
-          <div>
-            <h3 style="color: #ffffff; font-size: 1.05rem; font-weight: 800; margin: 0;">Cấu Hình Backend Google Sheets Cá Nhân</h3>
-            <p style="color: #94a3b8; font-size: 0.78rem; margin: 0.15rem 0 0;">Phần mềm độc lập 100% • Tự do sử dụng Google Sheet riêng</p>
-          </div>
-        </div>
-        <button type="button" id="btnCloseBackendModal" style="background: none; border: none; color: #94a3b8; font-size: 1.3rem; cursor: pointer; padding: 0.25rem 0.5rem; line-height: 1;">✕</button>
-      </div>
-
-      <!-- Body -->
-      <div class="modal-backend-body">
-        <div style="background: #f0f9ff; border: 1.5px solid #bae6fd; border-radius: 14px; padding: 1.15rem;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.65rem;">
-            <strong style="color: #0369a1; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">Google Apps Script Web App URL</strong>
-            <button type="button" id="btnResetBackendUrl" style="font-size: 0.75rem; padding: 0.25rem 0.6rem; background: #ffffff; border: 1px solid #cbd5e1; color: #475569; border-radius: 6px; cursor: pointer; font-weight: 600;" title="Khôi phục lại URL máy chủ mặc định">
-               ↺ Dùng URL mặc định
-            </button>
-          </div>
-
-          <p style="font-size: 0.8rem; color: #475569; margin: 0 0 0.75rem; line-height: 1.45;">
-            Dán địa chỉ Web App của file Google Sheets cá nhân. Sau khi kết nối, bạn sẽ đăng nhập bằng chính tài khoản có trong Sheet của mình.
-          </p>
-
-          <div style="margin-bottom: 0.75rem;">
-            <input type="text" id="inputBackendUrl" class="form-input" style="width: 100%; font-family: monospace; font-size: 0.85rem; padding: 0.65rem 0.85rem; border: 1.5px solid #cbd5e1; border-radius: 8px; box-sizing: border-box;" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
-          </div>
-
-          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
-            <button type="button" id="btnTestBackendConnection" style="background: #ffffff; border: 1.5px solid #0284c7; color: #0284c7; font-weight: 700; padding: 0.45rem 0.85rem; border-radius: 8px; font-size: 0.82rem; cursor: pointer;">
-              ⚡ Kiểm tra kết nối Sheet
-            </button>
-            <button type="button" id="btnCopyBackendCodeGs" style="background: #0284c7; border: 1.5px solid #0284c7; color: #ffffff; font-weight: 700; padding: 0.45rem 0.85rem; border-radius: 8px; font-size: 0.82rem; cursor: pointer;">
-              📋 Sao chép mã nguồn Code.gs
-            </button>
-          </div>
-
-          <!-- Hộp hiển thị trạng thái kết nối trực tiếp trong hộp thoại -->
-          <div id="gasConnectionStatusBox" style="margin-bottom: 0.85rem; padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.82rem; display: flex; align-items: flex-start; gap: 0.65rem; border: 1.5px solid #bae6fd; background: #e0f2fe; color: #0369a1; transition: all 0.25s ease;">
-            <div id="gasStatusIcon" style="font-size: 1.25rem; line-height: 1; flex-shrink: 0; margin-top: 1px;">ℹ️</div>
-            <div style="flex: 1; min-width: 0;">
-              <div id="gasStatusTitle" style="font-weight: 700; font-size: 0.85rem; margin-bottom: 2px;">Trạng thái kết nối Google Sheet</div>
-              <div id="gasStatusDesc" style="font-size: 0.8rem; line-height: 1.45; opacity: 0.95;">Bấm "⚡ Kiểm tra kết nối Sheet" để kiểm tra tín hiệu tới Web App.</div>
-            </div>
-          </div>
-
-          <!-- Hướng dẫn 4 bước ngắn gọn -->
-          <div style="background: #ffffff; border: 1px solid #e0f2fe; border-radius: 10px; padding: 0.85rem 1rem;">
-            <strong style="color: #0369a1; font-size: 0.82rem; display: block; margin-bottom: 0.4rem;">
-              Hướng dẫn tự tạo Backend riêng (chỉ mất 2 phút):
-            </strong>
-            <ol style="margin: 0; padding-left: 1.2rem; font-size: 0.78rem; color: #334155; line-height: 1.55;">
-              <li>Tạo 1 file Google Sheet mới > Vào menu <strong>Tiện ích mở rộng > Apps Script</strong>.</li>
-              <li>Bấm nút <strong>"📋 Sao chép mã nguồn Code.gs"</strong> ở trên rồi dán đè vào Apps Script. Nhấn <code>Ctrl + S</code> để lưu.</li>
-              <li>Chọn hàm <strong>initDatabase</strong> và bấm <strong>Chạy (Run)</strong> một lần để tự động khởi tạo các bảng và tài khoản mặc định.</li>
-              <li>Bấm nút <strong>Triển khai (Deploy) > Triển khai mới (New deployment)</strong> > Chọn <strong>Web app</strong> > <em>Thực thi dưới dạng:</em> <strong>Tôi</strong> > <em>Ai có quyền:</em> <strong>Bất kỳ ai</strong> > Sao chép Web App URL dán vào ô trên!</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="modal-backend-footer">
-        <button type="button" id="btnCancelBackendModal" style="padding: 0.6rem 1.25rem; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-weight: 600; color: #475569; font-size: 0.85rem;">Đóng</button>
-        <button type="button" id="btnSaveBackendConfig" style="padding: 0.6rem 1.5rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: flex; align-items: center; gap: 0.45rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          <span>Lưu Cấu Hình Máy Chủ</span>
-        </button>
-      </div>
-    </div>
-  </div>
 
   <!-- Copyright Footer -->
   <footer class="app-footer">
     <p>© 2026 EduTest Pro 2.0 • Made by <strong>Nguyễn Phi Hùng</strong></p>
   </footer>
 
-  <!-- Gas Code.gs source content -->
-  <script src="js/gas_code_content.js"></script>
   <!-- Login Logic Script -->
-  <script src="js/auth.js?v=2.8"></script>
+  <script src="js/auth.js?v=3.0"></script>
 </body>
 </html>
