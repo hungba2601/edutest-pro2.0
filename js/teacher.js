@@ -240,105 +240,127 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // ============================================================================
 // 1. KHỞI TẠO & PHÂN QUYỀN TRANG
 // ============================================================================
-window.addEventListener("DOMContentLoaded", () => {
-  // Gắn sự kiện hủy chỉnh sửa đề
-  const btnCancel = document.getElementById("btnCancelEdit");
-  if (btnCancel) {
-    btnCancel.addEventListener("click", cancelEditingMode);
-  }
-  // Kiểm tra phiên đăng nhập
-  const rawUser = localStorage.getItem("currentUser");
-  const role = localStorage.getItem("userRole");
-
-  if (!rawUser || role !== "GV") {
-    alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Giáo viên.");
-    window.location.href = "index.html";
-    return;
-  }
-
-  currentTeacher = JSON.parse(rawUser);
-  if (currentTeacher && currentTeacher.ngaySinh) {
-    currentTeacher.ngaySinh = formatDob(currentTeacher.ngaySinh);
-  }
-
-  // Khôi phục URL cá nhân của Giáo viên và cập nhật API_URL độc quyền
-  const personalServerUrl = getTeacherPersonalServerUrl();
-  if (personalServerUrl) {
-    API_URL = personalServerUrl;
-    localStorage.setItem("custom_gas_api_url", personalServerUrl);
-    if (currentTeacher.username) {
-      localStorage.setItem("teacher_server_url_" + currentTeacher.username, personalServerUrl);
-      localStorage.setItem("teacher_server_url_" + currentTeacher.username.replace(/^0+/, ""), personalServerUrl);
+function initTeacherDashboard() {
+  try {
+    // Gắn sự kiện hủy chỉnh sửa đề
+    const btnCancel = document.getElementById("btnCancelEdit");
+    if (btnCancel) {
+      btnCancel.addEventListener("click", cancelEditingMode);
     }
-  } else {
-    API_URL = DEFAULT_GAS_API_URL;
-  }
-  updateServerStatusBadgeUI();
+    // Kiểm tra phiên đăng nhập
+    const rawUser = localStorage.getItem("currentUser");
+    const role = localStorage.getItem("userRole");
 
-  // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)
-  document.getElementById("gvFullName").textContent = currentTeacher.hoTenGV || currentTeacher.username;
-  const gvClassesEl = document.getElementById("gvClasses");
-  if (gvClassesEl) {
-    gvClassesEl.textContent = "";
-    gvClassesEl.style.display = "none";
-  }
-
-  // Khởi tạo giao diện cấu hình Gemini API & Model
-  initGeminiConfigUI();
-
-  // Khởi tạo các chip chọn lớp
-  initClassSelector(currentTeacher.lopGiangDay);
-
-  // Gắn sự kiện chuyển Tab
-  initTabSwitching();
-
-  // Khởi tạo trình biên soạn câu hỏi tự luận & xuất Excel
-  initEssayQuestionsUI();
-
-  // Tải danh sách đề thi của giáo viên
-  loadTeacherExams();
-
-  // Tải ngầm danh sách học sinh để sẵn sàng ngay cho Tab 2 (Xem kết quả theo CSDL gốc) & Tab 3
-  setTimeout(() => {
-    if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
-      loadTeacherStudents(false).catch(err => console.log("Preload students background:", err));
+    if (!rawUser || role !== "GV") {
+      alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Giáo viên.");
+      window.location.href = "index.html";
+      return;
     }
-  }, 800);
 
-  // Lắng nghe sự kiện gõ phím để xóa cảnh báo lỗi khi nhập tên kỳ kiểm tra
-  const examTitleInput = document.getElementById("examTitle");
-  if (examTitleInput) {
-    examTitleInput.addEventListener("input", () => {
-      if (examTitleInput.value.trim()) {
-        examTitleInput.style.borderColor = "";
-        examTitleInput.style.backgroundColor = "";
-        examTitleInput.style.boxShadow = "";
-        const errorMsg = document.getElementById("examTitleErrorMsg");
-        if (errorMsg) errorMsg.style.display = "none";
+    try {
+      currentTeacher = JSON.parse(rawUser);
+    } catch (e) {
+      currentTeacher = {};
+    }
+
+    if (currentTeacher && currentTeacher.ngaySinh) {
+      currentTeacher.ngaySinh = formatDob(currentTeacher.ngaySinh);
+    }
+
+    // Khôi phục URL cá nhân của Giáo viên và cập nhật API_URL độc quyền
+    const personalServerUrl = getTeacherPersonalServerUrl();
+    if (personalServerUrl) {
+      API_URL = personalServerUrl;
+      localStorage.setItem("custom_gas_api_url", personalServerUrl);
+      if (currentTeacher?.username) {
+        localStorage.setItem("teacher_server_url_" + currentTeacher.username, personalServerUrl);
+        localStorage.setItem("teacher_server_url_" + currentTeacher.username.replace(/^0+/, ""), personalServerUrl);
       }
-    });
+    } else {
+      API_URL = DEFAULT_GAS_API_URL;
+    }
+    try { updateServerStatusBadgeUI(); } catch (e) { console.warn("Lỗi updateServerStatusBadgeUI:", e); }
+
+    // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)
+    const gvFullNameEl = document.getElementById("gvFullName");
+    if (gvFullNameEl && currentTeacher) {
+      gvFullNameEl.textContent = currentTeacher.hoTenGV || currentTeacher.username || "Giáo Viên";
+    }
+    const gvClassesEl = document.getElementById("gvClasses");
+    if (gvClassesEl) {
+      gvClassesEl.textContent = "";
+      gvClassesEl.style.display = "none";
+    }
+
+    // Khởi tạo giao diện cấu hình Gemini API & Model
+    try { initGeminiConfigUI(); } catch (e) { console.warn("Lỗi initGeminiConfigUI:", e); }
+
+    // Khởi tạo các chip chọn lớp
+    try { initClassSelector(currentTeacher?.lopGiangDay || ""); } catch (e) { console.warn("Lỗi initClassSelector:", e); }
+
+    // Gắn sự kiện chuyển Tab
+    try { initTabSwitching(); } catch (e) { console.warn("Lỗi initTabSwitching:", e); }
+
+    // Khởi tạo trình biên soạn câu hỏi tự luận & xuất Excel
+    try { initEssayQuestionsUI(); } catch (e) { console.warn("Lỗi initEssayQuestionsUI:", e); }
+
+    // Tải danh sách đề thi của giáo viên
+    try { loadTeacherExams(); } catch (e) { console.warn("Lỗi loadTeacherExams:", e); }
+
+    // Tải ngầm danh sách học sinh để sẵn sàng ngay cho Tab 2 & Tab 3
+    setTimeout(() => {
+      if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
+        loadTeacherStudents(false).catch(err => console.log("Preload students background:", err));
+      }
+    }, 800);
+
+    // Lắng nghe sự kiện gõ phím để xóa cảnh báo lỗi khi nhập tên kỳ kiểm tra
+    const examTitleInput = document.getElementById("examTitle");
+    if (examTitleInput) {
+      examTitleInput.addEventListener("input", () => {
+        if (examTitleInput.value.trim()) {
+          examTitleInput.style.borderColor = "";
+          examTitleInput.style.backgroundColor = "";
+          examTitleInput.style.boxShadow = "";
+          const errorMsg = document.getElementById("examTitleErrorMsg");
+          if (errorMsg) errorMsg.style.display = "none";
+        }
+      });
+    }
+
+    // Khởi tạo sự kiện chuyển chế độ xem lại bài (Ôn tập vs Thi chính thức)
+    try { initReviewModeSelector(); } catch (e) { console.warn("Lỗi initReviewModeSelector:", e); }
+
+    // Khởi tạo sự kiện chuyển chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
+    try { initScoreModeSelector(); } catch (e) { console.warn("Lỗi initScoreModeSelector:", e); }
+
+    // Khởi tạo tính năng Thông tin cá nhân & Đổi mật khẩu cho Giáo viên
+    try { initTeacherAccountDropdownAndModals(); } catch (e) { console.warn("Lỗi initTeacherAccountDropdownAndModals:", e); }
+
+    // Khởi tạo tính năng Thêm mới học sinh thủ công
+    try { initAddStudentModal(); } catch (e) { console.warn("Lỗi initAddStudentModal:", e); }
+
+    // Đăng xuất
+    const btnLogout = document.getElementById("btnLogout");
+    if (btnLogout) {
+      btnLogout.addEventListener("click", () => {
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("userRole");
+        localStorage.removeItem("custom_gas_api_url");
+        window.location.href = "index.html";
+      });
+    }
+  } catch (errInit) {
+    console.error("Lỗi khởi tạo Dashboard:", errInit);
   }
+}
 
-  // Khởi tạo sự kiện chuyển chế độ xem lại bài (Ôn tập vs Thi chính thức)
-  initReviewModeSelector();
-
-  // Khởi tạo sự kiện chuyển chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
-  initScoreModeSelector();
-
-  // Khởi tạo tính năng Thông tin cá nhân & Đổi mật khẩu cho Giáo viên
-  initTeacherAccountDropdownAndModals();
-
-  // Khởi tạo tính năng Thêm mới học sinh thủ công
-  initAddStudentModal();
-
-  // Đăng xuất
-  document.getElementById("btnLogout").addEventListener("click", () => {
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("custom_gas_api_url");
-    window.location.href = "index.html";
-  });
-});
+// Khởi chạy an toàn bất kể thời điểm script được nạp
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initTeacherDashboard);
+} else {
+  initTeacherDashboard();
+}
 
 // Cập nhật giao diện chuyển chế độ Xem lại bài
 function updateReviewModeDisplay(isAllow) {
