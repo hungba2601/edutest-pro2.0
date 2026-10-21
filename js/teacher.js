@@ -131,14 +131,44 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
 
+function isCurrentUserAdmin() {
+  const username = String(currentTeacher?.username || "").trim().toLowerCase();
+  const fullName = String(currentTeacher?.hoTenGV || currentTeacher?.hoTen || currentTeacher?.tenGV || "").trim().toLowerCase();
+  const role = String(currentTeacher?.role || localStorage.getItem("userRole") || "").trim().toLowerCase();
+  
+  // 1. Kiểm tra username, họ tên hoặc role định danh Admin
+  if (
+    username === "hung2601" ||
+    username === "hungba2601" ||
+    username === "0938750424" ||
+    username === "gv001" ||
+    username === "admin" ||
+    fullName.includes("nguyễn phi hùng") ||
+    fullName.includes("phi hùng") ||
+    role === "admin" ||
+    role === "quantri"
+  ) {
+    return true;
+  }
+  
+  return false;
+}
+
 function getTeacherPersonalServerUrl() {
   try {
+    const isAdmin = isCurrentUserAdmin();
     const custom = (localStorage.getItem("custom_gas_api_url") || "").trim();
-    if (custom && custom !== DEFAULT_GAS_API_URL && custom.startsWith("https://script.google.com/macros/s/")) {
+    if (custom && custom.startsWith("https://script.google.com/macros/s/")) {
+      if (!isAdmin && custom === DEFAULT_GAS_API_URL) {
+        return "";
+      }
       return custom;
     }
 
-    if (currentTeacher && currentTeacher.serverUrl && currentTeacher.serverUrl !== DEFAULT_GAS_API_URL && currentTeacher.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+    if (currentTeacher && currentTeacher.serverUrl && currentTeacher.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+      if (!isAdmin && currentTeacher.serverUrl === DEFAULT_GAS_API_URL) {
+        return "";
+      }
       return currentTeacher.serverUrl.trim();
     }
 
@@ -147,7 +177,10 @@ function getTeacherPersonalServerUrl() {
       const rem = localStorage.getItem("teacher_server_url_" + u) ||
                   localStorage.getItem("teacher_server_url_" + u.replace(/^0+/, "")) ||
                   localStorage.getItem("teacher_server_url_0" + u);
-      if (rem && rem !== DEFAULT_GAS_API_URL && rem.startsWith("https://script.google.com/macros/s/")) {
+      if (rem && rem.startsWith("https://script.google.com/macros/s/")) {
+        if (!isAdmin && rem === DEFAULT_GAS_API_URL) {
+          return "";
+        }
         return rem.trim();
       }
     }
@@ -155,40 +188,38 @@ function getTeacherPersonalServerUrl() {
   return "";
 }
 
-function isCurrentUserAdmin() {
-  const username = String(currentTeacher?.username || "").trim().toLowerCase();
-  const role = String(currentTeacher?.role || localStorage.getItem("userRole") || "").trim().toLowerCase();
-  
-  // 1. Kiểm tra tài khoản định danh quản trị (Admin/GV001/0938750424)
-  if (
-    username === "0938750424" ||
-    username === "gv001" ||
-    username === "admin" ||
-    role === "admin" ||
-    role === "quantri"
-  ) {
-    return true;
-  }
-  
-  // 2. Nếu đang kết nối trực tiếp vào Google Sheet Admin Hub (DEFAULT_GAS_API_URL) và không có server riêng
-  const personalServer = getTeacherPersonalServerUrl();
-  if (!personalServer && API_URL === DEFAULT_GAS_API_URL && (!currentTeacher?.serverUrl || currentTeacher?.serverUrl === DEFAULT_GAS_API_URL)) {
-    return true;
-  }
-  
-  return false;
-}
-
 function updateServerStatusBadgeUI() {
   const personalUrl = getTeacherPersonalServerUrl();
+  const isAdmin = isCurrentUserAdmin();
   const btnStatus = document.getElementById("btnServerConnectionStatus");
   const txtStatus = document.getElementById("txtServerConnectionStatus");
   const saveNotice = document.getElementById("saveExamServerNotice");
   const saveNoticeText = document.getElementById("saveExamServerNoticeText");
 
-  if (personalUrl) {
+  if (isAdmin) {
+    const activeUrl = personalUrl || API_URL || DEFAULT_GAS_API_URL;
     if (btnStatus) {
       btnStatus.className = "btn-server-status-pill";
+      btnStatus.style.background = "#eff6ff";
+      btnStatus.style.borderColor = "#93c5fd";
+      btnStatus.style.color = "#1e40af";
+      btnStatus.title = "Đang kết nối Máy chủ Google Sheet Admin (" + activeUrl + "). Bấm để xem hoặc đổi URL.";
+    }
+    if (txtStatus) txtStatus.textContent = "Google Sheet Admin (Hệ Thống)";
+    if (saveNotice) {
+      saveNotice.style.background = "#eff6ff";
+      saveNotice.style.borderColor = "#bfdbfe";
+      saveNotice.style.color = "#1d4ed8";
+    }
+    if (saveNoticeText) {
+      saveNoticeText.innerHTML = "🛡️ <strong>Tài khoản Admin:</strong> Đề thi được kết nối và lưu trực tiếp vào Google Sheet Admin trung tâm.";
+    }
+  } else if (personalUrl) {
+    if (btnStatus) {
+      btnStatus.className = "btn-server-status-pill";
+      btnStatus.style.background = "";
+      btnStatus.style.borderColor = "";
+      btnStatus.style.color = "";
       btnStatus.title = "Đang kết nối Google Sheet Cá Nhân (" + personalUrl + "). Bấm để xem hoặc đổi URL.";
     }
     if (txtStatus) txtStatus.textContent = "Google Sheet Cá Nhân (Riêng)";
@@ -203,6 +234,9 @@ function updateServerStatusBadgeUI() {
   } else {
     if (btnStatus) {
       btnStatus.className = "btn-server-status-pill is-warning";
+      btnStatus.style.background = "";
+      btnStatus.style.borderColor = "";
+      btnStatus.style.color = "";
       btnStatus.title = "Chưa kết nối Google Sheet riêng! Đề thi sẽ không thể lưu lên máy chủ. Bấm vào đây để kết nối.";
     }
     if (txtStatus) txtStatus.textContent = "⚠️ Chưa kết nối Sheet riêng";
@@ -6239,8 +6273,14 @@ function initCentralHubModal() {
     if (hubInfoGvSchool) hubInfoGvSchool.textContent = (currentTeacher && currentTeacher.truong) ? currentTeacher.truong : "Chưa cấu hình trường";
     
     const personalUrl = getTeacherPersonalServerUrl();
+    const isAdmin = isCurrentUserAdmin();
     if (hubInfoServerTypeBadge) {
-      if (personalUrl) {
+      if (isAdmin) {
+        hubInfoServerTypeBadge.textContent = "Google Sheet Admin (Máy Chủ Trung Tâm)";
+        hubInfoServerTypeBadge.style.background = "#eff6ff";
+        hubInfoServerTypeBadge.style.color = "#1d4ed8";
+        hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+      } else if (personalUrl) {
         hubInfoServerTypeBadge.textContent = "Google Sheet Cá Nhân (Riêng)";
         hubInfoServerTypeBadge.style.background = "#ecfdf5";
         hubInfoServerTypeBadge.style.color = "#047857";
@@ -6254,7 +6294,7 @@ function initCentralHubModal() {
     }
 
     if (hubInfoServerUrlInput) {
-      hubInfoServerUrlInput.value = personalUrl || "";
+      hubInfoServerUrlInput.value = personalUrl || (isAdmin ? (API_URL || DEFAULT_GAS_API_URL) : "");
     }
 
     if (hubStatusMessageBox) {
