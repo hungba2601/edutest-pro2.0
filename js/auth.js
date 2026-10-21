@@ -412,12 +412,28 @@ loginForm.addEventListener("submit", async (e) => {
       // Chuyển hướng theo phân quyền
       setTimeout(() => {
         if (role === "GV") {
-          // Nếu GV đã có Server riêng trên Hub, tự động lưu lại
-          if (result.data && result.data.serverUrl) {
+          const gvUser = (result.data?.username || "").trim();
+          if (result.data && result.data.serverUrl && result.data.serverUrl !== DEFAULT_GAS_API_URL) {
             localStorage.setItem("custom_gas_api_url", result.data.serverUrl);
+            if (gvUser) {
+              localStorage.setItem("teacher_server_url_" + gvUser, result.data.serverUrl);
+              localStorage.setItem("teacher_server_url_" + gvUser.replace(/^0+/, ""), result.data.serverUrl);
+            }
           } else {
-            // Nếu GV dùng chung Sheet Admin, xóa sạch URL server riêng cũ để tránh xung đột
-            localStorage.removeItem("custom_gas_api_url");
+            // Kiểm tra xem trình duyệt đã từng lưu URL cá nhân của Giáo viên này chưa
+            const remembered = (gvUser ? (
+              localStorage.getItem("teacher_server_url_" + gvUser) ||
+              localStorage.getItem("teacher_server_url_" + gvUser.replace(/^0+/, "")) ||
+              localStorage.getItem("teacher_server_url_0" + gvUser)
+            ) : null) || localStorage.getItem("custom_gas_api_url");
+
+            if (remembered && remembered !== DEFAULT_GAS_API_URL && remembered.startsWith("https://script.google.com/macros/s/")) {
+              localStorage.setItem("custom_gas_api_url", remembered);
+              if (result.data) result.data.serverUrl = remembered;
+              localStorage.setItem("currentUser", JSON.stringify(result.data));
+            } else {
+              localStorage.removeItem("custom_gas_api_url");
+            }
           }
           window.location.href = "teacher_dashboard.html";
         } else {

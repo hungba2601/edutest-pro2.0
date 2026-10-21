@@ -81,8 +81,13 @@
     </div>
 
     <!-- User Profile & Logout -->
-        <!-- User Profile Dropdown & Logout -->
     <div class="nav-user">
+      <!-- Nút hiển thị trạng thái kết nối Google Sheet cá nhân -->
+      <button type="button" id="btnServerConnectionStatus" class="btn-server-status-pill" title="Trạng thái kết nối Google Sheet cá nhân. Bấm để xem hoặc đổi URL.">
+        <span class="status-pulse-dot" id="serverStatusPulseDot"></span>
+        <span id="txtServerConnectionStatus">Đang kiểm tra kết nối...</span>
+      </button>
+
       <div class="user-dropdown-wrap">
         <div class="user-profile-trigger" id="userProfileTrigger" title="Tài khoản cá nhân & Đổi mật khẩu">
           <div class="user-nav-avatar" id="gvNavAvatar">GV</div>
@@ -444,6 +449,12 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
               <div class="save-spinner" style="display: none;"></div>
             </button>
             <button type="button" id="btnResetForm" class="btn-reset-form">Làm Mới</button>
+          </div>
+
+          <!-- Thông báo vị trí lưu đề bảo đảm độc lập không lưu lên Admin -->
+          <div id="saveExamServerNotice" style="margin-top: 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 0.95rem; border-radius: 8px; background: #ecfdf5; border: 1.5px solid #a7f3d0; color: #047857; line-height: 1.45;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span id="saveExamServerNoticeText">🔒 <strong>Bảo mật đề thi:</strong> Đề sẽ được lưu độc quyền vào Google Sheet cá nhân của Thầy/Cô (Tuyệt đối không lưu lên máy chủ Admin trung tâm).</span>
           </div>
         </div>
 

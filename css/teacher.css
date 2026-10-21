@@ -2320,3 +2320,57 @@ input:checked + .slider:before { transform: translateX(22px); }
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(5, 150, 105, 0.38) !important;
 }
+
+/* Nút hiển thị trạng thái máy chủ Google Sheet riêng trên Navbar */
+.btn-server-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1.5px solid #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+  white-space: nowrap;
+}
+.btn-server-status-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08);
+}
+.btn-server-status-pill.is-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+.btn-server-status-pill.is-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  animation: pulseWarning 2s infinite;
+}
+.status-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+.btn-server-status-pill.is-warning .status-pulse-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+.btn-server-status-pill.is-danger .status-pulse-dot {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+}
+@keyframes pulseWarning {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+

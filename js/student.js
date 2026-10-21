@@ -292,13 +292,14 @@ async function loadAvailableExams() {
   availableExams = exams;
 
   if (availableExams.length === 0) {
+    const isCentralHub = (API_URL === DEFAULT_GAS_API_URL);
     grid.innerHTML = `
       <div class="loading-state-card">
         <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; color: #64748b;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
         </svg>
-        <h3 style="color: #cbd5e1; margin-bottom: 0.5rem;">Hiện chưa có kỳ thi nào đang mở</h3>
-        <p>Khi giáo viên mở đề thi cho lớp <strong>${currentStudent.lop}</strong>, bài thi sẽ tự động hiển thị tại đây.</p>
+        <h3 style="color: #cbd5e1; margin-bottom: 0.5rem;">${isCentralHub ? "Bạn đang ở Cổng Trung Tâm" : "Hiện chưa có kỳ thi nào đang mở"}</h3>
+        <p>${isCentralHub ? `Để xem bài thi của lớp <strong>${escapeHtml(currentStudent.lop)}</strong>, bạn vui lòng đăng nhập và chọn đúng Thầy/Cô phụ trách phòng thi hoặc mở link bài thi do Thầy/Cô gửi.` : `Khi giáo viên mở đề thi cho lớp <strong>${escapeHtml(currentStudent.lop)}</strong>, bài thi sẽ tự động hiển thị tại đây.`}</p>
       </div>
     `;
     return;

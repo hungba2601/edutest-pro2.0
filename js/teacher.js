@@ -111,9 +111,70 @@ function formatDob(raw) {
  * ============================================================================
  */
 
-// Lấy API_URL từ cấu hình (hỗ trợ giáo viên cấu hình Backend Google Sheets riêng qua localStorage)
+// Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
-let API_URL = localStorage.getItem("custom_gas_api_url") || DEFAULT_GAS_API_URL;
+
+function getTeacherPersonalServerUrl() {
+  const custom = (localStorage.getItem("custom_gas_api_url") || "").trim();
+  if (custom && custom !== DEFAULT_GAS_API_URL && custom.startsWith("https://script.google.com/macros/s/")) {
+    return custom;
+  }
+
+  if (currentTeacher?.serverUrl && currentTeacher.serverUrl !== DEFAULT_GAS_API_URL && currentTeacher.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+    return currentTeacher.serverUrl.trim();
+  }
+
+  const u = currentTeacher?.username || "";
+  if (u) {
+    const rem = localStorage.getItem("teacher_server_url_" + u) ||
+                localStorage.getItem("teacher_server_url_" + u.replace(/^0+/, "")) ||
+                localStorage.getItem("teacher_server_url_0" + u);
+    if (rem && rem !== DEFAULT_GAS_API_URL && rem.startsWith("https://script.google.com/macros/s/")) {
+      return rem.trim();
+    }
+  }
+  return "";
+}
+
+function updateServerStatusBadgeUI() {
+  const personalUrl = getTeacherPersonalServerUrl();
+  const btnStatus = document.getElementById("btnServerConnectionStatus");
+  const txtStatus = document.getElementById("txtServerConnectionStatus");
+  const saveNotice = document.getElementById("saveExamServerNotice");
+  const saveNoticeText = document.getElementById("saveExamServerNoticeText");
+
+  if (personalUrl) {
+    if (btnStatus) {
+      btnStatus.className = "btn-server-status-pill";
+      btnStatus.title = "Đang kết nối Google Sheet Cá Nhân (" + personalUrl + "). Bấm để xem hoặc đổi URL.";
+    }
+    if (txtStatus) txtStatus.textContent = "Google Sheet Cá Nhân (Riêng)";
+    if (saveNotice) {
+      saveNotice.style.background = "#ecfdf5";
+      saveNotice.style.borderColor = "#a7f3d0";
+      saveNotice.style.color = "#047857";
+    }
+    if (saveNoticeText) {
+      saveNoticeText.innerHTML = "🔒 <strong>Bảo mật đề thi:</strong> Đề sẽ được lưu độc quyền vào Google Sheet cá nhân của Thầy/Cô (Tuyệt đối không lưu lên máy chủ Admin trung tâm).";
+    }
+  } else {
+    if (btnStatus) {
+      btnStatus.className = "btn-server-status-pill is-warning";
+      btnStatus.title = "Chưa kết nối Google Sheet riêng! Đề thi sẽ không thể lưu lên máy chủ. Bấm vào đây để kết nối.";
+    }
+    if (txtStatus) txtStatus.textContent = "⚠️ Chưa kết nối Sheet riêng";
+    if (saveNotice) {
+      saveNotice.style.background = "#fffbeb";
+      saveNotice.style.borderColor = "#fde68a";
+      saveNotice.style.color = "#b45309";
+    }
+    if (saveNoticeText) {
+      saveNoticeText.innerHTML = "⚠️ <strong>Chưa kết nối Google Sheet riêng:</strong> Vui lòng bấm vào <strong>'Trạm Trung Tâm'</strong> để kết nối URL Web App của Thầy/Cô trước khi lưu đề!";
+    }
+  }
+}
+
+let API_URL = getTeacherPersonalServerUrl() || DEFAULT_GAS_API_URL;
 
 // ============================================================================
 // HỆ THỐNG THÔNG BÁO TOAST
@@ -199,6 +260,20 @@ window.addEventListener("DOMContentLoaded", () => {
   if (currentTeacher && currentTeacher.ngaySinh) {
     currentTeacher.ngaySinh = formatDob(currentTeacher.ngaySinh);
   }
+
+  // Khôi phục URL cá nhân của Giáo viên và cập nhật API_URL độc quyền
+  const personalServerUrl = getTeacherPersonalServerUrl();
+  if (personalServerUrl) {
+    API_URL = personalServerUrl;
+    localStorage.setItem("custom_gas_api_url", personalServerUrl);
+    if (currentTeacher.username) {
+      localStorage.setItem("teacher_server_url_" + currentTeacher.username, personalServerUrl);
+      localStorage.setItem("teacher_server_url_" + currentTeacher.username.replace(/^0+/, ""), personalServerUrl);
+    }
+  } else {
+    API_URL = DEFAULT_GAS_API_URL;
+  }
+  updateServerStatusBadgeUI();
 
   // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)
   document.getElementById("gvFullName").textContent = currentTeacher.hoTenGV || currentTeacher.username;
@@ -2990,6 +3065,10 @@ btnSaveExam.addEventListener("click", async () => {
     return;
   }
 
+  // Xác định máy chủ lưu: Ưu tiên Server riêng của Thầy/Cô nếu có, hoặc máy chủ hiện tại
+  const personalServerUrl = getTeacherPersonalServerUrl();
+  const targetServerUrl = personalServerUrl || DEFAULT_GAS_API_URL;
+
   // Lấy cấu hình Chế độ xem lại bài (Ôn tập vs Thi chính thức)
   const radioAllow = document.getElementById("radioAllowReview");
   const choXemLaiBai = radioAllow ? radioAllow.checked : true;
@@ -3061,7 +3140,7 @@ btnSaveExam.addEventListener("click", async () => {
     let syncMessage = "";
 
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetch(targetServerUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(examDataPayload)
@@ -3073,6 +3152,8 @@ btnSaveExam.addEventListener("click", async () => {
         if (result && result.success) {
           syncedSuccess = true;
           syncMessage = result.message || "";
+        } else if (result && !result.success) {
+          syncMessage = result.message || "Máy chủ phản hồi không thành công!";
         }
       }
     } catch (networkErr) {
@@ -3081,12 +3162,12 @@ btnSaveExam.addEventListener("click", async () => {
 
     if (syncedSuccess) {
       const isUpdated = !!editingExamCode;
-      showToast(isUpdated ? "Cập nhật thành công" : "Lưu thành công", syncMessage || "Đề thi đã được lưu đồng bộ lên Google Sheets!", "success", 4000);
+      showToast(isUpdated ? "Cập nhật thành công" : "Lưu thành công", syncMessage || (personalServerUrl ? "Đề thi đã được lưu độc quyền vào Google Sheet cá nhân của Thầy/Cô!" : "Đề thi đã được lưu vào Google Sheets thành công!"), "success", 4000);
     } else {
       showToast(
-        "Đã lưu đề thi an toàn",
-        `Đề thi "${tenKyThi}" đã được lưu an toàn vào danh sách trên máy của bạn! (Nếu muốn đồng bộ Google Sheets, vui lòng kiểm tra lại URL Web App).`,
-        "success",
+        "Chưa thể lưu lên Google Sheets",
+        syncMessage || `Đề thi "${tenKyThi}" đã được lưu tạm vào bộ nhớ máy, nhưng chưa đồng bộ được vào Google Sheets. Vui lòng kiểm tra lại URL Web App.`,
+        "warning",
         5000
       );
     }
@@ -3487,7 +3568,19 @@ async function loadTeacherExams(isManualRefresh = false) {
     btnRefresh.classList.add("is-loading");
   }
 
-  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT (DUYỆT QUA CÁC BIẾN THỂ TÀI KHOẢN: CÓ SỐ 0 VÀ KHÔNG CÓ SỐ 0)
+  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT CỦA GIÁO VIÊN (ĐỘC QUYỀN TRÊN SHEET RIÊNG)
+  const personalServerUrl = getTeacherPersonalServerUrl();
+  if (!personalServerUrl || personalServerUrl === DEFAULT_GAS_API_URL) {
+    if (btnRefresh) btnRefresh.classList.remove("is-loading");
+    if (!currentExamsList || currentExamsList.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+        <p style="font-weight: 700; color: #b45309; margin-bottom: 0.5rem; font-size: 1rem;">⚠️ Chưa kết nối Google Sheet cá nhân</p>
+        <span style="font-size: 0.85rem; color: #64748b;">Đề thi được quản lý trên Google Sheet riêng của Thầy/Cô. Vui lòng bấm vào <strong>Trạm Trung Tâm</strong> trên thanh menu để kết nối URL Web App.</span>
+      </td></tr>`;
+    }
+    return;
+  }
+
   let loadedFromServer = null;
   const usernameVariants = getTeacherUsernameVariants();
 
@@ -3496,7 +3589,7 @@ async function loadTeacherExams(isManualRefresh = false) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5s timeout
 
-      const res = await fetch(API_URL, {
+      const res = await fetch(personalServerUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
@@ -3522,7 +3615,7 @@ async function loadTeacherExams(isManualRefresh = false) {
     // Fallback GET cho biến thể này nếu POST chưa ra đề
     if (!loadedFromServer) {
       try {
-        const getUrl = `${API_URL}?action=getTeacherExams&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
+        const getUrl = `${personalServerUrl}?action=getTeacherExams&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
         const getRes = await fetch(getUrl);
         const getText = await getRes.text();
         if (getText && !getText.trim().startsWith("<")) {
@@ -3740,8 +3833,9 @@ function attachExamTableEvents(tbody) {
         let cached = getCachedExams().filter(ex => ex.maDe !== maDe);
         saveCachedExams(cached);
 
+        const targetServer = getTeacherPersonalServerUrl() || API_URL;
         try {
-          fetch(API_URL, {
+          fetch(targetServer, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=utf-8" },
             body: JSON.stringify({
@@ -3767,7 +3861,8 @@ if (btnRefreshExams) {
 
 async function toggleExamStatusApi(maDe, newStatus) {
   try {
-    const res = await fetch(API_URL, {
+    const targetServer = getTeacherPersonalServerUrl() || API_URL;
+    const res = await fetch(targetServer, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
@@ -6145,23 +6240,23 @@ function initCentralHubModal() {
     if (hubInfoGvName) hubInfoGvName.textContent = currentTeacher ? `${currentTeacher.hoTenGV || ""} (${currentTeacher.username})` : "--";
     if (hubInfoGvSchool) hubInfoGvSchool.textContent = (currentTeacher && currentTeacher.truong) ? currentTeacher.truong : "Chưa cấu hình trường";
     
-    const isCustomServer = localStorage.getItem("custom_gas_api_url");
+    const personalUrl = getTeacherPersonalServerUrl();
     if (hubInfoServerTypeBadge) {
-      if (isCustomServer) {
+      if (personalUrl) {
         hubInfoServerTypeBadge.textContent = "Google Sheet Cá Nhân (Riêng)";
         hubInfoServerTypeBadge.style.background = "#ecfdf5";
         hubInfoServerTypeBadge.style.color = "#047857";
         hubInfoServerTypeBadge.style.border = "1px solid #a7f3d0";
       } else {
-        hubInfoServerTypeBadge.textContent = "Google Sheet Mặc Định Hệ Thống";
-        hubInfoServerTypeBadge.style.background = "#eff6ff";
-        hubInfoServerTypeBadge.style.color = "#1d4ed8";
-        hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+        hubInfoServerTypeBadge.textContent = "Chưa kết nối Sheet riêng (Mặc định)";
+        hubInfoServerTypeBadge.style.background = "#fffbeb";
+        hubInfoServerTypeBadge.style.color = "#b45309";
+        hubInfoServerTypeBadge.style.border = "1px solid #fde68a";
       }
     }
 
     if (hubInfoServerUrlInput) {
-      hubInfoServerUrlInput.value = API_URL;
+      hubInfoServerUrlInput.value = personalUrl || "";
     }
 
     if (hubStatusMessageBox) {
@@ -6181,6 +6276,9 @@ function initCentralHubModal() {
   const btnPasteHubServerUrl = document.getElementById("btnPasteHubServerUrl");
   const btnResetHubServerUrl = document.getElementById("btnResetHubServerUrl");
   const btnClearHubServerUrl = document.getElementById("btnClearHubServerUrl");
+
+  const btnServerStatus = document.getElementById("btnServerConnectionStatus");
+  if (btnServerStatus) btnServerStatus.addEventListener("click", openModal);
 
   if (btnSyncToCentralHub) btnSyncToCentralHub.addEventListener("click", openModal);
   if (btnOpenHubModal) btnOpenHubModal.addEventListener("click", openModal);
@@ -6305,15 +6403,18 @@ function initCentralHubModal() {
   if (btnResetHubServerUrl) {
     btnResetHubServerUrl.addEventListener("click", () => {
       localStorage.removeItem("custom_gas_api_url");
-      API_URL = DEFAULT_GAS_API_URL;
-      if (hubInfoServerUrlInput) hubInfoServerUrlInput.value = DEFAULT_GAS_API_URL;
-      if (hubInfoServerTypeBadge) {
-        hubInfoServerTypeBadge.textContent = "Google Sheet Mặc Định Hệ Thống";
-        hubInfoServerTypeBadge.style.background = "#eff6ff";
-        hubInfoServerTypeBadge.style.color = "#1d4ed8";
-        hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+      if (currentTeacher?.username) {
+        localStorage.removeItem("teacher_server_url_" + currentTeacher.username);
+        localStorage.removeItem("teacher_server_url_" + currentTeacher.username.replace(/^0+/, ""));
       }
-      showToast("Khôi phục thành công", "Đã đặt lại về máy chủ Google Sheet mặc định!", "info", 3000);
+      if (currentTeacher) {
+        currentTeacher.serverUrl = "";
+        localStorage.setItem("currentUser", JSON.stringify(currentTeacher));
+      }
+      API_URL = DEFAULT_GAS_API_URL;
+      if (hubInfoServerUrlInput) hubInfoServerUrlInput.value = "";
+      updateServerStatusBadgeUI();
+      showToast("Đã ngắt kết nối", "Đã xóa cấu hình máy chủ riêng!", "info", 3000);
     });
   }
 
@@ -6445,6 +6546,14 @@ function initCentralHubModal() {
 
           // Lưu URL riêng này vào hệ thống của máy giáo viên
           localStorage.setItem("custom_gas_api_url", inputUrl);
+          if (currentTeacher?.username) {
+            localStorage.setItem("teacher_server_url_" + currentTeacher.username, inputUrl);
+            localStorage.setItem("teacher_server_url_" + currentTeacher.username.replace(/^0+/, ""), inputUrl);
+          }
+          if (currentTeacher) {
+            currentTeacher.serverUrl = inputUrl;
+            localStorage.setItem("currentUser", JSON.stringify(currentTeacher));
+          }
           API_URL = inputUrl;
           if (hubInfoServerTypeBadge) {
             hubInfoServerTypeBadge.textContent = "Google Sheet Cá Nhân (Riêng)";
@@ -6452,6 +6561,7 @@ function initCentralHubModal() {
             hubInfoServerTypeBadge.style.color = "#047857";
             hubInfoServerTypeBadge.style.border = "1px solid #a7f3d0";
           }
+          updateServerStatusBadgeUI();
 
           // Cập nhật ngay bộ nhớ đệm và giao diện bảng danh sách học sinh trên màn hình
           saveCachedTeacherStudents(currentTeacherStudents, freshClasses);
@@ -6461,13 +6571,22 @@ function initCentralHubModal() {
         } else {
           // Khôi phục URL mặc định của Admin
           localStorage.removeItem("custom_gas_api_url");
+          if (currentTeacher?.username) {
+            localStorage.removeItem("teacher_server_url_" + currentTeacher.username);
+            localStorage.removeItem("teacher_server_url_" + currentTeacher.username.replace(/^0+/, ""));
+          }
+          if (currentTeacher) {
+            currentTeacher.serverUrl = "";
+            localStorage.setItem("currentUser", JSON.stringify(currentTeacher));
+          }
           API_URL = DEFAULT_GAS_API_URL;
           if (hubInfoServerTypeBadge) {
-            hubInfoServerTypeBadge.textContent = "Google Sheet Mặc Định (Chung)";
-            hubInfoServerTypeBadge.style.background = "#eff6ff";
-            hubInfoServerTypeBadge.style.color = "#1d4ed8";
-            hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+            hubInfoServerTypeBadge.textContent = "Chưa kết nối Sheet riêng (Mặc định)";
+            hubInfoServerTypeBadge.style.background = "#fffbeb";
+            hubInfoServerTypeBadge.style.color = "#b45309";
+            hubInfoServerTypeBadge.style.border = "1px solid #fde68a";
           }
+          updateServerStatusBadgeUI();
         }
 
         // BƯỚC 2: CHUẨN BỊ VÀ GỬI DANH SÁCH HỌC SINH MỚI LÊN TRẠM TRUNG TÂM (HUB)

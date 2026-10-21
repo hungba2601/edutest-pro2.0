@@ -391,7 +391,7 @@ function handleLogin(payload) {
               const hubData = sheetHubServers.getDataRange().getValues();
               for (let h = 1; h < hubData.length; h++) {
                 const hUser = String(hubData[h][0] || "").trim();
-                if (hUser.toLowerCase() === gvUser.toLowerCase()) {
+                if (isSameTeacherAccount(hUser, gvUser)) {
                   personalServerUrl = String(hubData[h][3] || "").trim();
                   break;
                 }
@@ -636,27 +636,43 @@ function handleSyncTeacherAndStudentsToHub(payload) {
       formatHeaderRow(sheetHubServers, "#4f46e5");
     }
 
-    // Cập nhật hoặc thêm mới vào HUB_SERVERS
+    // Cập nhật hoặc thêm mới vào HUB_SERVERS (Đảm bảo mỗi giáo viên CHỈ CÓ ĐÚNG 1 DÒNG DUY NHẤT)
     const gvData = sheetHubServers.getDataRange().getValues();
-    let gvRowIdx = -1;
+    const matchingRowIndices = []; // Lưu các số dòng (1-indexed) của GV này trên sheet
+
     for (let r = 1; r < gvData.length; r++) {
-      if (String(gvData[r][0] || "").trim().toLowerCase() === usernameGV.toLowerCase()) {
-        gvRowIdx = r + 1;
-        break;
+      const existingUser = String(gvData[r][0] !== null && gvData[r][0] !== undefined ? gvData[r][0] : "").trim();
+      if (isSameTeacherAccount(existingUser, usernameGV)) {
+        matchingRowIndices.push(r + 1);
       }
     }
 
     const nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
-    if (gvRowIdx > 0) {
-      sheetHubServers.getRange(gvRowIdx, 2, 1, 5).setValues([[
-        hoTenGV || gvData[gvRowIdx - 1][1],
-        truong || gvData[gvRowIdx - 1][2],
+    const safeUsernameGV = usernameGV.startsWith("0") ? "'" + usernameGV : usernameGV;
+
+    if (matchingRowIndices.length > 0) {
+      // 1. Cập nhật URL mới nhất vào đúng dòng đầu tiên tìm thấy
+      const primaryRowIdx = matchingRowIndices[0];
+      const existingRowData = gvData[primaryRowIdx - 1];
+      const finalHoTen = hoTenGV || String(existingRowData[1] || "").trim();
+      const finalTruong = truong || String(existingRowData[2] || "").trim();
+
+      sheetHubServers.getRange(primaryRowIdx, 1, 1, 6).setValues([[
+        safeUsernameGV,
+        finalHoTen,
+        finalTruong,
         serverUrl,
         "Hoạt động",
         nowStr
       ]]);
+
+      // 2. Nếu trước đó có các dòng trùng lặp khác của GV này, xóa sạch các dòng trùng thừa (xóa từ dưới lên trên)
+      for (let d = matchingRowIndices.length - 1; d >= 1; d--) {
+        sheetHubServers.deleteRow(matchingRowIndices[d]);
+      }
     } else {
-      sheetHubServers.appendRow([usernameGV, hoTenGV, truong, serverUrl, "Hoạt động", nowStr]);
+      // Nếu chưa từng có trong danh bạ, thêm mới đúng 1 dòng
+      sheetHubServers.appendRow([safeUsernameGV, hoTenGV, truong, serverUrl, "Hoạt động", nowStr]);
     }
 
     // 2. Đảm bảo tồn tại sheet HUB_STUDENTS
@@ -670,8 +686,8 @@ function handleSyncTeacherAndStudentsToHub(payload) {
     // Đồng bộ danh sách học sinh của GV này: luôn xóa dữ liệu học sinh cũ của GV này trên HUB_STUDENTS
     const studentData = sheetHubStudents.getDataRange().getValues();
     for (let s = studentData.length - 1; s >= 1; s--) {
-      const ownerGV = String(studentData[s][4] || "").trim().toLowerCase();
-      if (ownerGV === usernameGV.toLowerCase()) {
+      const ownerGV = String(studentData[s][4] !== null && studentData[s][4] !== undefined ? studentData[s][4] : "").trim();
+      if (isSameTeacherAccount(ownerGV, usernameGV)) {
         sheetHubStudents.deleteRow(s + 1);
       }
     }
@@ -977,20 +993,17 @@ function handleSaveExam(payload) {
     }
   }
 
-  // Nếu tạo mới: Ép kiểu chuỗi nếu là số có tiền tố 0 để Google Sheets không làm mất số 0
+  // Nếu tạo mới
   if (!updated) {
     maDe = "DE_" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + "_" + Math.floor(Math.random() * 1000);
-    const safeGvToSave = (usernameGV.startsWith("0") || /^\d+$/.test(usernameGV)) ? ("'" + usernameGV) : usernameGV;
-    const newRow = [maDe, tenKyThi, safeGvToSave, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
+    const newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
     sheetDeThi.appendRow(newRow);
   }
 
   return createJsonResponse({
     success: true,
-    message: updated ? "Cập nhật đề thi thành công!" : "Tạo đề thi mới thành công!",
-    maDe: maDe,
-    choXemLaiBai: choXemLaiBai,
-    choXemDiem: choXemDiem
+    message: updated ? "Cập nhật đề thi thành công!" : "Tạo mới đề thi thành công!",
+    maDe: maDe
   });
 }
 
@@ -1364,7 +1377,7 @@ function handleUpdateTeacherPassword(payload) {
 // ============================================================================
 
 /**
- * Lấy danh sách đề thi đang "Mở" phù hợp với lớp của học sinh (kèm trạng thái đã làm / chưa làm)
+ * Lấy danh sách đề thi đang "Mở" phù hợp với lớp của học sinh
  */
 function handleGetStudentExams(payload) {
   const ss = getSpreadsheet();
@@ -1377,33 +1390,9 @@ function handleGetStudentExams(payload) {
   const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const studentClass = formatClassValue(payload.lop || "").trim().toUpperCase();
-  const usernameHS = String(payload.usernameHS || "").trim();
+  const requestedTeacher = String(payload.usernameGV || "").trim();
   const data = sheetDeThi.getDataRange().getValues();
   const availableExams = [];
-
-  // Tra cứu các đề thi mà học sinh này đã từng nộp bài trong DATA_KETQUA
-  const completedExamsMap = {};
-  if (usernameHS) {
-    try {
-      const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
-      if (sheetKetQua) {
-        const kqData = sheetKetQua.getDataRange().getValues();
-        for (let k = 1; k < kqData.length; k++) {
-          const rHs = String(kqData[k][0] || "").trim();
-          const rMaDe = String(kqData[k][7] || "").trim();
-          if (rHs.toUpperCase() === usernameHS.toUpperCase() && rMaDe) {
-            completedExamsMap[rMaDe] = {
-              daLam: true,
-              diemTong: Number(kqData[k][9]) || 0,
-              thoiGianNop: formatDateValue(kqData[k][11]) || String(kqData[k][11] || "")
-            };
-          }
-        }
-      }
-    } catch (eKq) {
-      Logger.log("Lỗi tra cứu DATA_KETQUA học sinh: " + eKq.toString());
-    }
-  }
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -1420,6 +1409,13 @@ function handleGetStudentExams(payload) {
       } else {
         const classList = allowedClasses.split(/[,;\s]+/).map(c => formatClassValue(c).trim().toUpperCase()).filter(Boolean);
         isAllowed = classList.includes(studentClass);
+      }
+
+      // Nếu client gửi kèm usernameGV thì lọc theo đúng giáo viên đó
+      if (isAllowed && requestedTeacher) {
+        if (!isSameTeacherAccount(row[2], requestedTeacher)) {
+          isAllowed = false;
+        }
       }
 
       if (isAllowed) {
@@ -1481,11 +1477,8 @@ function handleGetStudentExams(payload) {
           }))
         };
 
-        const maDeKey = String(row[0]).trim();
-        const examRecord = completedExamsMap[maDeKey];
-
         availableExams.push({
-          maDe: maDeKey,
+          maDe: String(row[0]),
           tenKyThi: String(row[1]),
           usernameGV: String(row[2]),
           lopChoPhep: String(row[3]),
@@ -1495,10 +1488,7 @@ function handleGetStudentExams(payload) {
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
-          tuLuan: safeTuLuan,
-          daLam: !!examRecord,
-          diemDaLam: examRecord ? examRecord.diemTong : null,
-          thoiGianNopGanNhat: examRecord ? examRecord.thoiGianNop : ""
+          tuLuan: safeTuLuan
         });
       }
     }
