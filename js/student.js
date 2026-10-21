@@ -274,6 +274,21 @@ async function loadAvailableExams() {
 
   let exams = [];
 
+  // Tự động tải ngầm danh bạ giáo viên từ Hub để phân giải họ tên thay cho SĐT
+  if (!localStorage.getItem("cached_teachers_directory")) {
+    fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory`, { method: "GET" })
+      .then(res => res.ok ? res.json() : null)
+      .then(res => {
+        if (res && res.success && Array.isArray(res.teachers) && res.teachers.length > 0) {
+          localStorage.setItem("cached_teachers_directory", JSON.stringify(res.teachers));
+          if (availableExams && availableExams.length > 0) {
+            renderExamList(availableExams);
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
   try {
     let data = null;
     // 1. Thử gửi POST lên Google Sheet của giáo viên phụ trách phòng thi
@@ -338,6 +353,68 @@ async function loadAvailableExams() {
   availableExams = exams;
 
   renderExamList(availableExams);
+}
+
+/**
+ * Trợ giúp lấy tên hiển thị của Giáo viên tạo đề (Ưu tiên Họ tên GV, không lấy SĐT / Mã GV)
+ */
+function getTeacherDisplayName(exam) {
+  if (!exam) return "Giáo viên";
+
+  const isRawIdOrPhone = (val) => {
+    if (!val) return false;
+    const s = String(val).trim();
+    return /^0?\d{8,11}$/.test(s) || /^GV\d+$/i.test(s) || /^\d+$/.test(s);
+  };
+
+  // 1. Nếu đề thi trả về sẵn hoTenGV hoặc tenGV hợp lệ
+  if (exam.hoTenGV && String(exam.hoTenGV).trim() && !isRawIdOrPhone(exam.hoTenGV)) {
+    return String(exam.hoTenGV).trim();
+  }
+  if (exam.tenGV && String(exam.tenGV).trim() && !isRawIdOrPhone(exam.tenGV)) {
+    return String(exam.tenGV).trim();
+  }
+  if (exam.duLieuDe?.hoTenGV && String(exam.duLieuDe.hoTenGV).trim() && !isRawIdOrPhone(exam.duLieuDe.hoTenGV)) {
+    return String(exam.duLieuDe.hoTenGV).trim();
+  }
+  if (exam.duLieuDe?.tenGV && String(exam.duLieuDe.tenGV).trim() && !isRawIdOrPhone(exam.duLieuDe.tenGV)) {
+    return String(exam.duLieuDe.tenGV).trim();
+  }
+
+  // 2. Tra cứu theo mã giáo viên từ danh bạ Hub (cached_teachers_directory)
+  const uGv = String(exam.usernameGV || "").trim().toLowerCase();
+  try {
+    const rawDir = localStorage.getItem("cached_teachers_directory");
+    if (rawDir) {
+      const teachers = JSON.parse(rawDir);
+      if (Array.isArray(teachers)) {
+        if (uGv) {
+          const match = teachers.find(t => {
+            const tu = String(t.maGV || t.username || t.usernameGV || "").trim().toLowerCase();
+            return tu === uGv || tu.replace(/^0+/, "") === uGv.replace(/^0+/, "");
+          });
+          if (match && (match.hoTenGV || match.hoTen || match.tenGV)) {
+            return String(match.hoTenGV || match.hoTen || match.tenGV).trim();
+          }
+        }
+        // Thử khớp theo URL máy chủ Web App nếu có
+        const currentServer = (typeof API_URL !== "undefined" ? API_URL : "") || localStorage.getItem("student_gas_api_url") || "";
+        if (currentServer) {
+          const sMatch = teachers.find(t => t.serverUrl && t.serverUrl.trim() === currentServer.trim());
+          if (sMatch && (sMatch.hoTenGV || sMatch.hoTen || sMatch.tenGV)) {
+            return String(sMatch.hoTenGV || sMatch.hoTen || sMatch.tenGV).trim();
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 3. Nếu usernameGV không phải là SĐT/Mã ID thì hiển thị usernameGV
+  if (exam.usernameGV && !isRawIdOrPhone(exam.usernameGV)) {
+    return String(exam.usernameGV).trim();
+  }
+
+  return "Thầy/Cô bộ môn";
 }
 
 /**
@@ -482,7 +559,7 @@ function renderExamList(availableExams) {
         ` : ''}
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <span>Giáo viên tạo: <strong>${exam.usernameGV || "Giáo viên"}</strong></span>
+          <span>Giáo viên tạo: <strong>${escapeHtml(getTeacherDisplayName(exam))}</strong></span>
         </div>
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>

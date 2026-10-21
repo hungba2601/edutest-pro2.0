@@ -3005,10 +3005,13 @@ btnSaveExam.addEventListener("click", async () => {
   const radioAllowScore = document.getElementById("radioAllowViewScore");
   const choXemDiem = radioAllowScore ? radioAllowScore.checked : true;
 
+  const teacherFullName = currentTeacher.hoTenGV || currentTeacher.hoTen || currentTeacher.tenGV || "";
+
   // Đóng gói cấu trúc đề thi
   const examDataPayload = {
     action: "saveExam",
     usernameGV: currentTeacher.username,
+    hoTenGV: teacherFullName,
     tenKyThi: tenKyThi,
     thoiGian: thoiGian,
     trangThai: trangThai,
@@ -3019,6 +3022,7 @@ btnSaveExam.addEventListener("click", async () => {
       cauHoi: parsedQuestions,
       choXemLaiBai: choXemLaiBai,
       choXemDiem: choXemDiem,
+      hoTenGV: teacherFullName,
       tuLuan: {
         noiDung: parsedEssayQuestions.length > 0 ? parsedEssayQuestions[0].noiDung : "",
         linkForm: essayFormLink,
@@ -3042,6 +3046,7 @@ btnSaveExam.addEventListener("click", async () => {
     maDe: localExamCode,
     tenKyThi: tenKyThi,
     usernameGV: currentTeacher.username,
+    hoTenGV: teacherFullName,
     lopChoPhep: selectedClasses,
     thoiGian: thoiGian,
     soCauHoi: parsedQuestions.length,

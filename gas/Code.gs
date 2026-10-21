@@ -982,6 +982,9 @@ function handleSaveExam(payload) {
   }
   duLieuDeObj.choXemLaiBai = choXemLaiBai;
   duLieuDeObj.choXemDiem = choXemDiem;
+  if (payload.hoTenGV) {
+    duLieuDeObj.hoTenGV = String(payload.hoTenGV).trim();
+  }
   const duLieuDeStr = JSON.stringify(duLieuDeObj);
 
   let maDe = String(payload.maDe || "").trim();
@@ -1438,6 +1441,56 @@ function handleGetStudentExams(payload) {
     }
   }
 
+  // Lập bản đồ tra cứu Họ tên Giáo viên từ DATA_GIAOVIEN và HUB_SERVERS (Ưu tiên lấy tên GV, không lấy SĐT/Mã GV)
+  const teacherNameMap = {};
+  const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+  if (sheetGV) {
+    try {
+      const gvData = sheetGV.getDataRange().getValues();
+      if (gvData.length > 1) {
+        const gvHeader = gvData[0];
+        let colUser = 0;
+        let colName = 2; // Cột 2 chuẩn: "Họ tên GV"
+        for (let c = 0; c < gvHeader.length; c++) {
+          const h = String(gvHeader[c] || "").trim().toLowerCase();
+          if (h.includes("tài khoản") || h.includes("tk") || h.includes("mã gv") || h.includes("sđt") || h.includes("sdt")) {
+            colUser = c;
+          }
+          if ((h.includes("tên") || h.includes("họ") || h.includes("giáo viên")) && !h.includes("tài khoản") && !h.includes("tk") && !h.includes("mã")) {
+            colName = c;
+          }
+        }
+        for (let r = 1; r < gvData.length; r++) {
+          const uStr = String(gvData[r][colUser] || "").trim().toLowerCase();
+          const nameStr = String(gvData[r][colName] || "").trim();
+          if (uStr && nameStr) {
+            teacherNameMap[uStr] = nameStr;
+            teacherNameMap[uStr.replace(/^0+/, "")] = nameStr;
+            teacherNameMap["0" + uStr.replace(/^0+/, "")] = nameStr;
+          }
+        }
+      }
+    } catch (eGv) {
+      Logger.log("Lỗi tra cứu DATA_GIAOVIEN trong Code getStudentExams: " + eGv);
+    }
+  }
+
+  const sheetHub = ss.getSheetByName(SHEETS.HUB_SERVERS);
+  if (sheetHub) {
+    try {
+      const hubData = sheetHub.getDataRange().getValues();
+      for (let r = 1; r < hubData.length; r++) {
+        const uStr = String(hubData[r][0] || "").trim().toLowerCase();
+        const nameStr = String(hubData[r][1] || "").trim();
+        if (uStr && nameStr) {
+          teacherNameMap[uStr] = nameStr;
+          teacherNameMap[uStr.replace(/^0+/, "")] = nameStr;
+          teacherNameMap["0" + uStr.replace(/^0+/, "")] = nameStr;
+        }
+      }
+    } catch (eHub) {}
+  }
+
   const data = sheetDeThi.getDataRange().getValues();
   const availableExams = [];
 
@@ -1532,10 +1585,22 @@ function handleGetStudentExams(payload) {
         const submittedInfo = submittedExamsMap[maDe] || null;
         const daLam = !!submittedInfo;
 
+        const rawGV = String(row[2] || "").trim();
+        const rawGVKey = rawGV.toLowerCase();
+        let hoTenGV = duLieuDeParsed.hoTenGV || duLieuDeParsed.tenGV || "";
+        if (!hoTenGV || /^0?\d{8,11}$/.test(hoTenGV) || /^GV\d+$/i.test(hoTenGV)) {
+          hoTenGV = teacherNameMap[rawGVKey] || teacherNameMap[rawGVKey.replace(/^0+/, "")] || teacherNameMap["0" + rawGVKey.replace(/^0+/, "")] || "";
+        }
+        if (!hoTenGV) {
+          hoTenGV = rawGV;
+        }
+
         availableExams.push({
           maDe: maDe,
           tenKyThi: String(row[1]),
-          usernameGV: String(row[2]),
+          usernameGV: rawGV,
+          hoTenGV: hoTenGV,
+          tenGV: hoTenGV,
           lopChoPhep: String(row[3]),
           thoiGian: Number(row[4]) || 45,
           trangThai: trangThai,
