@@ -1016,7 +1016,9 @@ function initTabSwitching() {
   if (tabBtnResults) {
     tabBtnResults.addEventListener("click", () => {
       switchTab(tabBtnResults, tabResults);
-      loadTeacherResults();
+      const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+      populateResultClassDropdown(selectedMaDe);
+      loadTeacherResults(selectedMaDe);
     });
   }
 
@@ -3881,6 +3883,7 @@ function attachExamTableEvents(tbody) {
         if (selectExam) {
           selectExam.value = maDe;
         }
+        populateResultClassDropdown(maDe);
         loadTeacherResults(maDe);
       }
     });
@@ -4084,8 +4087,8 @@ function updateFilterExamDropdown(exams) {
     selectExam.value = currentVal;
   }
 
-  // Cập nhật luôn danh sách lớp vào dropdown chọn lớp của Tab 2
-  populateResultClassDropdown();
+  // Cập nhật luôn danh sách lớp vào dropdown chọn lớp của Tab 2 theo đề đang chọn
+  populateResultClassDropdown(selectExam.value);
 }
 
 function populateResultClassDropdown(specificMaDe) {
@@ -4093,7 +4096,17 @@ function populateResultClassDropdown(specificMaDe) {
   if (!selectClass) return;
 
   const currentVal = selectClass.value;
-  const selectedMaDe = specificMaDe || document.getElementById("selectFilterExam")?.value || "ALL";
+  const selectExamElem = document.getElementById("selectFilterExam");
+
+  // Xác định mã đề đang chọn: ưu tiên specificMaDe nếu khác "ALL", hoặc lấy selectExamElem.value
+  let selectedMaDe = "ALL";
+  if (specificMaDe && specificMaDe !== "ALL") {
+    selectedMaDe = specificMaDe;
+  } else if (selectExamElem && selectExamElem.value && selectExamElem.value !== "ALL") {
+    selectedMaDe = selectExamElem.value;
+  } else if (specificMaDe) {
+    selectedMaDe = specificMaDe;
+  }
 
   // 1. Tập hợp danh sách tất cả các lớp của giáo viên
   const allTeacherClassSet = new Set();
@@ -4104,11 +4117,16 @@ function populateResultClassDropdown(specificMaDe) {
   let classSet = new Set();
 
   if (selectedMaDe && selectedMaDe !== "ALL") {
-    const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
+    let exam = (currentExamsList || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
+    if (!exam) {
+      const cached = getCachedExams();
+      exam = (cached || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
+    }
+
     const rawAllowed = String(exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "").trim();
 
     // Bóc tách các lớp được phân công trong đề thi
-    const tokens = rawAllowed.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+    const tokens = rawAllowed.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
     const specificAllowed = tokens
       .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
       .map(normalizeClassName)
@@ -4116,12 +4134,12 @@ function populateResultClassDropdown(specificMaDe) {
 
     // Thu thập các lớp đã thực tế có học sinh nộp bài cho đề này (DATA_KETQUA)
     const submittedClasses = (currentRawResultsList || [])
-      .filter(r => r.maDe === selectedMaDe && r.lop)
+      .filter(r => String(r.maDe || "").trim() === String(selectedMaDe).trim() && r.lop)
       .map(r => normalizeClassName(r.lop))
       .filter(Boolean);
 
     if (specificAllowed.length > 0) {
-      // Đề có gán các lớp cụ thể: CHỈ hiển thị các lớp được phép thi này
+      // Đề có gán các lớp cụ thể: CHỈ hiển thị các lớp được phép thi này (kèm lớp đã nộp bài)
       specificAllowed.forEach(c => classSet.add(c));
       submittedClasses.forEach(c => classSet.add(c));
     } else if (submittedClasses.length > 0) {
@@ -4170,6 +4188,7 @@ const btnFilterResults = document.getElementById("btnFilterResults");
 if (btnFilterResults) {
   btnFilterResults.addEventListener("click", () => {
     const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+    populateResultClassDropdown(selectedMaDe);
     loadTeacherResults(selectedMaDe);
   });
 }
@@ -4179,7 +4198,7 @@ if (selectFilterExamElem) {
   selectFilterExamElem.addEventListener("change", () => {
     const selectedMaDe = selectFilterExamElem.value || "ALL";
     populateResultClassDropdown(selectedMaDe);
-    applyResultsFiltersAndRender();
+    loadTeacherResults(selectedMaDe);
   });
 }
 
@@ -4200,10 +4219,19 @@ if (chkIncludeNotSubmittedElem) {
 /**
  * Tải kết quả bài thi từ Google Sheets
  */
-async function loadTeacherResults(filterMaDe = "ALL") {
+async function loadTeacherResults(filterMaDe) {
   const tbody = document.getElementById("resultsTableBody");
   if (tbody) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Đang tải bảng điểm kết quả...</td></tr>`;
+  }
+
+  const selectExamElem = document.getElementById("selectFilterExam");
+  const actualMaDe = (filterMaDe !== undefined && filterMaDe !== null && filterMaDe !== "") 
+    ? filterMaDe 
+    : (selectExamElem?.value || "ALL");
+
+  if (selectExamElem && actualMaDe && Array.from(selectExamElem.options).some(o => o.value === actualMaDe)) {
+    selectExamElem.value = actualMaDe;
   }
 
   // Đảm bảo danh sách học sinh CSDL gốc đã được tải
@@ -4220,7 +4248,7 @@ async function loadTeacherResults(filterMaDe = "ALL") {
     }
   }
 
-  populateResultClassDropdown(filterMaDe);
+  populateResultClassDropdown(actualMaDe);
 
   try {
     let resultsFound = [];
@@ -4234,7 +4262,7 @@ async function loadTeacherResults(filterMaDe = "ALL") {
           body: JSON.stringify({
             action: "getTeacherResults",
             usernameGV: uGV,
-            maDe: filterMaDe
+            maDe: actualMaDe
           })
         });
 
@@ -4258,7 +4286,7 @@ async function loadTeacherResults(filterMaDe = "ALL") {
 
     // Đồng bộ vào biến toàn cục, cập nhật lại dropdown lớp theo bài nộp thực tế và hiển thị
     currentResultsList = currentRawResultsList;
-    populateResultClassDropdown(filterMaDe);
+    populateResultClassDropdown(actualMaDe);
     applyResultsFiltersAndRender();
 
   } catch (err) {
@@ -4301,9 +4329,13 @@ function applyResultsFiltersAndRender() {
       targetStudents = baseStudents.filter(s => normalizeClassName(s.lop) === normalizeClassName(selectedClass));
     } else if (selectedMaDe && selectedMaDe !== "ALL") {
       // Nếu chọn đề cụ thể mà chọn "Tất cả các lớp", chỉ lấy học sinh thuộc các lớp được phép thi của đề đó
-      const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
+      let exam = (currentExamsList || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
+      if (!exam) {
+        const cached = getCachedExams();
+        exam = (cached || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
+      }
       const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
-      const tokens = String(rawAllowed).split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+      const tokens = String(rawAllowed).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
       const specificAllowed = tokens
         .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
         .map(normalizeClassName)
