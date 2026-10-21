@@ -380,7 +380,7 @@ function handleLogin(payload) {
       const gvUser = String(row[0] !== null && row[0] !== undefined ? row[0] : "").trim().replace(/\u00A0/g, "");
       const gvPass = String(row[1] !== null && row[1] !== undefined ? row[1] : "").trim().replace(/\u00A0/g, "");
 
-      if (gvUser.toLowerCase() === username.toLowerCase()) {
+      if (isSameTeacherAccount(gvUser, username)) {
         userFound = true;
         if (gvPass === password) {
           // Tra cứu xem GV này đã đăng ký Server riêng trên HUB_SERVERS chưa
@@ -449,7 +449,7 @@ function handleLogin(payload) {
       const hsUser = String(row[0] !== null && row[0] !== undefined ? row[0] : "").trim().replace(/\u00A0/g, "");
       const hsPass = String(row[1] !== null && row[1] !== undefined ? row[1] : "").trim().replace(/\u00A0/g, "");
 
-      if (hsUser.toLowerCase() === username.toLowerCase()) {
+      if (hsUser.toLowerCase() === username.toLowerCase() || isSameTeacherAccount(hsUser, username)) {
         userFound = true;
         if (hsPass === password) {
           return createJsonResponse({
@@ -636,43 +636,27 @@ function handleSyncTeacherAndStudentsToHub(payload) {
       formatHeaderRow(sheetHubServers, "#4f46e5");
     }
 
-    // Cập nhật hoặc thêm mới vào HUB_SERVERS (Đảm bảo mỗi giáo viên CHỈ CÓ ĐÚNG 1 DÒNG DUY NHẤT)
+    // Cập nhật hoặc thêm mới vào HUB_SERVERS
     const gvData = sheetHubServers.getDataRange().getValues();
-    const matchingRowIndices = []; // Lưu các số dòng (1-indexed) của GV này trên sheet
-
+    let gvRowIdx = -1;
     for (let r = 1; r < gvData.length; r++) {
-      const existingUser = String(gvData[r][0] !== null && gvData[r][0] !== undefined ? gvData[r][0] : "").trim();
-      if (isSameTeacherAccount(existingUser, usernameGV)) {
-        matchingRowIndices.push(r + 1);
+      if (isSameTeacherAccount(gvData[r][0], usernameGV)) {
+        gvRowIdx = r + 1;
+        break;
       }
     }
 
     const nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
-    const safeUsernameGV = usernameGV.startsWith("0") ? "'" + usernameGV : usernameGV;
-
-    if (matchingRowIndices.length > 0) {
-      // 1. Cập nhật URL mới nhất vào đúng dòng đầu tiên tìm thấy
-      const primaryRowIdx = matchingRowIndices[0];
-      const existingRowData = gvData[primaryRowIdx - 1];
-      const finalHoTen = hoTenGV || String(existingRowData[1] || "").trim();
-      const finalTruong = truong || String(existingRowData[2] || "").trim();
-
-      sheetHubServers.getRange(primaryRowIdx, 1, 1, 6).setValues([[
-        safeUsernameGV,
-        finalHoTen,
-        finalTruong,
+    if (gvRowIdx > 0) {
+      sheetHubServers.getRange(gvRowIdx, 2, 1, 5).setValues([[
+        hoTenGV || gvData[gvRowIdx - 1][1],
+        truong || gvData[gvRowIdx - 1][2],
         serverUrl,
         "Hoạt động",
         nowStr
       ]]);
-
-      // 2. Nếu trước đó có các dòng trùng lặp khác của GV này, xóa sạch các dòng trùng thừa (xóa từ dưới lên trên)
-      for (let d = matchingRowIndices.length - 1; d >= 1; d--) {
-        sheetHubServers.deleteRow(matchingRowIndices[d]);
-      }
     } else {
-      // Nếu chưa từng có trong danh bạ, thêm mới đúng 1 dòng
-      sheetHubServers.appendRow([safeUsernameGV, hoTenGV, truong, serverUrl, "Hoạt động", nowStr]);
+      sheetHubServers.appendRow([usernameGV, hoTenGV, truong, serverUrl, "Hoạt động", nowStr]);
     }
 
     // 2. Đảm bảo tồn tại sheet HUB_STUDENTS
@@ -686,7 +670,7 @@ function handleSyncTeacherAndStudentsToHub(payload) {
     // Đồng bộ danh sách học sinh của GV này: luôn xóa dữ liệu học sinh cũ của GV này trên HUB_STUDENTS
     const studentData = sheetHubStudents.getDataRange().getValues();
     for (let s = studentData.length - 1; s >= 1; s--) {
-      const ownerGV = String(studentData[s][4] !== null && studentData[s][4] !== undefined ? studentData[s][4] : "").trim();
+      const ownerGV = String(studentData[s][4] || "").trim();
       if (isSameTeacherAccount(ownerGV, usernameGV)) {
         sheetHubStudents.deleteRow(s + 1);
       }
