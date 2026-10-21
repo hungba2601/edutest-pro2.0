@@ -1097,12 +1097,42 @@ function handleGetStudentExams(payload) {
   const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const studentClass = formatClassValue(payload.lop || "").trim().toUpperCase();
+  const usernameHS = String(payload.usernameHS || "").trim();
+
+  // Tra cứu lịch sử nộp bài của học sinh này từ DATA_KETQUA
+  const submittedExamsMap = {};
+  const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
+  if (sheetKetQua && usernameHS) {
+    try {
+      const kqData = sheetKetQua.getDataRange().getValues();
+      // DATA_KETQUA Columns:
+      // 0: Tài khoản HS | 1: Lớp | 2: Họ tên | 3: Ngày sinh | 4: Giới tính | 5: Trường
+      // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
+      // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
+      for (let r = 1; r < kqData.length; r++) {
+        const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+        const rMaDe = String(kqData[r][7] || "").trim();
+        if (rHs === usernameHS.toUpperCase() && rMaDe) {
+          submittedExamsMap[rMaDe] = {
+            daLam: true,
+            diemTong: kqData[r][9],
+            soCauDungSai: kqData[r][10],
+            thoiGianNop: kqData[r][11]
+          };
+        }
+      }
+    } catch (eKq) {
+      Logger.log("Lỗi tra cứu DATA_KETQUA trong Teacher_Code getStudentExams: " + eKq);
+    }
+  }
+
   const data = sheetDeThi.getDataRange().getValues();
   const availableExams = [];
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     if (!row[0]) continue;
+    const maDe = String(row[0]).trim();
 
     const trangThai = String(row[5] || "").trim();
     const rawAllowedClasses = row[3];
@@ -1176,18 +1206,31 @@ function handleGetStudentExams(payload) {
           }))
         };
 
+        const essayList = (safeTuLuan.danhSachCauHoi && Array.isArray(safeTuLuan.danhSachCauHoi)) ? safeTuLuan.danhSachCauHoi : [];
+        const soCauTuLuan = essayList.length > 0 ? essayList.length : (safeTuLuan.noiDung && String(safeTuLuan.noiDung).trim().length > 0 ? 1 : 0);
+        const hasTuLuan = !!(safeTuLuan.noiDung || safeTuLuan.linkForm || essayList.length > 0);
+
+        const submittedInfo = submittedExamsMap[maDe] || null;
+        const daLam = !!submittedInfo;
+
         availableExams.push({
-          maDe: String(row[0]),
+          maDe: maDe,
           tenKyThi: String(row[1]),
           usernameGV: String(row[2]),
           lopChoPhep: String(row[3]),
           thoiGian: Number(row[4]) || 45,
           trangThai: trangThai,
           soCauHoi: safeQuestions.length,
+          soCauTuLuan: soCauTuLuan,
+          hasTuLuan: hasTuLuan,
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
-          tuLuan: safeTuLuan
+          tuLuan: safeTuLuan,
+          daLam: daLam,
+          diemCu: submittedInfo ? submittedInfo.diemTong : null,
+          soCauDungSaiCu: submittedInfo ? submittedInfo.soCauDungSai : null,
+          thoiGianNopCu: submittedInfo ? submittedInfo.thoiGianNop : null
         });
       }
     }

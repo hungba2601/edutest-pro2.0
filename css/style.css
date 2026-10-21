@@ -890,6 +890,22 @@ body[data-role="GV"] .btn-submit:hover:not(:disabled) {
   border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
+/* Badge Tự luận cho thẻ đề thi */
+.badge-essay-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  letter-spacing: -0.01em;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  transition: all 0.2s ease;
+}
+
 /* ==========================================================================
    URGENT TEACHER SELECT STYLES (CẢNH BÁO BẮT BUỘC CHỌN THẦY/CÔ PHÒNG THI)
    ========================================================================== */

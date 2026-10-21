@@ -2972,9 +2972,30 @@ btnSaveExam.addEventListener("click", async () => {
     return;
   }
 
-  // Xác định máy chủ lưu: Ưu tiên Server riêng của Thầy/Cô nếu có, hoặc máy chủ hiện tại
+  // Xác định máy chủ lưu: Độc quyền lưu trên Google Sheet riêng của Thầy/Cô (Tuyệt đối không lưu sang Sheet Admin)
   const personalServerUrl = getTeacherPersonalServerUrl();
-  const targetServerUrl = personalServerUrl || DEFAULT_GAS_API_URL;
+  const isMasterAdmin = (currentTeacher?.username === "0938750424" || currentTeacher?.username === "GV001");
+  let targetServerUrl = personalServerUrl;
+
+  if (!targetServerUrl) {
+    if (isMasterAdmin) {
+      // Chỉ tài khoản Admin hệ thống mới được phép lưu vào Sheet Admin trung tâm
+      targetServerUrl = DEFAULT_GAS_API_URL;
+    } else {
+      // Giáo viên bộ môn bắt buộc phải kết nối Sheet riêng, chặn tuyệt đối không cho lưu vào Sheet Admin để không làm học sinh của Admin nhìn thấy
+      showToast(
+        "Chưa kết nối Google Sheet riêng!",
+        "Thầy/Cô chưa kết nối Google Sheet cá nhân! Để bảo mật đề thi và tránh làm lẫn đề với Admin, vui lòng vào 'Trạm Trung Tâm' kết nối URL Web App riêng trước khi lưu đề.",
+        "error",
+        7000
+      );
+      const hubModal = document.getElementById("centralHubModal");
+      if (hubModal) {
+        hubModal.style.display = "flex";
+      }
+      return;
+    }
+  }
 
   // Lấy cấu hình Chế độ xem lại bài (Ôn tập vs Thi chính thức)
   const radioAllow = document.getElementById("radioAllowReview");
@@ -6528,8 +6549,11 @@ function initCentralHubModal() {
 
         const res = await resp.json();
         if (res && res.success) {
-          setHubStatus("success", `🎉 <strong>ĐỒNG BỘ THÀNH CÔNG RỰC RỠ!</strong><br>${res.message || "Đã ghi nhận máy chủ và danh bạ học sinh lên Trạm Trung Tâm."}<br><small>Từ nay học sinh mở web chính chỉ cần gõ mã là tự động kết nối vào Google Sheet của thầy/cô!</small>`);
-          showToast("Đồng bộ thành công! 🌐", `Đã đồng bộ ${studentsToSend.length} học sinh của Sheet riêng lên Trạm Trung Tâm!`, "success", 6000);
+          const syncDetail = (res.updatedCount !== undefined && res.addedCount !== undefined)
+            ? `<br>📊 <em>Chi tiết: Đã cập nhật URL cho <strong>${res.updatedCount}</strong> học sinh cũ | Thêm mới <strong>${res.addedCount}</strong> học sinh.</em>`
+            : "";
+          setHubStatus("success", `🎉 <strong>ĐỒNG BỘ THÀNH CÔNG RỰC RỠ!</strong><br>${res.message || "Đã ghi nhận máy chủ và danh bạ học sinh lên Trạm Trung Tâm."}${syncDetail}<br><small>Học sinh khi đăng nhập chỉ cần gõ tài khoản là hệ thống tự động kết nối vào đúng Google Sheet của Thầy/Cô!</small>`);
+          showToast("Đồng bộ thành công! 🌐", res.message || `Đã đồng bộ ${studentsToSend.length} học sinh lên Trạm Trung Tâm!`, "success", 6000);
         } else {
           throw new Error(res ? res.message : "Trạm Trung Tâm phản hồi lỗi không xác định!");
         }

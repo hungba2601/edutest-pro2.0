@@ -339,6 +339,8 @@ body {
   gap: 0.5rem;
 }
 .exam-meta-row svg { width: 16px; height: 16px; color: #2563eb; flex-shrink: 0; }
+.exam-meta-row.exam-meta-essay svg { color: #059669; }
+.exam-meta-row.exam-meta-form svg { color: #0284c7; }
 
 .btn-start-exam {
   width: 100%;

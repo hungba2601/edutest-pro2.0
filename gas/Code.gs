@@ -628,7 +628,11 @@ function handleSyncTeacherAndStudentsToHub(payload) {
       });
     }
 
-    // 1. Đảm bảo tồn tại sheet HUB_SERVERS
+    const nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
+
+    // ========================================================================
+    // 1. CẬP NHẬT HOẶC THÊM MỚI VÀO HUB_SERVERS (KHÔNG TẠO TRÙNG GIÁO VIÊN)
+    // ========================================================================
     let sheetHubServers = ss.getSheetByName(SHEETS.HUB_SERVERS);
     if (!sheetHubServers) {
       sheetHubServers = ss.insertSheet(SHEETS.HUB_SERVERS);
@@ -636,18 +640,17 @@ function handleSyncTeacherAndStudentsToHub(payload) {
       formatHeaderRow(sheetHubServers, "#4f46e5");
     }
 
-    // Cập nhật hoặc thêm mới vào HUB_SERVERS
     const gvData = sheetHubServers.getDataRange().getValues();
     let gvRowIdx = -1;
     for (let r = 1; r < gvData.length; r++) {
       if (isSameTeacherAccount(gvData[r][0], usernameGV)) {
-        gvRowIdx = r + 1;
+        gvRowIdx = r + 1; // 1-based index trên sheet
         break;
       }
     }
 
-    const nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
     if (gvRowIdx > 0) {
+      // ĐÃ CÓ: Chỉ cập nhật các thông tin thay đổi (Tên, Trường, URL mới, Trạng thái, Ngày cập nhật)
       sheetHubServers.getRange(gvRowIdx, 2, 1, 5).setValues([[
         hoTenGV || gvData[gvRowIdx - 1][1],
         truong || gvData[gvRowIdx - 1][2],
@@ -656,10 +659,13 @@ function handleSyncTeacherAndStudentsToHub(payload) {
         nowStr
       ]]);
     } else {
+      // CHƯA CÓ: Thêm 1 dòng mới duy nhất
       sheetHubServers.appendRow([usernameGV, hoTenGV, truong, serverUrl, "Hoạt động", nowStr]);
     }
 
-    // 2. Đảm bảo tồn tại sheet HUB_STUDENTS
+    // ========================================================================
+    // 2. DÒ VÀ CẬP NHẬT HUB_STUDENTS (UPSERT THÔNG MINH, KHÔNG TẠO TRÙNG HỌC SINH)
+    // ========================================================================
     let sheetHubStudents = ss.getSheetByName(SHEETS.HUB_STUDENTS);
     if (!sheetHubStudents) {
       sheetHubStudents = ss.insertSheet(SHEETS.HUB_STUDENTS);
@@ -667,40 +673,68 @@ function handleSyncTeacherAndStudentsToHub(payload) {
       formatHeaderRow(sheetHubStudents, "#d97706");
     }
 
-    // Đồng bộ danh sách học sinh của GV này: luôn xóa dữ liệu học sinh cũ của GV này trên HUB_STUDENTS
-    const studentData = sheetHubStudents.getDataRange().getValues();
-    for (let s = studentData.length - 1; s >= 1; s--) {
-      const ownerGV = String(studentData[s][4] || "").trim();
-      if (isSameTeacherAccount(ownerGV, usernameGV)) {
-        sheetHubStudents.deleteRow(s + 1);
+    // Đọc toàn bộ danh sách hiện tại trên HUB_STUDENTS vào bộ nhớ (xử lý siêu tốc)
+    let studentRows = sheetHubStudents.getDataRange().getValues();
+    if (studentRows.length === 0 || !studentRows[0][0]) {
+      sheetHubStudents.appendRow(["Mã HS", "Họ tên HS", "Lớp", "Trường", "Mã GV", "URL Web App (Server)", "Ngày cập nhật"]);
+      studentRows = sheetHubStudents.getDataRange().getValues();
+    }
+
+    // Xây dựng bảng tra cứu nhanh theo Mã HS (Mã HS in hoa)
+    const studentMap = {}; // key: cleanedUsername -> rowIndex trong studentRows
+    for (let i = 1; i < studentRows.length; i++) {
+      const u = String(studentRows[i][0] || "").trim().toUpperCase();
+      if (u) {
+        studentMap[u] = i;
       }
     }
 
-    // Thêm danh sách học sinh mới (nếu có)
-    if (students.length > 0) {
-      const newRows = students.map(st => {
-        const lopFormatted = formatClassValue(st.lop || "").trim();
-        const lopToSave = lopFormatted.includes("/") ? "'" + lopFormatted : lopFormatted;
-        return [
-          String(st.username || "").trim(),
-          String(st.hoTen || "").trim(),
-          lopToSave,
-          String(st.truong || truong || "").trim(),
-          usernameGV,
-          serverUrl,
-          nowStr
-        ];
-      });
+    let updatedCount = 0;
+    let addedCount = 0;
 
-      if (newRows.length > 0) {
-        sheetHubStudents.getRange(sheetHubStudents.getLastRow() + 1, 1, newRows.length, 7).setValues(newRows);
+    // Dò từng học sinh trong danh sách đồng bộ
+    students.forEach(st => {
+      const rawUser = String(st.username || "").trim();
+      if (!rawUser) return;
+      const userKey = rawUser.toUpperCase();
+
+      const lopFormatted = formatClassValue(st.lop || "").trim();
+      const lopToSave = lopFormatted.includes("/") ? "'" + lopFormatted : lopFormatted;
+      const hoTen = String(st.hoTen || "").trim();
+      const truongHS = String(st.truong || truong || "").trim();
+
+      if (studentMap[userKey] !== undefined) {
+        // HỌC SINH ĐÃ TỒN TẠI TRÊN HUB_STUDENTS:
+        // Chỉ dò và cập nhật những thông tin thay đổi (URL server mới, Lớp, Họ tên, Trường, Ngày cập nhật)
+        const rIdx = studentMap[userKey];
+        if (hoTen) studentRows[rIdx][1] = hoTen;
+        if (lopToSave) studentRows[rIdx][2] = lopToSave;
+        if (truongHS) studentRows[rIdx][3] = truongHS;
+        studentRows[rIdx][4] = usernameGV;
+        studentRows[rIdx][5] = serverUrl; // Cập nhật URL Web App mới nhất của Thầy/Cô
+        studentRows[rIdx][6] = nowStr;
+        updatedCount++;
+      } else {
+        // HỌC SINH MỚI CHƯA CÓ TRÊN HUB_STUDENTS:
+        // Thêm vào danh sách tạo mới
+        const newRow = [rawUser, hoTen, lopToSave, truongHS, usernameGV, serverUrl, nowStr];
+        studentRows.push(newRow);
+        studentMap[userKey] = studentRows.length - 1;
+        addedCount++;
       }
+    });
+
+    // Ghi toàn bộ dữ liệu trở lại Google Sheets trong duy nhất 1 lần gọi lệnh (siêu tốc, < 0.5s, không lo timeout)
+    if (studentRows.length > 1) {
+      sheetHubStudents.getRange(1, 1, studentRows.length, 7).setValues(studentRows);
     }
 
     return createJsonResponse({
       success: true,
-      message: `Đã đồng bộ thành công máy chủ và ${students.length} học sinh của Giáo viên ${usernameGV} lên Trạm Trung Tâm!`,
-      studentCount: students.length,
+      message: `Đồng bộ thành công máy chủ của Thầy/Cô! Đã đồng bộ ${students.length} học sinh (Cập nhật: ${updatedCount} em, Thêm mới: ${addedCount} em).`,
+      totalStudents: students.length,
+      updatedCount: updatedCount,
+      addedCount: addedCount,
       serverUrl: serverUrl,
       updatedAt: nowStr
     });
@@ -1375,12 +1409,42 @@ function handleGetStudentExams(payload) {
 
   const studentClass = formatClassValue(payload.lop || "").trim().toUpperCase();
   const requestedTeacher = String(payload.usernameGV || "").trim();
+  const usernameHS = String(payload.usernameHS || "").trim();
+
+  // Tra cứu lịch sử nộp bài của học sinh này từ DATA_KETQUA
+  const submittedExamsMap = {};
+  const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
+  if (sheetKetQua && usernameHS) {
+    try {
+      const kqData = sheetKetQua.getDataRange().getValues();
+      // DATA_KETQUA Columns:
+      // 0: Tài khoản HS | 1: Lớp | 2: Họ tên | 3: Ngày sinh | 4: Giới tính | 5: Trường
+      // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
+      // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
+      for (let r = 1; r < kqData.length; r++) {
+        const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+        const rMaDe = String(kqData[r][7] || "").trim();
+        if (rHs === usernameHS.toUpperCase() && rMaDe) {
+          submittedExamsMap[rMaDe] = {
+            daLam: true,
+            diemTong: kqData[r][9],
+            soCauDungSai: kqData[r][10],
+            thoiGianNop: kqData[r][11]
+          };
+        }
+      }
+    } catch (eKq) {
+      Logger.log("Lỗi tra cứu DATA_KETQUA trong getStudentExams: " + eKq);
+    }
+  }
+
   const data = sheetDeThi.getDataRange().getValues();
   const availableExams = [];
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     if (!row[0]) continue;
+    const maDe = String(row[0]).trim();
 
     const trangThai = String(row[5] || "").trim();
     const rawAllowedClasses = row[3];
@@ -1461,18 +1525,31 @@ function handleGetStudentExams(payload) {
           }))
         };
 
+        const essayList = (safeTuLuan.danhSachCauHoi && Array.isArray(safeTuLuan.danhSachCauHoi)) ? safeTuLuan.danhSachCauHoi : [];
+        const soCauTuLuan = essayList.length > 0 ? essayList.length : (safeTuLuan.noiDung && String(safeTuLuan.noiDung).trim().length > 0 ? 1 : 0);
+        const hasTuLuan = !!(safeTuLuan.noiDung || safeTuLuan.linkForm || essayList.length > 0);
+
+        const submittedInfo = submittedExamsMap[maDe] || null;
+        const daLam = !!submittedInfo;
+
         availableExams.push({
-          maDe: String(row[0]),
+          maDe: maDe,
           tenKyThi: String(row[1]),
           usernameGV: String(row[2]),
           lopChoPhep: String(row[3]),
           thoiGian: Number(row[4]) || 45,
           trangThai: trangThai,
           soCauHoi: safeQuestions.length,
+          soCauTuLuan: soCauTuLuan,
+          hasTuLuan: hasTuLuan,
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
-          tuLuan: safeTuLuan
+          tuLuan: safeTuLuan,
+          daLam: daLam,
+          diemCu: submittedInfo ? submittedInfo.diemTong : null,
+          soCauDungSaiCu: submittedInfo ? submittedInfo.soCauDungSai : null,
+          thoiGianNopCu: submittedInfo ? submittedInfo.thoiGianNop : null
         });
       }
     }

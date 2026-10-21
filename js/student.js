@@ -236,6 +236,31 @@ function formatDob(raw) {
 }
 
 // ============================================================================
+// HÀM QUẢN LÝ LỊCH SỬ NỘP BÀI CỦA HỌC SINH (CACHE CỤC BỘ & ĐỒNG BỘ VỚI SERVER)
+// ============================================================================
+function getLocalSubmittedExams(usernameHS) {
+  try {
+    const raw = localStorage.getItem("EduTest_SubmittedExams_" + (usernameHS || "").trim().toUpperCase());
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveLocalSubmittedExam(usernameHS, maDe, extraData) {
+  try {
+    const key = "EduTest_SubmittedExams_" + (usernameHS || "").trim().toUpperCase();
+    const map = getLocalSubmittedExams(usernameHS);
+    map[maDe] = {
+      daLam: true,
+      time: new Date().toLocaleString("vi-VN"),
+      ...(extraData || {})
+    };
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch (e) {}
+}
+
+// ============================================================================
 // 2. TẢI DANH SÁCH BÀI KIỂM TRA ĐANG MỞ
 // ============================================================================
 async function loadAvailableExams() {
@@ -287,9 +312,54 @@ async function loadAvailableExams() {
     console.warn("Không thể tải danh sách bài kiểm tra từ máy chủ:", err);
   }
 
+  // Kết hợp trạng thái đã làm từ Server và LocalStorage của thiết bị
+  const localSubmitted = getLocalSubmittedExams(currentStudent.username);
+  exams = exams.map(exam => {
+    const localInfo = localSubmitted[exam.maDe];
+    const isDone = !!(exam.daLam || localInfo);
+
+    // Đồng bộ ngược lại vào local nếu server báo đã làm
+    if (exam.daLam && !localInfo) {
+      saveLocalSubmittedExam(currentStudent.username, exam.maDe, {
+        diemCu: exam.diemCu,
+        thoiGianNopCu: exam.thoiGianNopCu
+      });
+    }
+
+    return {
+      ...exam,
+      daLam: isDone,
+      diemCu: (exam.diemCu !== undefined && exam.diemCu !== null) ? exam.diemCu : (localInfo ? localInfo.diemCu : null),
+      thoiGianNopCu: exam.thoiGianNopCu || (localInfo ? localInfo.thoiGianNopCu || localInfo.time : null)
+    };
+  });
+
   // Danh sách đề thi CHỈ lấy từ đúng máy chủ Google Sheets của giáo viên phụ trách phòng thi!
-  // Tuyệt đối KHÔNG lấy đề thi lưu tạm của giáo viên khác trên máy tính này.
   availableExams = exams;
+
+  renderExamList(availableExams);
+}
+
+/**
+ * Trợ giúp lấy chính xác số lượng câu hỏi tự luận của đề thi
+ */
+function getExamEssayCount(exam) {
+  if (!exam) return 0;
+  if (typeof exam.soCauTuLuan === "number" && exam.soCauTuLuan > 0) return exam.soCauTuLuan;
+  const tuLuan = exam.tuLuan || exam.duLieuDe?.tuLuan;
+  if (!tuLuan) return 0;
+  if (Array.isArray(tuLuan.danhSachCauHoi) && tuLuan.danhSachCauHoi.length > 0) {
+    return tuLuan.danhSachCauHoi.length;
+  }
+  if (tuLuan.noiDung && String(tuLuan.noiDung).trim().length > 0) {
+    return 1;
+  }
+  return 0;
+}
+
+function renderExamList(availableExams) {
+  const grid = document.getElementById("studentExamsGrid");
+  if (!grid) return;
 
   if (availableExams.length === 0) {
     const isCentralHub = (API_URL === DEFAULT_GAS_API_URL);
@@ -310,7 +380,8 @@ async function loadAvailableExams() {
     const card = document.createElement("div");
     card.className = "exam-card-item";
 
-    const hasTuLuan = !!(exam.tuLuan && (exam.tuLuan.noiDung || exam.tuLuan.linkForm));
+    const essayCount = getExamEssayCount(exam);
+    const hasGoogleForm = !!(exam.tuLuan && exam.tuLuan.linkForm);
     const isAllowReview = (exam.choXemLaiBai !== false);
     const isAllowScore = (exam.choXemDiem !== false);
     const hasDone = !!exam.daLam;
@@ -328,10 +399,12 @@ async function loadAvailableExams() {
           <div style="margin-top: 0.75rem; padding: 0.65rem 0.85rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem; line-height: 1.45;">
             ⚠️ <strong>Bạn đã hoàn thành bài thi này!</strong><br>
             Kỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để ghi nhận điểm vào bảng điểm. Bạn không thể làm lại.
+            ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `<br>📊 Điểm trắc nghiệm đã ghi nhận: <strong style="color: #dc2626; font-size: 0.95rem;">${exam.diemCu} điểm</strong>` : ''}
+            ${exam.thoiGianNopCu ? `<br>⏱ Thời gian nộp: <strong>${exam.thoiGianNopCu}</strong>` : ''}
           </div>
         `;
         actionBtnHtml = `
-          <button type="button" class="btn-start-exam btn-exam-locked" data-index="${idx}" style="background: #94a3b8; cursor: not-allowed; box-shadow: none; opacity: 0.9;">
+          <button type="button" class="btn-start-exam btn-exam-locked" data-index="${idx}" disabled style="background: #94a3b8; cursor: not-allowed; box-shadow: none; opacity: 0.85; pointer-events: none;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
             <span>Đã Nộp Bài (Chỉ thi 1 lần)</span>
           </button>
@@ -352,6 +425,7 @@ async function loadAvailableExams() {
         noticeAlertHtml = `
           <div style="margin-top: 0.75rem; padding: 0.55rem 0.85rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; color: #166534; font-size: 0.82rem; line-height: 1.45;">
             📖 <strong>Chế độ Ôn tập:</strong> Bạn được làm bài nhiều lần để rèn luyện. Kết quả nộp bài sẽ <strong>ghi nhận lần làm cuối cùng</strong>.
+            ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `<br>📊 Điểm lần nộp gần nhất: <strong style="color: #15803d; font-size: 0.95rem;">${exam.diemCu} điểm</strong>` : ''}
           </div>
         `;
         actionBtnHtml = `
@@ -382,6 +456,9 @@ async function loadAvailableExams() {
           ${isAllowScore 
             ? `<span class="badge-score-tag allowed" title="Cho phép học sinh xem điểm số ngay sau khi nộp bài"><i class="fas fa-check-circle"></i> Cho xem điểm</span>`
             : `<span class="badge-score-tag locked" title="Khóa xem điểm - Điểm số được bảo mật, Giáo viên sẽ công bố sau"><i class="fas fa-lock"></i> Khóa xem điểm</span>`}
+          ${essayCount > 0 
+            ? `<span class="badge-essay-tag" title="Đề thi có ${essayCount} câu hỏi tự luận"><i class="fas fa-pen-nib"></i> ${essayCount} câu tự luận</span>` 
+            : (hasGoogleForm ? `<span class="badge-essay-tag" title="Đề thi có kèm liên kết Google Form tự luận"><i class="fas fa-external-link-alt"></i> Form tự luận</span>` : '')}
         </div>
         <span class="exam-card-code">${exam.maDe}</span>
       </div>
@@ -397,6 +474,12 @@ async function loadAvailableExams() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
           <span>Số câu trắc nghiệm: <strong>${exam.soCauHoi || (exam.cauHoi ? exam.cauHoi.length : 0)} câu</strong></span>
         </div>
+        ${essayCount > 0 ? `
+          <div class="exam-meta-row exam-meta-essay" style="color: #047857;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: #059669;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span>Số câu tự luận: <strong style="color: #047857;">${essayCount} câu</strong></span>
+          </div>
+        ` : ''}
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <span>Giáo viên tạo: <strong>${exam.usernameGV || "Giáo viên"}</strong></span>
@@ -409,12 +492,6 @@ async function loadAvailableExams() {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
           <span>Xem điểm số: <strong style="color: ${isAllowScore ? '#10b981' : '#f59e0b'};">${isAllowScore ? 'Cho xem điểm' : 'Khóa xem điểm (Bảo mật điểm)'}</strong></span>
         </div>
-        ${hasTuLuan ? `
-          <div class="exam-meta-row" style="color: #6ee7b7;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-            <span>Kèm phần Tự luận (Google Form)</span>
-          </div>
-        ` : ''}
       </div>
 
       ${noticeAlertHtml}
@@ -490,8 +567,11 @@ function enterExamRoom(exam) {
   }
 
   // NẾU LÀ ĐỀ ÔN TẬP ĐÃ LÀM: THÔNG BÁO GHI NHẬN KẾT QUẢ LẦN CUỐI
+  const essayCount = getExamEssayCount(exam);
+  const essayInfoText = essayCount > 0 ? `\n• Số câu tự luận: ${essayCount} câu.` : '';
+
   if (isAllowReview && exam.daLam) {
-    if (!confirm(`Bạn có chắc chắn muốn làm lại bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ: Ôn tập (Được làm lại nhiều lần).\n• LƯU Ý QUAN TRỌNG: Kết quả nộp bài sẽ ghi nhận lần làm bài cuối cùng này!`)) {
+    if (!confirm(`Bạn có chắc chắn muốn làm lại bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ: Ôn tập (Được làm lại nhiều lần).\n• LƯU Ý QUAN TRỌNG: Kết quả nộp bài sẽ ghi nhận lần làm bài cuối cùng này!`)) {
       return;
     }
   } else {
@@ -500,7 +580,7 @@ function enterExamRoom(exam) {
       : "THI CHÍNH THỨC (Chỉ làm 1 lần duy nhất, khóa xem bài & đáp án)";
     const scoreText = isAllowScore ? "Hiện điểm ngay khi nộp" : "Khóa xem điểm (GV công bố sau)";
 
-    if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Chế độ bài làm: ${modeText}.\n• Chế độ xem điểm: ${scoreText}.`)) {
+    if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ bài làm: ${modeText}.\n• Chế độ xem điểm: ${scoreText}.`)) {
       return;
     }
   }
@@ -1397,9 +1477,25 @@ async function submitStudentExam(isAutoTimeout = false) {
 
     if (result && result.success) {
       lastExamResult = result;
+
+      // Lưu trạng thái đã hoàn thành bài thi vào máy khách ngay lập tức
+      if (activeExam) {
+        activeExam.daLam = true;
+        activeExam.diemCu = result.diemTracNghiem;
+        saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
+          diemCu: result.diemTracNghiem,
+          thoiGianNopCu: result.thoiGianNop || new Date().toLocaleString("vi-VN")
+        });
+      }
+
       showExamResultScreen(result);
     } else {
       if (result && result.daLamRoi) {
+        if (activeExam) {
+          saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
+            diemCu: result.diemCu || null
+          });
+        }
         alert("⚠️ BẠN ĐÃ LÀM BÀI THI NÀY RỒI!\n\n" + (result.message || "Kỳ thi chính thức chỉ cho phép nộp bài 1 lần duy nhất."));
         window.location.reload();
         return;
