@@ -133,7 +133,13 @@ const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlM
 
 // 1. Kiểm tra tài khoản Admin hệ thống (CHỈ DUY NHẤT 0938750424 LÀ ADMIN DÙNG URL TRUNG TÂM)
 function isCurrentUserAdmin() {
-  const username = String(currentTeacher?.username || "").trim().toLowerCase();
+  let username = String(currentTeacher?.username || "").trim().toLowerCase();
+  if (!username) {
+    try {
+      const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
+      if (u && u.username) username = String(u.username).trim().toLowerCase();
+    } catch (e) {}
+  }
   const cleanUser = username.replace(/^0+/, "");
   return (username === "0938750424" || cleanUser === "938750424" || username === "gv001" || username === "admin");
 }
@@ -180,6 +186,11 @@ function getTeacherPersonalServerUrl() {
         }
         return rem.trim();
       }
+    }
+
+    // Nếu là Admin hệ thống thì mặc định sử dụng luôn Sheet trung tâm nếu chưa cấu hình Sheet riêng
+    if (isAdmin) {
+      return DEFAULT_GAS_API_URL;
     }
   } catch (eStorage) {}
   return "";
@@ -3611,9 +3622,16 @@ async function loadTeacherExams(isManualRefresh = false) {
     btnRefresh.classList.add("is-loading");
   }
 
-  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT CỦA GIÁO VIÊN (ĐỘC QUYỀN TRÊN SHEET RIÊNG)
-  const personalServerUrl = getTeacherPersonalServerUrl();
-  if (!personalServerUrl || personalServerUrl === DEFAULT_GAS_API_URL) {
+  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT (SHEET RIÊNG HOẶC SHEET TRUNG TÂM NẾU LÀ ADMIN)
+  const isAdmin = isCurrentUserAdmin();
+  let targetServerUrl = getTeacherPersonalServerUrl();
+  if (!targetServerUrl && isAdmin) {
+    targetServerUrl = DEFAULT_GAS_API_URL;
+  }
+
+  // Giáo viên bộ môn bắt buộc phải kết nối Sheet riêng (không được dùng Sheet Admin trung tâm)
+  // Tài khoản Admin được phép dùng thẳng Sheet trung tâm (DEFAULT_GAS_API_URL)
+  if (!targetServerUrl || (!isAdmin && targetServerUrl === DEFAULT_GAS_API_URL)) {
     if (btnRefresh) btnRefresh.classList.remove("is-loading");
     if (!currentExamsList || currentExamsList.length === 0) {
       tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
@@ -3632,7 +3650,7 @@ async function loadTeacherExams(isManualRefresh = false) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6500); // 6.5s timeout
 
-      const res = await fetch(personalServerUrl, {
+      const res = await fetch(targetServerUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
@@ -3646,9 +3664,13 @@ async function loadTeacherExams(isManualRefresh = false) {
       const rawText = await res.text();
       if (rawText && !rawText.trim().startsWith("<")) {
         const data = JSON.parse(rawText);
-        if (data && Array.isArray(data.exams) && data.exams.length > 0) {
-          loadedFromServer = data.exams;
-          break; // Đã tìm thấy đề thi với biến thể này
+        if (data && Array.isArray(data.exams)) {
+          if (data.exams.length > 0) {
+            loadedFromServer = data.exams;
+            break; // Đã tìm thấy đề thi với biến thể này
+          } else if (loadedFromServer === null) {
+            loadedFromServer = [];
+          }
         }
       }
     } catch (postErr) {
@@ -3656,16 +3678,20 @@ async function loadTeacherExams(isManualRefresh = false) {
     }
 
     // Fallback GET cho biến thể này nếu POST chưa ra đề
-    if (!loadedFromServer) {
+    if (!loadedFromServer || loadedFromServer.length === 0) {
       try {
-        const getUrl = `${personalServerUrl}?action=getTeacherExams&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
+        const getUrl = `${targetServerUrl}?action=getTeacherExams&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
         const getRes = await fetch(getUrl);
         const getText = await getRes.text();
         if (getText && !getText.trim().startsWith("<")) {
           const data = JSON.parse(getText);
-          if (data && Array.isArray(data.exams) && data.exams.length > 0) {
-            loadedFromServer = data.exams;
-            break;
+          if (data && Array.isArray(data.exams)) {
+            if (data.exams.length > 0) {
+              loadedFromServer = data.exams;
+              break;
+            } else if (loadedFromServer === null) {
+              loadedFromServer = [];
+            }
           }
         }
       } catch (getErr) {
@@ -6657,10 +6683,17 @@ function initCentralHubModal() {
           }
           API_URL = DEFAULT_GAS_API_URL;
           if (hubInfoServerTypeBadge) {
-            hubInfoServerTypeBadge.textContent = "Chưa kết nối Sheet riêng (Mặc định)";
-            hubInfoServerTypeBadge.style.background = "#fffbeb";
-            hubInfoServerTypeBadge.style.color = "#b45309";
-            hubInfoServerTypeBadge.style.border = "1px solid #fde68a";
+            if (isCurrentUserAdmin()) {
+              hubInfoServerTypeBadge.textContent = "Google Sheet Admin (Máy Chủ Trung Tâm)";
+              hubInfoServerTypeBadge.style.background = "#eff6ff";
+              hubInfoServerTypeBadge.style.color = "#1d4ed8";
+              hubInfoServerTypeBadge.style.border = "1px solid #bfdbfe";
+            } else {
+              hubInfoServerTypeBadge.textContent = "Chưa kết nối Sheet riêng (Mặc định)";
+              hubInfoServerTypeBadge.style.background = "#fffbeb";
+              hubInfoServerTypeBadge.style.color = "#b45309";
+              hubInfoServerTypeBadge.style.border = "1px solid #fde68a";
+            }
           }
           updateServerStatusBadgeUI();
         }
@@ -6702,6 +6735,7 @@ function initCentralHubModal() {
             : "";
           setHubStatus("success", `🎉 <strong>ĐỒNG BỘ THÀNH CÔNG RỰC RỠ!</strong><br>${res.message || "Đã ghi nhận máy chủ và danh bạ học sinh lên Trạm Trung Tâm."}${syncDetail}<br><small>Học sinh khi đăng nhập chỉ cần gõ tài khoản là hệ thống tự động kết nối vào đúng Google Sheet của Thầy/Cô!</small>`);
           showToast("Đồng bộ thành công! 🌐", res.message || `Đã đồng bộ ${studentsToSend.length} học sinh lên Trạm Trung Tâm!`, "success", 6000);
+          try { loadTeacherExams(false); } catch (eExams) {}
         } else {
           throw new Error(res ? res.message : "Trạm Trung Tâm phản hồi lỗi không xác định!");
         }
