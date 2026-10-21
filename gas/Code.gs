@@ -997,6 +997,7 @@ function handleSaveExam(payload) {
   let updated = false;
 
   // Nếu đã có mã đề, tìm dòng để cập nhật
+  // 1. Nếu đã có mã đề, tìm dòng để cập nhật
   if (maDe) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][0]).trim() === maDe && isSameTeacherAccount(data[i][2], usernameGV)) {
@@ -1014,7 +1015,26 @@ function handleSaveExam(payload) {
     }
   }
 
-  // Nếu tạo mới
+  // 2. Nếu chưa có mã đề (hoặc mã đề không khớp), tự động kiểm tra xem giáo viên này đã có đề trùng tên kiểm tra chưa để cập nhật đè, tránh tạo thêm đề mới trùng lặp
+  if (!updated && tenKyThi) {
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][1]).trim().toLowerCase() === tenKyThi.toLowerCase() && isSameTeacherAccount(data[i][2], usernameGV)) {
+        const rowNum = i + 1;
+        maDe = String(data[i][0]).trim(); // Giữ nguyên mã đề cũ đã có
+        sheetDeThi.getRange(rowNum, 2).setValue(tenKyThi);
+        sheetDeThi.getRange(rowNum, 4).setValue(lopChoPhep);
+        sheetDeThi.getRange(rowNum, 5).setValue(thoiGian);
+        sheetDeThi.getRange(rowNum, 6).setValue(trangThai);
+        sheetDeThi.getRange(rowNum, cols.reviewCol + 1).setValue(cheDoXemText);
+        sheetDeThi.getRange(rowNum, cols.scoreCol + 1).setValue(cheDoXemDiemText);
+        sheetDeThi.getRange(rowNum, cols.jsonCol + 1).setValue(duLieuDeStr);
+        updated = true;
+        break;
+      }
+    }
+  }
+
+  // 3. Nếu thực sự là đề mới hoàn toàn
   if (!updated) {
     maDe = "DE_" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + "_" + Math.floor(Math.random() * 1000);
     const newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];

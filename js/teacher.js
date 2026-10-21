@@ -3146,6 +3146,17 @@ btnSaveExam.addEventListener("click", async () => {
       examDataPayload.duLieuDe.sharedFromAdmin = true;
       examDataPayload.duLieuDe.nguonDe = existingExam.duLieuDe?.nguonDe || "Được chia sẻ từ Admin";
     }
+  } else {
+    // Tự động nhận diện nếu tên kỳ kiểm tra trùng khớp với đề đã có của giáo viên này để cập nhật đè thay vì tạo đề mới
+    const existingExamByName = (currentExamsList || []).find(e => e.tenKyThi && e.tenKyThi.trim().toLowerCase() === tenKyThi.toLowerCase());
+    if (existingExamByName && existingExamByName.maDe) {
+      examDataPayload.maDe = existingExamByName.maDe;
+      editingExamCode = existingExamByName.maDe;
+      if (existingExamByName?.duLieuDe?.sharedFromAdmin || existingExamByName?.sharedFromAdmin || existingExamByName?.duLieuDe?.nguonDe?.includes("Admin")) {
+        examDataPayload.duLieuDe.sharedFromAdmin = true;
+        examDataPayload.duLieuDe.nguonDe = existingExamByName.duLieuDe?.nguonDe || "Được chia sẻ từ Admin";
+      }
+    }
   }
 
   // Loading
@@ -7086,16 +7097,32 @@ function initTeacherDashboard() {
       }
     }, 800);
 
-    // Lắng nghe sự kiện gõ phím để xóa cảnh báo lỗi khi nhập tên kỳ kiểm tra
+    // Lắng nghe sự kiện gõ phím để xóa cảnh báo lỗi và tự nhận diện đề trùng tên khi cập nhật
     const examTitleInput = document.getElementById("examTitle");
     if (examTitleInput) {
       examTitleInput.addEventListener("input", () => {
-        if (examTitleInput.value.trim()) {
+        const val = examTitleInput.value.trim();
+        if (val) {
           examTitleInput.style.borderColor = "";
           examTitleInput.style.backgroundColor = "";
           examTitleInput.style.boxShadow = "";
           const errorMsg = document.getElementById("examTitleErrorMsg");
           if (errorMsg) errorMsg.style.display = "none";
+        }
+        // Kiểm tra xem tên có trùng với đề đã có để đổi nhãn nút thành "Cập nhật"
+        if (!editingExamCode && Array.isArray(currentExamsList)) {
+          const match = currentExamsList.find(e => e.tenKyThi && e.tenKyThi.trim().toLowerCase() === val.toLowerCase());
+          const btnSave = document.getElementById("btnSaveExam");
+          if (btnSave) {
+            const spanText = btnSave.querySelector("span");
+            if (match) {
+              if (spanText) spanText.textContent = `💾 Cập Nhật Đề Thi [${match.maDe}]`;
+              btnSave.style.background = "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)";
+            } else {
+              if (spanText) spanText.textContent = "Lưu Kỳ Thi Lên Google Sheets";
+              btnSave.style.background = "linear-gradient(135deg, #10b981 0%, #059669 100%)";
+            }
+          }
         }
       });
     }
