@@ -155,6 +155,30 @@ function getTeacherPersonalServerUrl() {
   return "";
 }
 
+function isCurrentUserAdmin() {
+  const username = String(currentTeacher?.username || "").trim().toLowerCase();
+  const role = String(currentTeacher?.role || localStorage.getItem("userRole") || "").trim().toLowerCase();
+  
+  // 1. Kiểm tra tài khoản định danh quản trị (Admin/GV001/0938750424)
+  if (
+    username === "0938750424" ||
+    username === "gv001" ||
+    username === "admin" ||
+    role === "admin" ||
+    role === "quantri"
+  ) {
+    return true;
+  }
+  
+  // 2. Nếu đang kết nối trực tiếp vào Google Sheet Admin Hub (DEFAULT_GAS_API_URL) và không có server riêng
+  const personalServer = getTeacherPersonalServerUrl();
+  if (!personalServer && API_URL === DEFAULT_GAS_API_URL && (!currentTeacher?.serverUrl || currentTeacher?.serverUrl === DEFAULT_GAS_API_URL)) {
+    return true;
+  }
+  
+  return false;
+}
+
 function updateServerStatusBadgeUI() {
   const personalUrl = getTeacherPersonalServerUrl();
   const btnStatus = document.getElementById("btnServerConnectionStatus");
@@ -2974,7 +2998,7 @@ btnSaveExam.addEventListener("click", async () => {
 
   // Xác định máy chủ lưu: Độc quyền lưu trên Google Sheet riêng của Thầy/Cô (Tuyệt đối không lưu sang Sheet Admin)
   const personalServerUrl = getTeacherPersonalServerUrl();
-  const isMasterAdmin = (currentTeacher?.username === "0938750424" || currentTeacher?.username === "GV001");
+  const isMasterAdmin = isCurrentUserAdmin();
   let targetServerUrl = personalServerUrl;
 
   if (!targetServerUrl) {
@@ -3034,6 +3058,11 @@ btnSaveExam.addEventListener("click", async () => {
   // Nếu đang trong chế độ chỉnh sửa đề đã tạo, gửi kèm mã đề để cập nhật đúng dòng
   if (editingExamCode) {
     examDataPayload.maDe = editingExamCode;
+    const existingExam = currentExamsList.find(e => e.maDe === editingExamCode);
+    if (existingExam?.duLieuDe?.sharedFromAdmin || existingExam?.sharedFromAdmin || existingExam?.duLieuDe?.nguonDe?.includes("Admin")) {
+      examDataPayload.duLieuDe.sharedFromAdmin = true;
+      examDataPayload.duLieuDe.nguonDe = existingExam.duLieuDe?.nguonDe || "Được chia sẻ từ Admin";
+    }
   }
 
   // Loading
@@ -3147,7 +3176,12 @@ function openExamForEditing(maDe) {
   const banner = document.getElementById("editingBanner");
   if (banner) {
     banner.style.display = "flex";
-    document.getElementById("editingExamCodeDisplay").textContent = `${exam.maDe} - ${exam.tenKyThi}`;
+    const isShared = !!(exam.duLieuDe?.sharedFromAdmin || exam.sharedFromAdmin || exam.duLieuDe?.nguonDe || exam.nguonDe || exam.duLieuDe?.sharedBy);
+    const sourceInfo = exam.duLieuDe?.nguonDe || (exam.duLieuDe?.sharedFromAdmin ? "Đề chia sẻ từ Admin" : (exam.duLieuDe?.sharedBy ? `Đề chia sẻ từ GV ${exam.duLieuDe.sharedBy}` : ""));
+    const displayEl = document.getElementById("editingExamCodeDisplay");
+    if (displayEl) {
+      displayEl.innerHTML = `${exam.maDe} - ${exam.tenKyThi}${isShared ? ` <span style="font-size:0.75rem; background:#fef3c7; color:#92400e; padding:2px 7px; border-radius:5px; border:1px solid #fde68a; font-weight:700; margin-left:6px;">(${sourceInfo || 'Đề chia sẻ'})</span>` : ''}`;
+    }
   }
   const heading = document.getElementById("formPanelHeading");
   if (heading) {
@@ -3329,15 +3363,19 @@ function previewExamModal(maDe) {
 
   const essayCount = getExamEssayCount(exam);
 
-  document.getElementById("modalStudentTitle").textContent = `Xem nhanh: [${exam.maDe}] ${exam.tenKyThi}`;
+  const isShared = !!(exam.duLieuDe?.sharedFromAdmin || exam.sharedFromAdmin || exam.duLieuDe?.nguonDe || exam.nguonDe || exam.duLieuDe?.sharedBy);
+  const sourceInfo = exam.duLieuDe?.nguonDe || (exam.duLieuDe?.sharedFromAdmin ? "Đề chia sẻ từ Admin" : (exam.duLieuDe?.sharedBy ? `Đề chia sẻ từ GV ${exam.duLieuDe.sharedBy}` : ""));
+
+  document.getElementById("modalStudentTitle").textContent = `Xem nhanh: [${exam.maDe}] ${exam.tenKyThi}${isShared ? ` (${sourceInfo})` : ''}`;
   const body = document.getElementById("modalStudentContent");
   body.innerHTML = `
     <div style="background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 10px; padding: 0.95rem 1.25rem; margin-bottom: 1.25rem; font-size: 0.92rem; color: #1e3a8a; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
-      <div>
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
         Thời gian: <strong style="color: #0f172a; font-weight: 800;">${exam.thoiGian} phút</strong> | 
         Lớp thi: <strong style="color: #1d4ed8; font-weight: 800;">${exam.lopChoPhep}</strong> | 
         Số câu TN: <strong style="color: #1d4ed8; font-weight: 800;">${exam.soCauHoi || 0} câu</strong>
         ${essayCount > 0 ? ` | Tự luận: <strong style="color: #047857; font-weight: 800;">${essayCount} câu</strong>` : ''}
+        ${isShared ? ` | <span style="background: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 6px; font-weight: 700; border: 1px solid #fde68a; font-size: 0.78rem;">📥 ${sourceInfo}</span>` : ''}
       </div>
       <div>
         Trạng thái: <strong style="color: ${exam.trangThai === 'Mở' ? '#16a34a' : '#dc2626'}; font-weight: 800; background: #ffffff; padding: 0.2rem 0.65rem; border-radius: 6px; border: 1px solid #cbd5e1;">${exam.trangThai === 'Mở' ? '🟢 Đang Mở' : '🔴 Đang Đóng'}</strong>
@@ -3608,13 +3646,29 @@ function renderTeacherExamsTable(examsList, isFromCache) {
       tuLuanBadge = `<span style="font-weight: 600; color: #0284c7; background: #f0f9ff; padding: 2px 8px; border-radius: 6px; border: 1px solid #bae6fd; white-space: nowrap;">Form tự luận</span>`;
     }
 
+    const isShared = !!(exam.duLieuDe?.sharedFromAdmin || exam.sharedFromAdmin || exam.duLieuDe?.nguonDe || exam.nguonDe || exam.duLieuDe?.sharedBy);
+    let sharedBadge = "";
+    if (isShared) {
+      const sourceText = exam.duLieuDe?.nguonDe || exam.nguonDe || (exam.duLieuDe?.sharedFromAdmin ? "Được chia sẻ từ Admin" : `Được chia sẻ từ GV ${exam.duLieuDe?.sharedBy || "khác"}`);
+      const isFromAdmin = !!(exam.duLieuDe?.sharedFromAdmin || exam.sharedFromAdmin || sourceText.toLowerCase().includes("admin"));
+      if (isFromAdmin) {
+        sharedBadge = `<span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 6px; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-weight: 700; white-space: nowrap;" title="${sourceText}">📥 Đề từ Admin</span>`;
+      } else {
+        const authorName = exam.duLieuDe?.sharedBy ? `GV ${exam.duLieuDe.sharedBy}` : "GV khác";
+        sharedBadge = `<span style="font-size: 0.72rem; padding: 2px 7px; border-radius: 6px; background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; font-weight: 700; white-space: nowrap;" title="${sourceText}">📥 Đề từ ${authorName}</span>`;
+      }
+    }
+
     const tr = document.createElement("tr");
 
     tr.innerHTML = `
       <td><code class="exam-clickable-title" data-made="${exam.maDe}" title="Bấm để mở chỉnh sửa đề này" style="color: #60a5fa; font-weight: 700; cursor: pointer;">${exam.maDe}</code></td>
       <td>
-        <strong class="exam-clickable-title" data-made="${exam.maDe}" title="Bấm để mở chỉnh sửa đề này" style="cursor: pointer;">${exam.tenKyThi}</strong>
-        ${isFromCache ? '<span style="font-size: 0.68rem; margin-left: 6px; padding: 1px 5px; border-radius: 4px; background: #eff6ff; color: #1d4ed8; font-weight: 600;" title="Dữ liệu hiển thị tức thì">Sẵn sàng</span>' : '<span style="font-size: 0.68rem; margin-left: 6px; padding: 1px 5px; border-radius: 4px; background: #ecfdf5; color: #047857; font-weight: 600;" title="Đã đồng bộ Google Sheets">Google Sheets</span>'}
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <strong class="exam-clickable-title" data-made="${exam.maDe}" title="Bấm để mở chỉnh sửa đề này" style="cursor: pointer;">${exam.tenKyThi}</strong>
+          ${sharedBadge}
+          ${isFromCache ? '<span style="font-size: 0.68rem; padding: 1px 5px; border-radius: 4px; background: #eff6ff; color: #1d4ed8; font-weight: 600;" title="Dữ liệu hiển thị tức thì">Sẵn sàng</span>' : '<span style="font-size: 0.68rem; padding: 1px 5px; border-radius: 4px; background: #ecfdf5; color: #047857; font-weight: 600;" title="Đã đồng bộ Google Sheets">Google Sheets</span>'}
+        </div>
       </td>
       <td><span style="color: #a78bfa;">${exam.lopChoPhep}</span></td>
       <td>${exam.thoiGian} phút</td>
@@ -3648,6 +3702,9 @@ function renderTeacherExamsTable(examsList, isFromCache) {
           </button>
           <button type="button" class="btn-action-view" data-made="${exam.maDe}" title="Xem toàn bộ câu hỏi và đáp án">
             👁 Xem
+          </button>
+          <button type="button" class="btn-action-share" data-made="${exam.maDe}" style="background: #fdf4ff; border: 1px solid #f5d0fe; color: #a21caf; font-weight: 700;" title="Chia sẻ đề thi này cho Giáo viên khác trong hệ thống">
+            📤 Chia sẻ
           </button>
           <button type="button" class="btn-action-delete" data-made="${exam.maDe}" title="Xóa đề thi này">
             Xóa
@@ -3725,6 +3782,14 @@ function attachExamTableEvents(tbody) {
     btn.addEventListener("click", (e) => {
       const maDe = e.currentTarget.dataset.made;
       previewExamModal(maDe);
+    });
+  });
+
+  // 2.5. Gắn sự kiện Chia sẻ đề thi cho GV khác (Modal)
+  tbody.querySelectorAll(".btn-action-share").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const maDe = e.currentTarget.dataset.made;
+      openShareExamModal(maDe);
     });
   });
 
@@ -6576,11 +6641,249 @@ function initCentralHubModal() {
   }
 }
 
-// Khởi tạo tính năng Central Hub khi DOM sẵn sàng
+// ============================================================================
+// TÍNH NĂNG CHIA SẺ ĐỀ THI CHO GIÁO VIÊN TRONG HUB SERVER
+// ============================================================================
+let currentExamToShare = null;
+let cachedHubTeachersForShare = null;
+let isShareExamModalInited = false;
+let isSharingExamInProgress = false;
+
+function initShareExamModal() {
+  if (isShareExamModalInited) return;
+
+  const shareModal = document.getElementById("shareExamModal");
+  if (!shareModal) return;
+
+  isShareExamModalInited = true;
+
+  const btnClose = document.getElementById("btnCloseShareExamModal");
+  const btnCancel = document.getElementById("btnCancelShareExamModal");
+  const btnConfirm = document.getElementById("btnConfirmShareExam");
+  const btnConfirmText = document.getElementById("btnConfirmShareExamText");
+  const spinner = document.getElementById("shareExamSpinner");
+  const statusAlert = document.getElementById("shareStatusAlert");
+  const selectRecipient = document.getElementById("selectShareRecipientTeacher");
+
+  function setShareAlert(type, msg) {
+    if (!statusAlert) return;
+    statusAlert.style.display = "block";
+    if (type === "error") {
+      statusAlert.style.background = "#fef2f2";
+      statusAlert.style.border = "1.5px solid #fecaca";
+      statusAlert.style.color = "#b91c1c";
+    } else if (type === "success") {
+      statusAlert.style.background = "#f0fdf4";
+      statusAlert.style.border = "1.5px solid #86efac";
+      statusAlert.style.color = "#15803d";
+    } else {
+      statusAlert.style.background = "#eff6ff";
+      statusAlert.style.border = "1.5px solid #bfdbfe";
+      statusAlert.style.color = "#1d4ed8";
+    }
+    statusAlert.innerHTML = msg;
+  }
+
+  function hideShareAlert() {
+    if (statusAlert) statusAlert.style.display = "none";
+  }
+
+  if (btnClose) btnClose.addEventListener("click", closeShareExamModal);
+  if (btnCancel) btnCancel.addEventListener("click", closeShareExamModal);
+
+  // Click ra vùng nền ngoài để đóng
+  shareModal.addEventListener("click", (e) => {
+    if (e.target === shareModal) {
+      closeShareExamModal();
+    }
+  });
+
+  // Xác nhận chia sẻ
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", async () => {
+      // Chặn nhấn đúp hoặc xử lý trùng lặp
+      if (isSharingExamInProgress) return;
+
+      if (!currentExamToShare) {
+        showToast("Lỗi", "Không tìm thấy thông tin đề thi cần chia sẻ!", "error");
+        return;
+      }
+
+      const targetMaGV = (selectRecipient ? selectRecipient.value : "").trim();
+      if (!targetMaGV) {
+        setShareAlert("error", "⚠️ Vui lòng chọn một Giáo viên nhận đề từ danh sách!");
+        return;
+      }
+
+      const recipient = (cachedHubTeachersForShare || []).find(t => String(t.maGV || "").trim() === targetMaGV);
+      if (!recipient || !recipient.serverUrl || !recipient.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+        setShareAlert("error", "⚠️ Giáo viên này chưa cập nhật URL Web App Google Sheet hợp lệ trong Hub Server nên không thể nhận đề!");
+        return;
+      }
+
+      isSharingExamInProgress = true;
+      btnConfirm.disabled = true;
+      if (btnConfirmText) btnConfirmText.textContent = "Đang gửi đề...";
+      if (spinner) spinner.style.display = "block";
+      hideShareAlert();
+
+      try {
+        const duLieuDeObj = JSON.parse(JSON.stringify(currentExamToShare.duLieuDe || {}));
+        const senderIsAdmin = isCurrentUserAdmin();
+        const senderName = currentTeacher?.hoTenGV || currentTeacher?.hoTen || currentTeacher?.tenGV || currentTeacher?.username || (senderIsAdmin ? "Admin" : "Giáo viên");
+        const nguonDe = senderIsAdmin ? "Được chia sẻ từ Admin" : `Được chia sẻ từ GV ${senderName}`;
+
+        duLieuDeObj.sharedFromAdmin = senderIsAdmin;
+        duLieuDeObj.sharedBy = senderName;
+        duLieuDeObj.nguonDe = nguonDe;
+
+        const sharePayload = {
+          action: "saveExam",
+          maDe: "", // Để trống để server GV nhận tự sinh mã DE_ mới độc lập, không bị trùng/ghi đè
+          tenKyThi: currentExamToShare.tenKyThi,
+          thoiGian: Number(currentExamToShare.thoiGian) || 45,
+          lopChoPhep: currentExamToShare.lopChoPhep || "ALL",
+          trangThai: "Đóng", // Mặc định Đóng để GV nhận chủ động kiểm tra trước khi mở
+          choXemLaiBai: (currentExamToShare.choXemLaiBai !== false),
+          choXemDiem: (currentExamToShare.choXemDiem !== false),
+          usernameGV: recipient.maGV,
+          hoTenGV: recipient.hoTenGV || recipient.maGV,
+          duLieuDe: duLieuDeObj
+        };
+
+        const res = await fetch(recipient.serverUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(sharePayload)
+        });
+
+        const resData = await res.json();
+        if (resData && resData.success) {
+          showToast("Chia sẻ thành công! 📤", `Đã gửi đề thi "${currentExamToShare.tenKyThi}" thành công sang Google Sheet của thầy/cô ${recipient.hoTenGV || recipient.maGV}!`, "success", 5000);
+          closeShareExamModal();
+        } else {
+          setShareAlert("error", `❌ Không thể lưu đề sang GV: ${resData?.message || "Lỗi không xác định"}`);
+        }
+      } catch (err) {
+        console.error("Lỗi khi chia sẻ đề thi:", err);
+        setShareAlert("error", `❌ Lỗi kết nối tới Server của Giáo viên: ${err.message || err.toString()}`);
+      } finally {
+        isSharingExamInProgress = false;
+        btnConfirm.disabled = false;
+        if (btnConfirmText) btnConfirmText.textContent = "📤 Xác nhận Chia Sẻ";
+        if (spinner) spinner.style.display = "none";
+      }
+    });
+  }
+}
+
+async function openShareExamModal(maDe) {
+  const modal = document.getElementById("shareExamModal");
+  if (!modal) return;
+
+  const exam = currentExamsList.find(e => e.maDe === maDe);
+  if (!exam) {
+    showToast("Lỗi", "Không tìm thấy dữ liệu đề thi này!", "error");
+    return;
+  }
+
+  currentExamToShare = exam;
+
+  // Hiển thị thông tin đề lên modal
+  const titleEl = document.getElementById("shareExamTitle");
+  const codeEl = document.getElementById("shareExamCode");
+  const durEl = document.getElementById("shareExamDuration");
+  const totalEl = document.getElementById("shareExamTotalQuestions");
+  const alertEl = document.getElementById("shareStatusAlert");
+
+  if (titleEl) titleEl.textContent = exam.tenKyThi || "--";
+  if (codeEl) codeEl.textContent = exam.maDe || "--";
+  if (durEl) durEl.textContent = exam.thoiGian || "45";
+  
+  const essayCount = getExamEssayCount(exam);
+  if (totalEl) {
+    totalEl.textContent = `${exam.soCauHoi || 0} câu TN${essayCount > 0 ? ` + ${essayCount} tự luận` : ""}`;
+  }
+  if (alertEl) alertEl.style.display = "none";
+
+  // Mở modal
+  modal.style.display = "flex";
+
+  // Nạp danh sách giáo viên từ Hub Server
+  await loadHubTeachersForShare();
+}
+
+function closeShareExamModal() {
+  const modal = document.getElementById("shareExamModal");
+  if (modal) modal.style.display = "none";
+  currentExamToShare = null;
+}
+
+async function loadHubTeachersForShare() {
+  const select = document.getElementById("selectShareRecipientTeacher");
+  if (!select) return;
+
+  select.innerHTML = '<option value="">-- Đang tải danh sách Giáo viên từ Hub Server... --</option>';
+
+  try {
+    const resp = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory`, { method: "GET" });
+    const data = await resp.json();
+
+    if (data && data.success && Array.isArray(data.teachers)) {
+      cachedHubTeachersForShare = data.teachers;
+
+      const currentGvUser = (currentTeacher?.username || "").trim().toLowerCase();
+      const currentIsAdmin = isCurrentUserAdmin();
+
+      // Lọc các GV có URL hợp lệ và không phải là người chia sẻ
+      const eligible = data.teachers.filter(t => {
+        const tMaGV = String(t.maGV || "").trim().toLowerCase();
+        const tUrl = String(t.serverUrl || "").trim();
+        return tUrl.startsWith("https://script.google.com/macros/s/") && tMaGV !== currentGvUser;
+      });
+
+      // Nếu người gửi là Giáo viên bộ môn (không phải Admin), thêm Admin vào danh sách để GV có thể chia sẻ đề cho Admin!
+      const hasAdminInHub = eligible.some(t => t.serverUrl === DEFAULT_GAS_API_URL || t.maGV.toLowerCase() === "admin" || t.maGV === "0938750424" || t.maGV === "GV001");
+      if (!currentIsAdmin && !hasAdminInHub) {
+        eligible.unshift({
+          maGV: "ADMIN",
+          hoTenGV: "Admin Quản Trị Hệ Thống",
+          truong: "Trạm Trung Tâm (Central Hub)",
+          serverUrl: DEFAULT_GAS_API_URL
+        });
+      }
+
+      cachedHubTeachersForShare = eligible;
+
+      if (eligible.length === 0) {
+        select.innerHTML = '<option value="">(Chưa có Giáo viên nào khác đăng ký Web App trong Hub)</option>';
+        return;
+      }
+
+      let optionsHtml = '<option value="">-- Chọn Giáo viên nhận đề --</option>';
+      eligible.forEach(t => {
+        const school = t.truong ? ` - ${t.truong}` : "";
+        optionsHtml += `<option value="${t.maGV}">${t.hoTenGV || t.maGV}${school} (${t.maGV})</option>`;
+      });
+      select.innerHTML = optionsHtml;
+    } else {
+      select.innerHTML = '<option value="">(Không thể lấy danh sách từ Hub Server)</option>';
+    }
+  } catch (err) {
+    console.error("Lỗi nạp danh sách GV:", err);
+    select.innerHTML = '<option value="">(Lỗi kết nối tới Hub Server)</option>';
+  }
+}
+
+// Khởi tạo tính năng Central Hub & Chia Sẻ khi DOM sẵn sàng
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initCentralHubModal);
+  document.addEventListener("DOMContentLoaded", () => {
+    initCentralHubModal();
+    initShareExamModal();
+  });
 } else {
   initCentralHubModal();
+  initShareExamModal();
 }
 
 // ============================================================================
@@ -6693,6 +6996,9 @@ function initTeacherDashboard() {
 
     // Khởi tạo tính năng Thêm mới học sinh thủ công
     try { initAddStudentModal(); } catch (e) { console.warn("Add student modal warning:", e); }
+
+    // Khởi tạo tính năng Chia sẻ đề thi cho Giáo viên
+    try { initShareExamModal(); } catch (e) { console.warn("Share exam modal warning:", e); }
 
     // Đăng xuất
     const btnLogout = document.getElementById("btnLogout");
