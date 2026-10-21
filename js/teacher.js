@@ -3905,24 +3905,37 @@ function attachExamTableEvents(tbody) {
   // 3. Gắn sự kiện nút toggle trạng thái nhanh
   tbody.querySelectorAll(".btn-toggle-status").forEach(btn => {
     btn.addEventListener("click", async (e) => {
-      const maDe = e.target.dataset.made;
-      const currentStatus = e.target.dataset.status;
+      const targetBtn = e.currentTarget || e.target;
+      const maDe = targetBtn.dataset.made;
+      const currentStatus = targetBtn.dataset.status;
       const nextStatus = currentStatus === "Mở" ? "Đóng" : "Mở";
 
-      e.target.disabled = true;
-      e.target.textContent = "Đang xử lý...";
+      targetBtn.disabled = true;
+      targetBtn.textContent = "Đang xử lý...";
 
-      // Cập nhật trạng thái ngay lập tức trên Local Cache
-      let cached = getCachedExams();
+      // Lưu lại bản sao cache cũ để phòng trường hợp lỗi thì khôi phục lại
+      const previousCached = getCachedExams();
+      let cached = JSON.parse(JSON.stringify(previousCached));
       const examItem = cached.find(ex => ex.maDe === maDe);
       if (examItem) {
         examItem.trangThai = nextStatus;
         saveCachedExams(cached);
+        currentExamsList = cached;
+        renderTeacherExamsTable(currentExamsList, true);
       }
 
-      await toggleExamStatusApi(maDe, nextStatus);
-      showToast("Cập nhật", `Đã chuyển bài thi sang trạng thái: "${nextStatus}"`, "success", 2500);
-      loadTeacherExams(false);
+      const res = await toggleExamStatusApi(maDe, nextStatus);
+      if (res && res.success === false) {
+        // Rollback nếu máy chủ trả về lỗi
+        saveCachedExams(previousCached);
+        currentExamsList = previousCached;
+        renderTeacherExamsTable(currentExamsList, false);
+        showToast("Lỗi cập nhật", res.message || "Không thể cập nhật trạng thái đề thi trên Google Sheets!", "error", 4000);
+        return;
+      }
+
+      showToast("Cập nhật thành công", `Đã chuyển bài thi sang trạng thái: "${nextStatus}" trên Google Sheets!`, "success", 2500);
+      await loadTeacherExams(false);
     });
   });
 
@@ -3936,25 +3949,25 @@ function attachExamTableEvents(tbody) {
         targetBtn.textContent = "...";
         showToast("Đang xử lý", `Đang xóa đề thi ${maDe}...`, "info", 2000);
 
-        // Xóa ngay trong Local Cache
-        let cached = getCachedExams().filter(ex => ex.maDe !== maDe);
+        // Lưu bản sao cache cũ
+        const previousCached = getCachedExams();
+        let cached = previousCached.filter(ex => ex.maDe !== maDe);
         saveCachedExams(cached);
+        currentExamsList = cached;
+        renderTeacherExamsTable(currentExamsList, true);
 
-        const targetServer = getTeacherPersonalServerUrl() || API_URL;
-        try {
-          fetch(targetServer, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({
-              action: "deleteExam",
-              maDe: maDe,
-              usernameGV: currentTeacher.username
-            })
-          }).catch(() => {});
-        } catch (e) {}
+        const res = await deleteExamApi(maDe);
+        if (res && res.success === false) {
+          // Rollback nếu máy chủ báo lỗi
+          saveCachedExams(previousCached);
+          currentExamsList = previousCached;
+          renderTeacherExamsTable(currentExamsList, false);
+          showToast("Lỗi xóa đề", res.message || `Không thể xóa đề thi "${maDe}" trên Google Sheets!`, "error", 4000);
+          return;
+        }
 
-        showToast("Đã xóa thành công", `Đã xóa đề thi "${maDe}"!`, "success", 3000);
-        loadTeacherExams(false);
+        showToast("Đã xóa thành công", `Đã xóa đề thi "${maDe}" trên Google Sheets!`, "success", 3000);
+        await loadTeacherExams(false);
       }
     });
   });
@@ -3967,8 +3980,11 @@ if (btnRefreshExams) {
 }
 
 async function toggleExamStatusApi(maDe, newStatus) {
+  const targetServer = getTeacherPersonalServerUrl() || API_URL;
+  const usernameGV = currentTeacher?.username || "";
+
+  // 1. Thử gửi POST
   try {
-    const targetServer = getTeacherPersonalServerUrl() || API_URL;
     const res = await fetch(targetServer, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -3976,17 +3992,70 @@ async function toggleExamStatusApi(maDe, newStatus) {
         action: "toggleExamStatus",
         maDe: maDe,
         trangThai: newStatus,
-        usernameGV: currentTeacher.username
+        usernameGV: usernameGV
       })
     });
     const text = await res.text();
     if (text && !text.trim().startsWith("<")) {
-      return JSON.parse(text);
+      const data = JSON.parse(text);
+      if (data) return data;
     }
-    return { success: true };
   } catch (err) {
-    return { success: true, message: err.message };
+    console.warn("POST toggleExamStatus thất bại, thử sang GET fallback:", err.message);
   }
+
+  // 2. Fallback GET
+  try {
+    const getUrl = `${targetServer}?action=toggleExamStatus&maDe=${encodeURIComponent(maDe)}&trangThai=${encodeURIComponent(newStatus)}&usernameGV=${encodeURIComponent(usernameGV)}&_t=${Date.now()}`;
+    const getRes = await fetch(getUrl);
+    const getText = await getRes.text();
+    if (getText && !getText.trim().startsWith("<")) {
+      return JSON.parse(getText);
+    }
+  } catch (getErr) {
+    return { success: false, message: getErr.message };
+  }
+
+  return { success: true };
+}
+
+async function deleteExamApi(maDe) {
+  const targetServer = getTeacherPersonalServerUrl() || API_URL;
+  const usernameGV = currentTeacher?.username || "";
+
+  // 1. Thử gửi POST
+  try {
+    const res = await fetch(targetServer, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "deleteExam",
+        maDe: maDe,
+        usernameGV: usernameGV
+      })
+    });
+    const text = await res.text();
+    if (text && !text.trim().startsWith("<")) {
+      const data = JSON.parse(text);
+      if (data) return data;
+    }
+  } catch (err) {
+    console.warn("POST deleteExam thất bại, thử sang GET fallback:", err.message);
+  }
+
+  // 2. Fallback GET
+  try {
+    const getUrl = `${targetServer}?action=deleteExam&maDe=${encodeURIComponent(maDe)}&usernameGV=${encodeURIComponent(usernameGV)}&_t=${Date.now()}`;
+    const getRes = await fetch(getUrl);
+    const getText = await getRes.text();
+    if (getText && !getText.trim().startsWith("<")) {
+      return JSON.parse(getText);
+    }
+  } catch (getErr) {
+    return { success: false, message: getErr.message };
+  }
+
+  return { success: true };
 }
 
 // ============================================================================
@@ -4019,15 +4088,58 @@ function updateFilterExamDropdown(exams) {
   populateResultClassDropdown();
 }
 
-function populateResultClassDropdown() {
+function populateResultClassDropdown(specificMaDe) {
   const selectClass = document.getElementById("selectFilterResultClass");
   if (!selectClass) return;
 
   const currentVal = selectClass.value;
-  // Tập hợp danh sách lớp từ teacherAllClassesList hoặc currentTeacherStudents
-  const classSet = new Set();
-  (teacherAllClassesList || []).forEach(c => c && classSet.add(normalizeClassName(c)));
-  (currentTeacherStudents || []).forEach(st => st.lop && classSet.add(normalizeClassName(st.lop)));
+  const selectedMaDe = specificMaDe || document.getElementById("selectFilterExam")?.value || "ALL";
+
+  // 1. Tập hợp danh sách tất cả các lớp của giáo viên
+  const allTeacherClassSet = new Set();
+  (teacherAllClassesList || []).forEach(c => c && allTeacherClassSet.add(normalizeClassName(c)));
+  (currentTeacherStudents || []).forEach(st => st.lop && allTeacherClassSet.add(normalizeClassName(st.lop)));
+
+  // 2. Lọc danh sách lớp theo bài kiểm tra đã chọn
+  let classSet = new Set();
+
+  if (selectedMaDe && selectedMaDe !== "ALL") {
+    const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
+    const rawAllowed = String(exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "").trim();
+
+    // Bóc tách các lớp được phân công trong đề thi
+    const tokens = rawAllowed.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+    const specificAllowed = tokens
+      .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
+      .map(normalizeClassName)
+      .filter(Boolean);
+
+    // Thu thập các lớp đã thực tế có học sinh nộp bài cho đề này (DATA_KETQUA)
+    const submittedClasses = (currentRawResultsList || [])
+      .filter(r => r.maDe === selectedMaDe && r.lop)
+      .map(r => normalizeClassName(r.lop))
+      .filter(Boolean);
+
+    if (specificAllowed.length > 0) {
+      // Đề có gán các lớp cụ thể: CHỈ hiển thị các lớp được phép thi này
+      specificAllowed.forEach(c => classSet.add(c));
+      submittedClasses.forEach(c => classSet.add(c));
+    } else if (submittedClasses.length > 0) {
+      // Nếu đề không ghi lớp cụ thể nhưng đã có dữ liệu nộp bài
+      submittedClasses.forEach(c => classSet.add(c));
+    } else {
+      // Nếu đề áp dụng toàn bộ (ALL) và chưa có bài nộp
+      classSet = new Set(allTeacherClassSet);
+    }
+  } else {
+    // Nếu chọn "Tất cả bài kiểm tra (ALL)" -> Hiển thị tất cả các lớp của giáo viên
+    classSet = new Set(allTeacherClassSet);
+  }
+
+  // Fallback an toàn nếu classSet rỗng
+  if (classSet.size === 0) {
+    classSet = new Set(allTeacherClassSet);
+  }
 
   const sortedClasses = Array.from(classSet).sort((a, b) => {
     const ga = parseInt(getGradeFromClass(a)) || 0;
@@ -4036,7 +4148,8 @@ function populateResultClassDropdown() {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
   });
 
-  selectClass.innerHTML = `<option value="ALL">-- Tất cả các lớp (${sortedClasses.length} lớp) --</option>`;
+  const totalClassCount = sortedClasses.length;
+  selectClass.innerHTML = `<option value="ALL">-- Tất cả các lớp (${totalClassCount} lớp) --</option>`;
   sortedClasses.forEach(cls => {
     const opt = document.createElement("option");
     opt.value = cls;
@@ -4044,8 +4157,11 @@ function populateResultClassDropdown() {
     selectClass.appendChild(opt);
   });
 
-  if (currentVal && Array.from(selectClass.options).some(o => o.value === currentVal)) {
+  // Nếu lớp đang chọn trước đó vẫn thuộc danh sách các lớp được lọc thì giữ nguyên, ngược lại quay về "ALL"
+  if (currentVal && currentVal !== "ALL" && sortedClasses.includes(currentVal)) {
     selectClass.value = currentVal;
+  } else {
+    selectClass.value = "ALL";
   }
 }
 
@@ -4061,6 +4177,8 @@ if (btnFilterResults) {
 const selectFilterExamElem = document.getElementById("selectFilterExam");
 if (selectFilterExamElem) {
   selectFilterExamElem.addEventListener("change", () => {
+    const selectedMaDe = selectFilterExamElem.value || "ALL";
+    populateResultClassDropdown(selectedMaDe);
     applyResultsFiltersAndRender();
   });
 }
@@ -4102,7 +4220,7 @@ async function loadTeacherResults(filterMaDe = "ALL") {
     }
   }
 
-  populateResultClassDropdown();
+  populateResultClassDropdown(filterMaDe);
 
   try {
     let resultsFound = [];
@@ -4138,8 +4256,9 @@ async function loadTeacherResults(filterMaDe = "ALL") {
       lop: normalizeClassName(r.lop)
     }));
 
-    // Đồng bộ vào biến toàn cục và hiển thị
+    // Đồng bộ vào biến toàn cục, cập nhật lại dropdown lớp theo bài nộp thực tế và hiển thị
     currentResultsList = currentRawResultsList;
+    populateResultClassDropdown(filterMaDe);
     applyResultsFiltersAndRender();
 
   } catch (err) {
@@ -4184,9 +4303,14 @@ function applyResultsFiltersAndRender() {
       // Nếu chọn đề cụ thể mà chọn "Tất cả các lớp", chỉ lấy học sinh thuộc các lớp được phép thi của đề đó
       const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
       const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
-      if (rawAllowed && !rawAllowed.toUpperCase().includes("ALL") && !rawAllowed.toUpperCase().includes("TẤT CẢ")) {
-        const allowedList = rawAllowed.split(/[,;\s]+/).map(normalizeClassName).filter(Boolean);
-        targetStudents = baseStudents.filter(s => allowedList.includes(normalizeClassName(s.lop)));
+      const tokens = String(rawAllowed).split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+      const specificAllowed = tokens
+        .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
+        .map(normalizeClassName)
+        .filter(Boolean);
+
+      if (specificAllowed.length > 0) {
+        targetStudents = baseStudents.filter(s => specificAllowed.includes(normalizeClassName(s.lop)));
       }
     }
 

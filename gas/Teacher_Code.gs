@@ -217,6 +217,10 @@ function doGet(e) {
           const ssEnsure = getSpreadsheet();
           ensureDeThiSheetColumns(ssEnsure.getSheetByName(SHEETS.DETHI));
           return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
+        case "toggleExamStatus":
+          return handleToggleExamStatus(payload);
+        case "deleteExam":
+          return handleDeleteExam(payload);
         case "verifyAdminPassword":
           return handleVerifyAdminPassword(payload);
       }
@@ -690,9 +694,10 @@ function handleSaveExam(payload) {
   // 1. Nếu đã có mã đề, tìm dòng để cập nhật
   if (maDe) {
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]).trim() === maDe && isSameTeacherAccount(data[i][2], usernameGV)) {
+      if (String(data[i][0]).trim() === maDe) {
         const rowNum = i + 1;
         sheetDeThi.getRange(rowNum, 2).setValue(tenKyThi);
+        if (usernameGV) sheetDeThi.getRange(rowNum, 3).setValue(usernameGV);
         sheetDeThi.getRange(rowNum, 4).setValue(lopChoPhep);
         sheetDeThi.getRange(rowNum, 5).setValue(thoiGian);
         sheetDeThi.getRange(rowNum, 6).setValue(trangThai);
@@ -708,10 +713,11 @@ function handleSaveExam(payload) {
   // 2. Nếu chưa có mã đề (hoặc mã đề không khớp), tự động kiểm tra xem giáo viên này đã có đề trùng tên kiểm tra chưa để cập nhật đè, tránh tạo thêm đề mới trùng lặp
   if (!updated && tenKyThi) {
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][1]).trim().toLowerCase() === tenKyThi.toLowerCase() && isSameTeacherAccount(data[i][2], usernameGV)) {
+      if (String(data[i][1]).trim().toLowerCase() === tenKyThi.toLowerCase()) {
         const rowNum = i + 1;
         maDe = String(data[i][0]).trim(); // Giữ nguyên mã đề cũ đã có
         sheetDeThi.getRange(rowNum, 2).setValue(tenKyThi);
+        if (usernameGV) sheetDeThi.getRange(rowNum, 3).setValue(usernameGV);
         sheetDeThi.getRange(rowNum, 4).setValue(lopChoPhep);
         sheetDeThi.getRange(rowNum, 5).setValue(thoiGian);
         sheetDeThi.getRange(rowNum, 6).setValue(trangThai);
@@ -757,9 +763,9 @@ function handleGetTeacherExams(payload) {
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
     if (!row[0]) continue;
-    const rowGV = String(row[2]).trim().toLowerCase();
-
-    if (rowGV === usernameGV) {
+    // Trên Sheet cá nhân của Giáo viên, toàn bộ đề thi trong DATA_DETHI đều hiển thị cho Giáo viên này
+    // (Bao gồm đề tự tạo và đề được chia sẻ từ Admin hoặc đồng nghiệp gửi qua)
+    {
       const cheDoXemText = String(row[cols.reviewCol] || "").trim();
       const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
       const jsonRaw = row[cols.jsonCol];
@@ -821,19 +827,21 @@ function handleToggleExamStatus(payload) {
 
   const maDe = String(payload.maDe || "").trim();
   const newStatus = String(payload.trangThai || "Mở").trim();
-  const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
+  const usernameGV = String(payload.usernameGV || "").trim();
 
   const data = sheetDeThi.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === maDe) {
-      if (usernameGV && String(data[i][2]).trim().toLowerCase() !== usernameGV) {
-        return createJsonResponse({ success: false, message: "Bạn không có quyền sửa đề thi này!" });
-      }
+      // Trên Sheet cá nhân của Giáo viên, toàn bộ đề thi đều thuộc quyền quản lý của Giáo viên
       sheetDeThi.getRange(i + 1, 6).setValue(newStatus);
+      if (usernameGV && !data[i][2]) {
+        sheetDeThi.getRange(i + 1, 3).setValue(usernameGV);
+      }
       return createJsonResponse({
         success: true,
         message: `Đã đổi trạng thái đề thi sang: "${newStatus}"`,
-        trangThai: newStatus
+        trangThai: newStatus,
+        maDe: maDe
       });
     }
   }
@@ -852,16 +860,13 @@ function handleDeleteExam(payload) {
   }
 
   const maDe = String(payload.maDe || "").trim();
-  const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
 
   const data = sheetDeThi.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === maDe) {
-      if (usernameGV && String(data[i][2]).trim().toLowerCase() !== usernameGV) {
-        return createJsonResponse({ success: false, message: "Bạn không có quyền xóa đề thi này!" });
-      }
+      // Trên Sheet cá nhân của Giáo viên, Giáo viên có toàn quyền xóa đề thi trên Sheet của mình
       sheetDeThi.deleteRow(i + 1);
-      return createJsonResponse({ success: true, message: "Đã xóa đề thi thành công!" });
+      return createJsonResponse({ success: true, message: "Đã xóa đề thi thành công!", maDe: maDe });
     }
   }
 

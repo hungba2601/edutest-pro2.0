@@ -239,6 +239,10 @@ function doGet(e) {
           return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
         case "verifyAdminPassword":
           return handleVerifyAdminPassword(payload);
+        case "toggleExamStatus":
+          return handleToggleExamStatus(payload);
+        case "deleteExam":
+          return handleDeleteExam(payload);
         case "syncTeacherAndStudentsToHub":
           return handleSyncTeacherAndStudentsToHub(payload);
         case "getTeacherHubDirectory":
@@ -956,6 +960,12 @@ function isSameTeacherAccount(acc1, acc2) {
   return false;
 }
 
+function isAdminAccount(username) {
+  var s = String(username || "").trim().toLowerCase();
+  var clean = s.replace(/^0+/, "");
+  return (s === "0938750424" || clean === "938750424" || s === "gv001" || s === "admin");
+}
+
 function handleSaveExam(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
@@ -1133,14 +1143,17 @@ function handleToggleExamStatus(payload) {
   const data = sheetDeThi.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === maDe) {
-      if (usernameGV && !isSameTeacherAccount(data[i][2], usernameGV)) {
+      const isOwner = isSameTeacherAccount(data[i][2], usernameGV);
+      const isAdmin = isAdminAccount(usernameGV);
+      if (usernameGV && !isOwner && !isAdmin) {
         return createJsonResponse({ success: false, message: "Bạn không có quyền sửa đề thi này!" });
       }
       sheetDeThi.getRange(i + 1, 6).setValue(newStatus);
       return createJsonResponse({
         success: true,
         message: `Đã đổi trạng thái đề thi sang: "${newStatus}"`,
-        trangThai: newStatus
+        trangThai: newStatus,
+        maDe: maDe
       });
     }
   }
@@ -1164,11 +1177,13 @@ function handleDeleteExam(payload) {
   const data = sheetDeThi.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === maDe) {
-      if (usernameGV && !isSameTeacherAccount(data[i][2], usernameGV)) {
+      const isOwner = isSameTeacherAccount(data[i][2], usernameGV);
+      const isAdmin = isAdminAccount(usernameGV);
+      if (usernameGV && !isOwner && !isAdmin) {
         return createJsonResponse({ success: false, message: "Bạn không có quyền xóa đề thi này!" });
       }
       sheetDeThi.deleteRow(i + 1);
-      return createJsonResponse({ success: true, message: "Đã xóa đề thi thành công!" });
+      return createJsonResponse({ success: true, message: "Đã xóa đề thi thành công!", maDe: maDe });
     }
   }
 
