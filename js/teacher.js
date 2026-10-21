@@ -131,26 +131,23 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
 
+// 1. Kiểm tra tài khoản Admin hệ thống (CHỈ DUY NHẤT 0938750424 LÀ ADMIN DÙNG URL TRUNG TÂM)
 function isCurrentUserAdmin() {
   const username = String(currentTeacher?.username || "").trim().toLowerCase();
-  const fullName = String(currentTeacher?.hoTenGV || currentTeacher?.hoTen || currentTeacher?.tenGV || "").trim().toLowerCase();
-  const role = String(currentTeacher?.role || localStorage.getItem("userRole") || "").trim().toLowerCase();
-  
-  // 1. Kiểm tra username, họ tên hoặc role định danh Admin
-  if (
-    username === "hung2601" ||
-    username === "hungba2601" ||
-    username === "0938750424" ||
-    username === "gv001" ||
-    username === "admin" ||
-    fullName.includes("nguyễn phi hùng") ||
-    fullName.includes("phi hùng") ||
-    role === "admin" ||
-    role === "quantri"
-  ) {
-    return true;
-  }
-  
+  const cleanUser = username.replace(/^0+/, "");
+  return (username === "0938750424" || cleanUser === "938750424" || username === "gv001" || username === "admin");
+}
+
+function isSameTeacherAccount(acc1, acc2) {
+  let s1 = String(acc1 || "").trim().toLowerCase();
+  let s2 = String(acc2 || "").trim().toLowerCase();
+  if (s1 === s2) return true;
+  if (s1.startsWith("'")) s1 = s1.substring(1).trim();
+  if (s2.startsWith("'")) s2 = s2.substring(1).trim();
+  if (s1 === s2) return true;
+  const clean1 = s1.replace(/^0+/, "");
+  const clean2 = s2.replace(/^0+/, "");
+  if (clean1 && clean2 && clean1 === clean2) return true;
   return false;
 }
 
@@ -186,6 +183,47 @@ function getTeacherPersonalServerUrl() {
     }
   } catch (eStorage) {}
   return "";
+}
+
+// Tự động đồng bộ URL cá nhân từ Hub Server của Admin cho Giáo viên nếu có
+async function syncTeacherServerUrlFromHub() {
+  if (!currentTeacher || !currentTeacher.username) return;
+  if (isCurrentUserAdmin()) return;
+
+  try {
+    const resp = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory&_t=${Date.now()}`, { method: "GET" });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!data || !data.success || !Array.isArray(data.teachers)) return;
+
+    const teacherEntry = data.teachers.find(t => isSameTeacherAccount(t.maGV, currentTeacher.username));
+    if (teacherEntry && teacherEntry.serverUrl && teacherEntry.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+      const hubUrl = teacherEntry.serverUrl.trim();
+      const currentPersonalUrl = getTeacherPersonalServerUrl();
+
+      if (hubUrl !== currentPersonalUrl) {
+        localStorage.setItem("custom_gas_api_url", hubUrl);
+        const u = currentTeacher.username;
+        localStorage.setItem("teacher_server_url_" + u, hubUrl);
+        localStorage.setItem("teacher_server_url_" + u.replace(/^0+/, ""), hubUrl);
+
+        currentTeacher.serverUrl = hubUrl;
+        if (teacherEntry.hoTenGV && !currentTeacher.hoTenGV) {
+          currentTeacher.hoTenGV = teacherEntry.hoTenGV;
+        }
+        localStorage.setItem("currentUser", JSON.stringify(currentTeacher));
+
+        API_URL = hubUrl;
+        updateServerStatusBadgeUI();
+
+        // Tự động tải lại đề thi và học sinh theo Sheet cá nhân vừa cập nhật
+        try { loadTeacherExams(false); } catch (eExams) {}
+        try { loadTeacherStudents(false); } catch (eStudents) {}
+      }
+    }
+  } catch (err) {
+    console.warn("Không thể tự động đồng bộ URL từ Hub:", err);
+  }
 }
 
 function updateServerStatusBadgeUI() {
@@ -7000,6 +7038,9 @@ function initTeacherDashboard() {
 
     // Khởi tạo trình biên soạn câu hỏi tự luận & xuất Excel
     try { initEssayQuestionsUI(); } catch (e) { console.warn("Essay questions UI warning:", e); }
+
+    // Tự động kiểm tra và đồng bộ URL riêng từ Hub Server của Admin cho Giáo viên nếu có
+    try { syncTeacherServerUrlFromHub(); } catch (e) { console.warn("Sync URL from Hub warning:", e); }
 
     // Tải danh sách đề thi của giáo viên
     try { loadTeacherExams(); } catch (e) { console.warn("Load exams warning:", e); }
