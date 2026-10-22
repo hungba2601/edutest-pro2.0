@@ -13,7 +13,7 @@
   
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.3">
-  <link rel="stylesheet" href="css/student.css?v=3.2">
+  <link rel="stylesheet" href="css/student.css?v=3.5">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -151,6 +151,10 @@
         <span class="exam-active-tag">🔴 Đang Thi</span>
         <h2 class="exam-active-title" id="roomExamTitle">Tên Kỳ Kiểm Tra</h2>
         <span class="exam-active-code" id="roomExamCode">DE_001</span>
+        <div class="proctoring-indicator-tag" id="examProctoringTag" style="display: none;">
+          <span class="proctoring-dot-pulse"></span>
+          <span class="proctoring-text">Giám sát: <b id="proctoringViolationCount">0</b>/<span id="proctoringMaxAllowed">5</span> lần vi phạm</span>
+        </div>
       </div>
 
       <div class="exam-sticky-actions">
@@ -508,10 +512,104 @@
     </div>
   </div>
 
+  <!-- ====================================================================
+       MODAL 1: XÁC NHẬN VÀO THI CHÍNH THỨC & BẬT TOÀN MÀN HÌNH
+       ==================================================================== -->
+  <div class="modal-backdrop-custom" id="modalConfirmStartExam" style="display: none;">
+    <div class="modal-card-proctoring">
+      <div class="proctoring-modal-banner">
+        <div class="proctoring-modal-badge-icon">🛡️</div>
+        <div class="proctoring-modal-header-info">
+          <span class="proctoring-modal-supertitle">QUY CHẾ PHÒNG THI CHÍNH THỨC</span>
+          <h3 class="proctoring-modal-title" id="startExamModalTitle">Kỳ Kiểm Tra Trực Tuyến</h3>
+        </div>
+      </div>
+
+      <div class="proctoring-modal-content">
+        <div class="proctoring-meta-grid">
+          <div class="proctoring-meta-item">
+            <span class="meta-label">Thời gian làm bài:</span>
+            <strong class="meta-value" id="startExamModalDuration">45 phút</strong>
+          </div>
+          <div class="proctoring-meta-item">
+            <span class="meta-label">Số câu trắc nghiệm:</span>
+            <strong class="meta-value" id="startExamModalQuestions">-- câu</strong>
+          </div>
+          <div class="proctoring-meta-item">
+            <span class="meta-label">Chế độ làm bài:</span>
+            <strong class="meta-value text-danger">Thi chính thức (1 lần)</strong>
+          </div>
+          <div class="proctoring-meta-item">
+            <span class="meta-label">Giới hạn vi phạm:</span>
+            <strong class="meta-value text-danger"><span id="startExamAllowedViolations">5</span> lần cảnh báo</strong>
+          </div>
+        </div>
+
+        <div class="proctoring-rules-box">
+          <h4 class="rules-box-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            QUY ĐỊNH GIÁM SÁT THI & CHỐNG GIAN LẬN:
+          </h4>
+          <ul class="rules-list">
+            <li>Khi bấm bắt đầu, bài thi sẽ <strong>tự động chuyển sang chế độ Toàn Màn Hình (Full Screen)</strong>.</li>
+            <li>Thí sinh <strong>không được thu nhỏ màn hình</strong>, không được mở tab khác hoặc chuyển sang ứng dụng khác để tra cứu.</li>
+            <li>Hệ thống cho phép cảnh báo tối đa <strong id="startExamRulesMax">5</strong> lần.</li>
+            <li><strong class="text-danger">ĐẶC BIỆT LƯU Ý:</strong> Nếu vi phạm đến lần thứ <strong id="startExamRulesNext" class="text-danger">6</strong>, hệ thống sẽ <strong>TỰ ĐỘNG THU VÀ NỘP BÀI THI NGAY LẬP TỨC</strong>!</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="proctoring-modal-footer">
+        <button type="button" class="btn-cancel-start-exam" id="btnCancelStartExam">
+          <span>Hủy Bỏ</span>
+        </button>
+        <button type="button" class="btn-confirm-start-exam" id="btnConfirmStartExam">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          <span>Tôi Đã Hiểu - Bật Toàn Màn Hình & Bắt Đầu Thi</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL 2: CẢNH BÁO VI PHẠM QUY CHẾ THI (THOÁT TOÀN MÀN HÌNH / MỞ TAB)
+       ==================================================================== -->
+  <div class="modal-backdrop-custom modal-violation-backdrop" id="modalExamViolation" style="display: none;">
+    <div class="modal-card-violation">
+      <div class="violation-badge-pulse">
+        <span class="violation-icon-emoji">🚨</span>
+      </div>
+
+      <h3 class="violation-title">CẢNH BÁO VI PHẠM QUY CHẾ PHÒNG THI!</h3>
+      <p class="violation-subtitle">
+        Hệ thống phát hiện bạn vừa rời khỏi màn hình thi (<span id="violationReasonText">thoát toàn màn hình hoặc chuyển tab</span>).
+      </p>
+
+      <div class="violation-counter-card">
+        <div class="violation-counter-label">Số lần vi phạm đã ghi nhận</div>
+        <div class="violation-counter-display">
+          <span class="violation-current-num" id="violationCurrentNum">1</span>
+          <span class="violation-divider">/</span>
+          <span class="violation-max-num" id="violationMaxNum">5</span>
+          <span class="violation-unit-text">lần</span>
+        </div>
+      </div>
+
+      <div class="violation-alert-msg" id="violationAlertMsg">
+        ⚠️ <strong>Chú ý:</strong> Nếu tiếp tục vi phạm quá <span id="violationAlertMaxText">5</span> lần (đến lần thứ <span id="violationAlertNextText" class="text-danger">6</span>), hệ thống sẽ <strong>TỰ ĐỘNG THU & NỘP BÀI THI CỦA BẠN NGAY LẬP TỨC</strong>!
+      </div>
+
+      <button type="button" class="btn-resume-fullscreen-exam" id="btnResumeFullscreenExam">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        <span>Bật Lại Toàn Màn Hình & Tiếp Tục Làm Bài</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Background Music (Love Story 30%) -->
   <script src="js/bg_music.js?v=2.1"></script>
   <!-- JavaScript logic Student -->
-  <script src="js/student.js?v=3.7"></script>
+  <script src="js/student.js?v=4.0"></script>
 
 </body>
 </html>

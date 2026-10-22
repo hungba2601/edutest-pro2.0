@@ -631,6 +631,211 @@ function shuffleArray(array) {
 }
 
 // ============================================================================
+// HỆ THỐNG GIÁM SÁT TOÀN MÀN HÌNH & CHỐNG GIAN LẬN KHI THI (PROCTORING)
+// ============================================================================
+let isProctoringActive = false;
+let currentExamMaxViolations = 5;
+let currentExamViolations = 0;
+let lastViolationTimestamp = 0;
+let isViolationModalShowing = false;
+let examPendingStart = null;
+
+// Kiểm tra toàn màn hình
+function isFullScreenActive() {
+  return !!(
+    document.fullscreenElement || 
+    document.webkitFullscreenElement || 
+    document.mozFullScreenElement || 
+    document.msFullscreenElement
+  );
+}
+
+// Bật Toàn Màn Hình
+function enterFullScreen() {
+  const elem = document.documentElement;
+  try {
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch(err => console.warn("Fullscreen request error:", err));
+    } else if (elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen();
+    } else if (elem.msRequestFullscreen) {
+      elem.msRequestFullscreen();
+    }
+  } catch (err) {
+    console.warn("enterFullScreen error:", err);
+  }
+}
+
+// Thoát Toàn Màn Hình
+function exitFullScreen() {
+  try {
+    if (isFullScreenActive()) {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  } catch (err) {
+    console.warn("exitFullScreen error:", err);
+  }
+}
+
+// Lắng nghe các sự kiện vi phạm (Thoát fullscreen, rời tab, blur)
+function handleFullscreenChange() {
+  if (!isProctoringActive || isSubmittingExam) return;
+  if (!isFullScreenActive()) {
+    triggerExamViolation("Thoát chế độ toàn màn hình");
+  }
+}
+
+function handleVisibilityChange() {
+  if (!isProctoringActive || isSubmittingExam) return;
+  if (document.visibilityState === "hidden") {
+    triggerExamViolation("Mở tab mới hoặc thu nhỏ trình duyệt");
+  }
+}
+
+function handleWindowBlur() {
+  if (!isProctoringActive || isSubmittingExam) return;
+  triggerExamViolation("Rời khỏi cửa sổ phòng thi");
+}
+
+function startProctoringListeners(maxAllowed) {
+  isProctoringActive = true;
+  currentExamMaxViolations = (Number(maxAllowed) > 0) ? Number(maxAllowed) : 5;
+  currentExamViolations = 0;
+  isViolationModalShowing = false;
+  lastViolationTimestamp = 0;
+
+  // Cập nhật tag header
+  const proctoringTag = document.getElementById("examProctoringTag");
+  const countSpan = document.getElementById("proctoringViolationCount");
+  const maxSpan = document.getElementById("proctoringMaxAllowed");
+  if (proctoringTag) proctoringTag.style.display = "inline-flex";
+  if (countSpan) countSpan.textContent = "0";
+  if (maxSpan) maxSpan.textContent = currentExamMaxViolations;
+
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+  document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+  document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  window.addEventListener("blur", handleWindowBlur);
+}
+
+function stopProctoringListeners() {
+  isProctoringActive = false;
+  isViolationModalShowing = false;
+
+  const proctoringTag = document.getElementById("examProctoringTag");
+  if (proctoringTag) proctoringTag.style.display = "none";
+
+  const violationModal = document.getElementById("modalExamViolation");
+  if (violationModal) violationModal.style.display = "none";
+
+  document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+  document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+  document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  window.removeEventListener("blur", handleWindowBlur);
+
+  exitFullScreen();
+}
+
+function triggerExamViolation(reasonText = "Thoát toàn màn hình / Chuyển tab") {
+  if (!isProctoringActive || isSubmittingExam) return;
+  if (isViolationModalShowing) return;
+
+  const now = Date.now();
+  // Debounce 1.5s tránh kích hoạt đúp nhiều sự kiện cùng lúc
+  if (now - lastViolationTimestamp < 1500) return;
+  lastViolationTimestamp = now;
+
+  currentExamViolations++;
+
+  // Cập nhật tag trên header phòng thi
+  const countSpan = document.getElementById("proctoringViolationCount");
+  if (countSpan) countSpan.textContent = currentExamViolations;
+
+  // KIỂM TRA: NẾU VƯỢT QUÁ SỐ LẦN CHO PHÉP (Ví dụ cấu hình 5, lần thứ 6 vi phạm) -> TỰ ĐỘNG NỘP BÀI!
+  if (currentExamViolations > currentExamMaxViolations) {
+    stopProctoringListeners();
+    alert(`🚨 BẠN ĐÃ VI PHẠM QUY CHẾ THI QUÁ ${currentExamMaxViolations} LẦN CHO PHÉP!\n\n• Hành vi: ${reasonText}.\n• Số lần vi phạm: ${currentExamViolations}/${currentExamMaxViolations} lần.\n\nHệ thống ĐÃ TỰ ĐỘNG THU VÀ NỘP BÀI THI CỦA BẠN NGAY LẬP TỨC!`);
+    submitStudentExam(false, true, `Vi phạm quy chế thi ${currentExamViolations} lần (${reasonText})`);
+    return;
+  }
+
+  // NẾU CHƯA VƯỢT QUÁ SỐ LẦN CHO PHÉP -> MỞ MODAL CẢNH BÁO VI PHẠM
+  isViolationModalShowing = true;
+  const modal = document.getElementById("modalExamViolation");
+  const reasonEl = document.getElementById("violationReasonText");
+  const currentNumEl = document.getElementById("violationCurrentNum");
+  const maxNumEl = document.getElementById("violationMaxNum");
+  const alertMaxEl = document.getElementById("violationAlertMaxText");
+  const alertNextEl = document.getElementById("violationAlertNextText");
+  const alertMsgEl = document.getElementById("violationAlertMsg");
+
+  if (reasonEl) reasonEl.textContent = reasonText;
+  if (currentNumEl) currentNumEl.textContent = currentExamViolations;
+  if (maxNumEl) maxNumEl.textContent = currentExamMaxViolations;
+  if (alertMaxEl) alertMaxEl.textContent = currentExamMaxViolations;
+  if (alertNextEl) alertNextEl.textContent = currentExamMaxViolations + 1;
+
+  if (alertMsgEl) {
+    if (currentExamViolations === currentExamMaxViolations) {
+      alertMsgEl.style.background = "#fef2f2";
+      alertMsgEl.style.borderColor = "#f87171";
+      alertMsgEl.style.color = "#991b1b";
+      alertMsgEl.innerHTML = `🚨 <strong>CẢNH BÁO NGUY HIỂM: ĐÂY LÀ LẦN VI PHẠM THỨ ${currentExamViolations}/${currentExamMaxViolations}!</strong><br>Nếu bạn thu nhỏ màn hình hoặc mở tab thêm 1 lần nữa (lần thứ ${currentExamMaxViolations + 1}), bài thi sẽ <strong>TỰ ĐỘNG BỊ NỘP NGAY LẬP TỨC</strong>!`;
+    } else {
+      const remaining = currentExamMaxViolations - currentExamViolations;
+      alertMsgEl.style.background = "#fffbeb";
+      alertMsgEl.style.borderColor = "#fde68a";
+      alertMsgEl.style.color = "#92400e";
+      alertMsgEl.innerHTML = `⚠️ <strong>Lưu ý:</strong> Bạn còn <strong>${remaining}</strong> lần cảnh báo. Nếu vi phạm quá ${currentExamMaxViolations} lần (đến lần thứ <strong>${currentExamMaxViolations + 1}</strong>), hệ thống sẽ <strong>TỰ ĐỘNG THU & NỘP BÀI THI NGAY</strong>!`;
+    }
+  }
+
+  if (modal) modal.style.display = "flex";
+}
+
+// Học sinh bấm nút quay lại toàn màn hình từ modal vi phạm
+function resumeExamFromViolation() {
+  const modal = document.getElementById("modalExamViolation");
+  if (modal) modal.style.display = "none";
+  isViolationModalShowing = false;
+  lastViolationTimestamp = Date.now();
+  enterFullScreen();
+}
+
+// Mở modal xác nhận vào thi chính thức (Yêu cầu toàn màn hình)
+function openStartExamConfirmationModal(exam) {
+  examPendingStart = exam;
+  const modal = document.getElementById("modalConfirmStartExam");
+  const titleEl = document.getElementById("startExamModalTitle");
+  const durEl = document.getElementById("startExamModalDuration");
+  const qEl = document.getElementById("startExamModalQuestions");
+  const allowedEl = document.getElementById("startExamAllowedViolations");
+  const rulesMaxEl = document.getElementById("startExamRulesMax");
+  const rulesNextEl = document.getElementById("startExamRulesNext");
+
+  const maxAllowed = Number(exam.soLanViPhamChoPhep) > 0 ? Number(exam.soLanViPhamChoPhep) : 5;
+
+  if (titleEl) titleEl.textContent = exam.tenKyThi || "Bài Thi Chính Thức";
+  if (durEl) durEl.textContent = `${exam.thoiGian} phút`;
+  if (qEl) qEl.textContent = `${exam.soCauHoi || (exam.cauHoi || []).length} câu`;
+  if (allowedEl) allowedEl.textContent = maxAllowed;
+  if (rulesMaxEl) rulesMaxEl.textContent = maxAllowed;
+  if (rulesNextEl) rulesNextEl.textContent = maxAllowed + 1;
+
+  if (modal) modal.style.display = "flex";
+}
+
+// ============================================================================
 // 3. VÀO PHÒNG THI TẬP TRUNG & BẬT ĐỒNG HỒ ĐẾM NGƯỢC
 // ============================================================================
 function enterExamRoom(exam) {
@@ -647,21 +852,27 @@ function enterExamRoom(exam) {
   const essayCount = getExamEssayCount(exam);
   const essayInfoText = essayCount > 0 ? `\n• Số câu tự luận: ${essayCount} câu.` : '';
 
-  if (isAllowReview && exam.daLam) {
-    if (!confirm(`Bạn có chắc chắn muốn làm lại bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ: Ôn tập (Được làm lại nhiều lần).\n• LƯU Ý QUAN TRỌNG: Kết quả nộp bài sẽ ghi nhận lần làm bài cuối cùng này!`)) {
-      return;
+  if (isAllowReview) {
+    // CHẾ ĐỘ ÔN TẬP / LUYỆN TẬP: KHÔNG ÁP DỤNG GIÁM SÁT THI, HỌC SINH LÀM THOẢI MÁI
+    if (exam.daLam) {
+      if (!confirm(`Bạn có chắc chắn muốn làm lại bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ: Ôn tập (Được làm lại nhiều lần).\n• LƯU Ý QUAN TRỌNG: Kết quả nộp bài sẽ ghi nhận lần làm bài cuối cùng này!`)) {
+        return;
+      }
+    } else {
+      const scoreText = isAllowScore ? "Hiện điểm ngay khi nộp" : "Khóa xem điểm (GV công bố sau)";
+      if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ: Ôn tập / Luyện tập (Làm nhiều lần, tự do tra cứu).\n• Chế độ xem điểm: ${scoreText}.`)) {
+        return;
+      }
     }
+    proceedIntoExamRoom(exam, false);
   } else {
-    const modeText = isAllowReview 
-      ? "ÔN TẬP (Làm nhiều lần, ghi nhận điểm lần cuối, xem được bài làm & đáp án)" 
-      : "THI CHÍNH THỨC (Chỉ làm 1 lần duy nhất, khóa xem bài & đáp án)";
-    const scoreText = isAllowScore ? "Hiện điểm ngay khi nộp" : "Khóa xem điểm (GV công bố sau)";
-
-    if (!confirm(`Bạn có chắc chắn muốn bắt đầu làm bài kiểm tra: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ bài làm: ${modeText}.\n• Chế độ xem điểm: ${scoreText}.`)) {
-      return;
-    }
+    // CHẾ ĐỘ THI / KIỂM TRA CHÍNH THỨC: BẬT MODAL NỘI QUY & YÊU CẦU TOÀN MÀN HÌNH
+    openStartExamConfirmationModal(exam);
   }
+}
 
+// Bắt đầu vào phòng thi chính thức
+function proceedIntoExamRoom(exam, isProctoring = false) {
   // ==========================================================================
   // ĐẢO VỊ TRÍ CÂU HỎI RANDOM CHO MỖI HỌC SINH:
   // - Phần I (Trắc nghiệm nhiều lựa chọn): ĐẢO NGẪU NHIÊN
@@ -728,11 +939,22 @@ function enterExamRoom(exam) {
   // Render bảng điều hướng câu hỏi (Palette)
   renderQuestionPalette(exam.cauHoi || [], exam.tuLuan);
 
+  // Kích hoạt giám sát thi nếu là bài thi chính thức
+  if (isProctoring) {
+    const maxAllowed = exam.soLanViPhamChoPhep || 5;
+    startProctoringListeners(maxAllowed);
+  } else {
+    stopProctoringListeners();
+  }
+
   // Đảm bảo cuộn về đỉnh sau khi toàn bộ câu hỏi và layout DOM đã được dựng xong
   requestAnimationFrame(scrollToTopExam);
   setTimeout(scrollToTopExam, 100);
 
-  showToast("Bắt đầu thi", `Thời gian làm bài: ${exam.thoiGian} phút. Chúc bạn làm bài đạt kết quả cao!`, "info", 4000);
+  const modeToastText = isProctoring 
+    ? `Chế độ Thi chính thức (Giám sát toàn màn hình). Cho phép cảnh báo tối đa ${exam.soLanViPhamChoPhep || 5} lần vi phạm.`
+    : `Chế độ Ôn tập. Chúc bạn làm bài đạt kết quả cao!`;
+  showToast("Bắt đầu làm bài", modeToastText, isProctoring ? "warning" : "info", 5000);
 }
 
 // Đồng hồ đếm ngược (Countdown Timer)
@@ -1509,9 +1731,12 @@ btnSubmitExam.addEventListener("click", () => {
 
 let isSubmittingExam = false;
 
-async function submitStudentExam(isAutoTimeout = false) {
+async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false, violationReason = "") {
   if (isSubmittingExam) return;
   isSubmittingExam = true;
+
+  // Dừng hệ thống giám sát thi & thoát toàn màn hình an toàn
+  stopProctoringListeners();
 
   // Đóng modal cảnh báo chưa làm xong nếu đang mở
   const incModal = document.getElementById("modalIncompleteExam");
@@ -1523,7 +1748,9 @@ async function submitStudentExam(isAutoTimeout = false) {
   btnSubmitExam.disabled = true;
   btnSubmitExam.innerHTML = `<span>Đang chấm điểm...</span>`;
 
-  if (isAutoTimeout) {
+  if (isAutoViolation) {
+    showToast("Tự động nộp bài!", "Bài thi đã được tự động nộp do vi phạm quy chế thi quá số lần cho phép!", "error", 7000);
+  } else if (isAutoTimeout) {
     showToast("Hết giờ làm bài!", "Đã hết thời gian làm bài, hệ thống đang tự động thu và nộp bài thi của bạn...", "warning", 5000);
   } else {
     showToast("Đang xử lý", "Hệ thống đang chấm điểm và ghi nhận bài thi...", "info", 3000);
@@ -1540,7 +1767,9 @@ async function submitStudentExam(isAutoTimeout = false) {
     truong: currentStudent.truong,
     thoiGianVaoThi: examStartTime ? examStartTime.toISOString() : new Date().toISOString(),
     cauTraLoi: studentAnswers,
-    baiLamTuLuan: studentEssayAnswers
+    baiLamTuLuan: studentEssayAnswers,
+    soLanViPham: currentExamViolations,
+    lyDoNop: isAutoViolation ? violationReason : (isAutoTimeout ? "Hết giờ làm bài" : "Học sinh chủ động nộp bài")
   };
 
   try {
@@ -1596,6 +1825,48 @@ async function submitStudentExam(isAutoTimeout = false) {
       btnSubmitExam.innerHTML = `<span>Nộp Bài Thi</span>`;
     }
   }
+}
+
+// ============================================================================
+// ĐĂNG KÝ SỰ KIỆN CÁC MODAL GIÁM SÁT THI & VI PHẠM
+// ============================================================================
+function initProctoringModalEvents() {
+  const btnConfirmStart = document.getElementById("btnConfirmStartExam");
+  if (btnConfirmStart) {
+    btnConfirmStart.addEventListener("click", () => {
+      const modal = document.getElementById("modalConfirmStartExam");
+      if (modal) modal.style.display = "none";
+      if (examPendingStart) {
+        const targetExam = examPendingStart;
+        examPendingStart = null;
+        // Bật toàn màn hình trực tiếp từ user gesture click
+        enterFullScreen();
+        proceedIntoExamRoom(targetExam, true);
+      }
+    });
+  }
+
+  const btnCancelStart = document.getElementById("btnCancelStartExam");
+  if (btnCancelStart) {
+    btnCancelStart.addEventListener("click", () => {
+      const modal = document.getElementById("modalConfirmStartExam");
+      if (modal) modal.style.display = "none";
+      examPendingStart = null;
+    });
+  }
+
+  const btnResumeViolation = document.getElementById("btnResumeFullscreenExam");
+  if (btnResumeViolation) {
+    btnResumeViolation.addEventListener("click", () => {
+      resumeExamFromViolation();
+    });
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initProctoringModalEvents);
+} else {
+  initProctoringModalEvents();
 }
 
 /**
@@ -1719,6 +1990,7 @@ function UtilitiesFormatTime() {
 // Hiển thị màn hình kết quả điểm số
 function showExamResultScreen(result) {
   lastExamResult = result;
+  stopProctoringListeners();
 
   document.getElementById("viewExamRoom").style.display = "none";
   document.getElementById("viewExamResult").style.display = "flex";

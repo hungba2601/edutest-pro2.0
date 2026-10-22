@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=7.2">
+  <link rel="stylesheet" href="css/teacher.css?v=7.3">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -249,6 +249,37 @@
                     <p class="mode-explanation">Học sinh <strong>chỉ được làm 1 lần duy nhất</strong> (đã nộp bài sẽ bị khóa, không cho làm lại). Khóa xem lại bài làm & đáp án.</p>
                   </div>
                 </label>
+              </div>
+
+              <!-- CẤU HÌNH GIÁM SÁT THI & CHỐNG GIAN LẬN (CHỈ HIỆN KHI CHỌN THI / KIỂM TRA CHÍNH THỨC) -->
+              <div id="antiCheatConfigGroup" class="anti-cheat-config-box" style="display: none;">
+                <div class="anti-cheat-header">
+                  <div class="anti-cheat-icon-badge">🛡️</div>
+                  <div class="anti-cheat-header-text">
+                    <span class="anti-cheat-title">Giám sát toàn màn hình & Chống gian lận</span>
+                    <p class="anti-cheat-desc">
+                      Tự động phóng to toàn màn hình khi làm bài. Ngăn học sinh thu nhỏ để mở tab khác tra cứu tài liệu.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="anti-cheat-body">
+                  <div class="anti-cheat-input-row">
+                    <label for="examMaxViolations" class="anti-cheat-label">
+                      Số lần vi phạm cho phép cảnh báo:
+                    </label>
+                    <div class="anti-cheat-number-wrap">
+                      <input type="number" id="examMaxViolations" name="examMaxViolations" min="1" max="20" value="5" class="anti-cheat-input">
+                      <span class="anti-cheat-unit">lần</span>
+                    </div>
+                  </div>
+                  <div class="anti-cheat-hint">
+                    <span class="anti-cheat-hint-icon">💡</span>
+                    <span>
+                      Hệ thống cảnh báo học sinh tối đa <strong id="antiCheatHintMax">5</strong> lần khi thoát toàn màn hình hoặc mở tab khác. Đến lần thứ <strong id="antiCheatHintNext" class="text-danger">6</strong> sẽ <strong>tự động thu và nộp bài ngay</strong>.
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1406,6 +1437,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   <!-- Background Music (Love Story 30%) -->
   <script src="js/bg_music.js?v=2.1"></script>
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=8.2"></script>
+  <script src="js/teacher.js?v=8.3"></script>
 </body>
 </html>

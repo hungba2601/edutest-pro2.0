@@ -359,6 +359,7 @@ function updateReviewModeDisplay(isAllow) {
   const optReview = document.getElementById("optModeReview");
   const optExam = document.getElementById("optModeExam");
   const badgeMode = document.getElementById("badgeReviewMode");
+  const antiCheatGroup = document.getElementById("antiCheatConfigGroup");
 
   if (isAllow) {
     if (optReview) optReview.classList.add("selected");
@@ -367,6 +368,9 @@ function updateReviewModeDisplay(isAllow) {
       badgeMode.textContent = "📖 ÔN TẬP (ĐƯỢC XEM BÀI)";
       badgeMode.classList.remove("locked");
     }
+    if (antiCheatGroup) {
+      antiCheatGroup.style.display = "none";
+    }
   } else {
     if (optReview) optReview.classList.remove("selected");
     if (optExam) optExam.classList.add("selected");
@@ -374,18 +378,44 @@ function updateReviewModeDisplay(isAllow) {
       badgeMode.textContent = "🔒 THI (KHÓA XEM BÀI)";
       badgeMode.classList.add("locked");
     }
+    if (antiCheatGroup) {
+      antiCheatGroup.style.display = "block";
+      updateAntiCheatHint();
+    }
   }
+}
+
+function updateAntiCheatHint() {
+  const input = document.getElementById("examMaxViolations");
+  const maxSpan = document.getElementById("antiCheatHintMax");
+  const nextSpan = document.getElementById("antiCheatHintNext");
+  if (!input) return;
+  let val = parseInt(input.value, 10);
+  if (isNaN(val) || val < 1) val = 1;
+  if (val > 20) val = 20;
+  if (maxSpan) maxSpan.textContent = val;
+  if (nextSpan) nextSpan.textContent = val + 1;
 }
 
 function initReviewModeSelector() {
   const radioAllow = document.getElementById("radioAllowReview");
   const radioDisallow = document.getElementById("radioDisallowReview");
+  const maxViolationsInput = document.getElementById("examMaxViolations");
 
   if (radioAllow) {
     radioAllow.addEventListener("change", () => updateReviewModeDisplay(true));
   }
   if (radioDisallow) {
     radioDisallow.addEventListener("change", () => updateReviewModeDisplay(false));
+  }
+  if (maxViolationsInput) {
+    maxViolationsInput.addEventListener("input", updateAntiCheatHint);
+    maxViolationsInput.addEventListener("change", () => {
+      let val = parseInt(maxViolationsInput.value, 10);
+      if (isNaN(val) || val < 1) maxViolationsInput.value = 1;
+      else if (val > 20) maxViolationsInput.value = 20;
+      updateAntiCheatHint();
+    });
   }
 }
 
@@ -3110,6 +3140,14 @@ btnSaveExam.addEventListener("click", async () => {
   const radioAllow = document.getElementById("radioAllowReview");
   const choXemLaiBai = radioAllow ? radioAllow.checked : true;
 
+  // Lấy cấu hình số lần vi phạm cho phép khi thi chính thức
+  let soLanViPhamChoPhep = 0;
+  if (!choXemLaiBai) {
+    const inputViolations = document.getElementById("examMaxViolations");
+    soLanViPhamChoPhep = inputViolations ? (parseInt(inputViolations.value, 10) || 5) : 5;
+    if (soLanViPhamChoPhep < 1) soLanViPhamChoPhep = 1;
+  }
+
   // Lấy cấu hình Chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
   const radioAllowScore = document.getElementById("radioAllowViewScore");
   const choXemDiem = radioAllowScore ? radioAllowScore.checked : true;
@@ -3127,10 +3165,12 @@ btnSaveExam.addEventListener("click", async () => {
     lopChoPhep: selectedClasses,
     choXemLaiBai: choXemLaiBai,
     choXemDiem: choXemDiem,
+    soLanViPhamChoPhep: soLanViPhamChoPhep,
     duLieuDe: {
       cauHoi: parsedQuestions,
       choXemLaiBai: choXemLaiBai,
       choXemDiem: choXemDiem,
+      soLanViPhamChoPhep: soLanViPhamChoPhep,
       hoTenGV: teacherFullName,
       tuLuan: {
         noiDung: parsedEssayQuestions.length > 0 ? parsedEssayQuestions[0].noiDung : "",
@@ -3179,6 +3219,7 @@ btnSaveExam.addEventListener("click", async () => {
     hasTuLuan: !!(parsedEssayQuestions.length > 0 || essayFormLink),
     choXemLaiBai: choXemLaiBai,
     choXemDiem: choXemDiem,
+    soLanViPhamChoPhep: soLanViPhamChoPhep,
     trangThai: trangThai,
     duLieuDe: examDataPayload.duLieuDe
   };
@@ -3349,6 +3390,14 @@ function openExamForEditing(maDe) {
     updateScoreModeDisplay(isAllowScore);
   }
 
+  // 5.2. Điền lại số lần vi phạm cho phép (Giám sát toàn màn hình)
+  const maxViolationsInput = document.getElementById("examMaxViolations");
+  if (maxViolationsInput) {
+    const savedViolations = exam.soLanViPhamChoPhep || exam.duLieuDe?.soLanViPhamChoPhep || 5;
+    maxViolationsInput.value = savedViolations;
+    updateAntiCheatHint();
+  }
+
   // 6. Tải danh sách câu hỏi trắc nghiệm vào trình chỉnh sửa
   parsedQuestions = JSON.parse(JSON.stringify(exam.duLieuDe?.cauHoi || []));
   renderQuestionsPreview(parsedQuestions);
@@ -3406,6 +3455,13 @@ function cancelEditingMode() {
     rAllow.checked = true;
     rDisallow.checked = false;
     updateReviewModeDisplay(true);
+  }
+
+  // Reset số lần vi phạm về mặc định 5
+  const resetViolationsInput = document.getElementById("examMaxViolations");
+  if (resetViolationsInput) {
+    resetViolationsInput.value = "5";
+    updateAntiCheatHint();
   }
 
   // Reset chế độ xem điểm về mặc định Cho xem điểm

@@ -677,6 +677,7 @@ function handleSaveExam(payload) {
   }
   duLieuDeObj.choXemLaiBai = choXemLaiBai;
   duLieuDeObj.choXemDiem = choXemDiem;
+  duLieuDeObj.soLanViPhamChoPhep = (!choXemLaiBai) ? (Number(payload.soLanViPhamChoPhep) > 0 ? Number(payload.soLanViPhamChoPhep) : 5) : 0;
   if (payload.hoTenGV) {
     duLieuDeObj.hoTenGV = String(payload.hoTenGV).trim();
   }
@@ -804,6 +805,7 @@ function handleGetTeacherExams(payload) {
         trangThai: String(row[5] || "Mở"),
         choXemLaiBai: choXemLaiBai,
         choXemDiem: choXemDiem,
+        soLanViPhamChoPhep: (!choXemLaiBai ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
         soCauHoi: (duLieuDeParsed.cauHoi || []).length,
         soCauTuLuan: soCauTuLuan,
         hasTuLuan: hasTuLuan,
@@ -1312,6 +1314,7 @@ function handleGetStudentExams(payload) {
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
+          soLanViPhamChoPhep: (!choXemLaiBai ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
           tuLuan: safeTuLuan,
           daLam: daLam,
           diemCu: submittedInfo ? submittedInfo.diemTong : null,
