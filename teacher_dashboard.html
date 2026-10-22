@@ -824,8 +824,17 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
       <div class="panel-card" style="margin-top: 1.25rem;">
         <div class="section-header-flex" style="flex-wrap: wrap; gap: 0.85rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
           <h3 class="panel-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">Danh Sách Học Sinh Của Các Lớp Đang Chọn</h3>
-          <div style="flex: 1; max-width: 360px; min-width: 240px;">
-            <input type="text" id="searchStudentClassInput" class="form-input search-box" style="width: 100%; box-sizing: border-box;" placeholder="Tìm theo tên học sinh, tài khoản, trường...">
+          <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" id="btnOpenBatchChangePwdModal" class="btn-batch-pwd" title="Đổi mật khẩu đồng loạt cho học sinh theo khối / lớp">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Đổi MK hàng loạt</span>
+            </button>
+            <div style="width: 280px; max-width: 100%;">
+              <input type="text" id="searchStudentClassInput" class="form-input search-box" style="width: 100%; box-sizing: border-box;" placeholder="Tìm theo tên học sinh, tài khoản, trường...">
+            </div>
           </div>
         </div>
 
@@ -1041,6 +1050,147 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           <span id="btnConfirmChangePwdText">Cập nhật mật khẩu</span>
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL ĐỔI MẬT KHẨU HÀNG LOẠT (CHỌN KHỐI / LỚP & QUY TẮC) -->
+  <div class="modal-backdrop" id="batchChangePasswordModal" style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.65) !important; backdrop-filter: blur(5px) !important; -webkit-backdrop-filter: blur(5px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;" aria-hidden="true">
+    <div class="modal-dialog" style="max-width: 620px; width: 100% !important; background: #ffffff !important; border-radius: 16px !important; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45) !important; border: 1.5px solid #e2e8f0 !important; overflow: hidden !important; margin: auto !important; max-height: 90vh; display: flex; flex-direction: column; animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+      
+      <!-- Header -->
+      <div class="modal-header" style="display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 1.15rem 1.5rem !important; background: #f8fafc !important; border-bottom: 1.5px solid #e2e8f0 !important;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(124, 58, 237, 0.12); color: #7c3aed; display: flex; align-items: center; justify-content: center;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M21 2l-2 2m-1.5 1.5L16 7l-1.5 1.5M19 5l-2-2m-1.5 1.5L14 6l-1.5 1.5"/>
+              <circle cx="7.5" cy="15.5" r="5.5"/>
+              <path d="m11.5 11.5 8.5-8.5"/>
+            </svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #4c1d95;">Đổi Mật Khẩu Hàng Loạt</h3>
+            <p style="margin: 0; font-size: 0.8rem; color: #64748b;">Áp dụng mật khẩu mới đồng loạt cho học sinh theo khối / lớp</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseBatchChangePwdModal" aria-label="Đóng" style="width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #64748b; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;">✕</button>
+      </div>
+
+      <!-- Body -->
+      <div class="modal-body" style="padding: 1.25rem 1.5rem; background: #ffffff; overflow-y: auto; flex: 1;">
+        
+        <!-- Mục 1: Chọn Khối & Lớp áp dụng -->
+        <div style="margin-bottom: 1.25rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.55rem; flex-wrap: wrap; gap: 6px;">
+            <label style="font-size: 0.88rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+              <span>1. Chọn Khối & Lớp cần đổi mật khẩu:</span>
+              <span style="color: #ef4444;">*</span>
+            </label>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button type="button" id="btnBatchSelectAllClasses" style="padding: 3px 9px; font-size: 0.76rem; font-weight: 600; color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 6px; cursor: pointer;">Tất cả</button>
+              <button type="button" id="btnBatchDeselectAllClasses" style="padding: 3px 9px; font-size: 0.76rem; font-weight: 600; color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; cursor: pointer;">Bỏ chọn</button>
+              <span id="batchSelectedSummaryBadge" style="font-size: 0.78rem; font-weight: 700; color: #6d28d9; background: #f5f3ff; border: 1px solid #ddd6fe; padding: 3px 9px; border-radius: 6px;">Đang tính...</span>
+            </div>
+          </div>
+          
+          <!-- Danh sách Checkboxes phân theo Khối -->
+          <div id="batchClassesListContainer" style="max-height: 190px; overflow-y: auto; padding-right: 4px; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.75rem; background: #fafbfc;">
+            <!-- Render động bằng JavaScript -->
+            <div style="text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 1.5rem;">Đang tải danh sách khối lớp...</div>
+          </div>
+        </div>
+
+        <!-- Mục 2: Chọn quy tắc đặt mật khẩu mới -->
+        <div style="margin-bottom: 1.25rem;">
+          <label style="display: block; font-size: 0.88rem; font-weight: 700; color: #1e293b; margin-bottom: 0.65rem;">
+            2. Chọn phương thức đặt mật khẩu mới:
+          </label>
+
+          <!-- Tùy chọn 1: Ngày tháng năm sinh -->
+          <div class="batch-pwd-rule-card active" id="cardRuleBirthdate">
+            <div style="display: flex; align-items: flex-start; gap: 0.65rem;">
+              <input type="radio" id="ruleTypeBirthdate" name="batchPwdRuleType" value="birthdate" checked style="margin-top: 3px; accent-color: #7c3aed; cursor: pointer;">
+              <div style="flex: 1;">
+                <label for="ruleTypeBirthdate" style="font-size: 0.88rem; font-weight: 700; color: #1e293b; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                  <span>Lấy theo Ngày Tháng Năm Sinh của học sinh</span>
+                  <span style="font-size: 0.72rem; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; padding: 1px 6px; border-radius: 4px;">Tự động</span>
+                </label>
+                <p style="margin: 0.25rem 0 0.6rem; font-size: 0.78rem; color: #64748b;">Mỗi học sinh sẽ có mật khẩu là ngày sinh trong hồ sơ dữ liệu.</p>
+                
+                <!-- Format ngày sinh -->
+                <div id="boxBirthdateFormat" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.85rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                  <span style="font-size: 0.78rem; font-weight: 600; color: #475569;">Định dạng mật khẩu ngày sinh:</span>
+                  <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <label style="font-size: 0.82rem; color: #1e293b; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                      <input type="radio" name="batchBirthFormat" value="ddmmyyyy" checked style="accent-color: #7c3aed;">
+                      <span><strong>ddmmyyyy</strong> (Ví dụ: sinh 16/11/2013 ➔ <code style="color: #7c3aed; background: #f5f3ff; padding: 1px 4px; border-radius: 4px;">16112013</code>)</span>
+                    </label>
+                    <label style="font-size: 0.82rem; color: #1e293b; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;">
+                      <input type="radio" name="batchBirthFormat" value="dd/mm/yyyy" style="accent-color: #7c3aed;">
+                      <span><strong>dd/mm/yyyy</strong> (Ví dụ: <code style="color: #7c3aed; background: #f5f3ff; padding: 1px 4px; border-radius: 4px;">16/11/2013</code>)</span>
+                    </label>
+                  </div>
+                  <div style="margin-top: 4px; font-size: 0.75rem; color: #64748b; display: flex; align-items: center; gap: 6px;">
+                    <span>MK dự phòng nếu học sinh chưa có ngày sinh:</span>
+                    <input type="text" id="inputBatchFallbackPwd" value="123456" style="width: 80px; padding: 2px 6px; font-size: 0.78rem; font-weight: bold; border: 1px solid #cbd5e1; border-radius: 5px; text-align: center;">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tùy chọn 2: Tùy ý nhập mật khẩu chung mới -->
+          <div class="batch-pwd-rule-card" id="cardRuleCustom">
+            <div style="display: flex; align-items: flex-start; gap: 0.65rem;">
+              <input type="radio" id="ruleTypeCustom" name="batchPwdRuleType" value="custom" style="margin-top: 3px; accent-color: #7c3aed; cursor: pointer;">
+              <div style="flex: 1;">
+                <label for="ruleTypeCustom" style="font-size: 0.88rem; font-weight: 700; color: #1e293b; cursor: pointer;">
+                  Tùy ý nhập một mật khẩu chung mới
+                </label>
+                <p style="margin: 0.25rem 0 0.5rem; font-size: 0.78rem; color: #64748b;">Tất cả học sinh thuộc các lớp đã chọn sẽ được đặt cùng một mật khẩu này.</p>
+                
+                <div id="boxCustomPasswordInput" style="display: none; margin-top: 0.5rem;">
+                  <div style="position: relative; max-width: 380px;">
+                    <input 
+                      type="text" 
+                      id="inputBatchCustomPassword" 
+                      class="form-control" 
+                      placeholder="Nhập mật khẩu chung (VD: 123456, hocsinh2026)..." 
+                      style="width: 100%; box-sizing: border-box; padding: 0.5rem 80px 0.5rem 0.85rem; font-weight: 600; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem;" 
+                      autocomplete="off"
+                    />
+                    <button 
+                      type="button" 
+                      id="btnRandomBatchPwd" 
+                      title="Tạo mật khẩu 6 số ngẫu nhiên" 
+                      style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; font-size: 0.74rem; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 4px;"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                      <span>Tạo</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Cảnh báo an toàn -->
+        <div style="background: #fffbeb; border: 1px solid #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 0.75rem 0.95rem; font-size: 0.78rem; color: #92400e; line-height: 1.45;">
+          <strong>⚠️ Chú ý:</strong> Thao tác này sẽ cập nhật mật khẩu trực tiếp lên Sheet <code>DATA_HOCSINH</code> trên Google Sheets. Học sinh sẽ dùng mật khẩu mới này từ lần đăng nhập kế tiếp.
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="modal-footer" style="display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0;">
+        <button type="button" class="btn-cancel" id="btnCancelBatchChangePwd" style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Hủy bỏ</button>
+        <button type="button" id="btnConfirmBatchChangePwd" style="padding: 0.55rem 1.35rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(124,58,237,0.28);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span id="btnConfirmBatchChangePwdText">Xác nhận đổi mật khẩu</span>
+        </button>
+      </div>
+
     </div>
   </div>
 

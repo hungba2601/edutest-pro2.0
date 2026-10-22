@@ -1986,6 +1986,92 @@ input:checked + .slider:before { transform: translateX(22px); }
   background-color: #f8fafc;
 }
 
+/* NÚT ĐỔI MẬT KHẨU HÀNG LOẠT */
+.btn-batch-pwd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.52rem 1.05rem;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff;
+  border: none;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.28);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+.btn-batch-pwd:hover {
+  background: linear-gradient(135deg, #6d28d9, #5b21b6);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.38);
+}
+.btn-batch-pwd:active {
+  transform: translateY(0);
+}
+
+/* MODAL ĐỔI MK HÀNG LOẠT */
+.batch-pwd-grade-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.95rem;
+  margin-bottom: 0.65rem;
+  transition: border-color 0.2s ease;
+}
+.batch-pwd-grade-block:hover {
+  border-color: #cbd5e1;
+}
+.batch-pwd-class-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s ease;
+}
+.batch-pwd-class-chip:hover {
+  border-color: #7c3aed;
+  color: #6d28d9;
+}
+.batch-pwd-class-chip input[type="checkbox"] {
+  accent-color: #7c3aed;
+  cursor: pointer;
+}
+.batch-pwd-class-chip.is-checked {
+  background: #f5f3ff;
+  border-color: #7c3aed;
+  color: #6d28d9;
+  font-weight: 700;
+}
+.batch-pwd-rule-card {
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+.batch-pwd-rule-card:hover {
+  border-color: #c4b5fd;
+  background: #faf5ff;
+}
+.batch-pwd-rule-card.active {
+  border-color: #7c3aed;
+  background: #faf5ff;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.12);
+}
+
 /* NÚT CHỌN KHỐI LỚP (GRADE FILTER CHIPS) */
 .btn-grade-chip {
   border: none;

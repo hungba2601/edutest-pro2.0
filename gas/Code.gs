@@ -225,6 +225,8 @@ function doGet(e) {
           return handleLogin(payload);
         case "updateStudentPassword":
           return handleUpdateStudentPassword(payload);
+        case "batchUpdateStudentPasswords":
+          return handleBatchUpdateStudentPasswords(payload);
         case "updateTeacherPassword":
           return handleUpdateTeacherPassword(payload);
         case "deleteStudentResult":
@@ -320,6 +322,9 @@ function doPost(e) {
 
       case "updateStudentPassword":
         return handleUpdateStudentPassword(payload);
+
+      case "batchUpdateStudentPasswords":
+        return handleBatchUpdateStudentPasswords(payload);
 
       case "updateTeacherPassword":
         return handleUpdateTeacherPassword(payload);
@@ -1467,6 +1472,114 @@ function handleUpdateStudentPassword(payload) {
   return createJsonResponse({
     success: false,
     message: "Không tìm thấy học sinh có mã tài khoản: " + usernameHS
+  });
+}
+
+/**
+ * Đổi mật khẩu hàng loạt cho học sinh theo Lớp / Khối
+ */
+function handleBatchUpdateStudentPasswords(payload) {
+  const ss = getSpreadsheet();
+  const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+  if (!sheetHS) {
+    return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_HOCSINH!" });
+  }
+
+  // Lấy danh sách lớp được chọn (hỗ trợ cả mảng hoặc chuỗi phân tách bởi dấu phẩy)
+  var rawClasses = payload.classes;
+  var selectedClasses = [];
+  if (Array.isArray(rawClasses)) {
+    selectedClasses = rawClasses.map(function(c) { return String(c).trim().toUpperCase(); }).filter(Boolean);
+  } else if (typeof rawClasses === "string" && rawClasses.trim()) {
+    selectedClasses = rawClasses.split(/[,;\s]+/).map(function(c) { return String(c).trim().toUpperCase(); }).filter(Boolean);
+  }
+
+  if (selectedClasses.length === 0) {
+    return createJsonResponse({ success: false, message: "Vui lòng chọn ít nhất một lớp học để đổi mật khẩu!" });
+  }
+
+  var type = String(payload.type || "birthdate").trim().toLowerCase();
+  var customPassword = String(payload.customPassword || "").trim();
+  var birthdateFormat = String(payload.birthdateFormat || "ddmmyyyy").trim().toLowerCase();
+  var fallbackPassword = String(payload.fallbackPassword || "123456").trim();
+
+  if (type === "custom" && !customPassword) {
+    return createJsonResponse({ success: false, message: "Vui lòng nhập mật khẩu chung mới!" });
+  }
+
+  var dataRange = sheetHS.getDataRange();
+  var dataHS = dataRange.getValues();
+  if (!dataHS || dataHS.length <= 1) {
+    return createJsonResponse({ success: false, message: "Danh sách học sinh trên Sheet DATA_HOCSINH đang trống!" });
+  }
+
+  var updatedCount = 0;
+  var passwordColumnValues = [];
+
+  for (var i = 1; i < dataHS.length; i++) {
+    var row = dataHS[i];
+    var formattedClass = formatClassValue(row[2]);
+    var rowClass = String(formattedClass || "").trim().toUpperCase();
+    var currentPass = row[1];
+
+    if (selectedClasses.indexOf(rowClass) !== -1) {
+      var newPass = "";
+      if (type === "birthdate") {
+        var rawDate = formatBirthDateValue(row[4]);
+        if (rawDate) {
+          var dateStr = String(rawDate).trim();
+          if (dateStr.indexOf(" ") !== -1) dateStr = dateStr.split(" ")[0].trim();
+          if (dateStr.indexOf("T") !== -1) dateStr = dateStr.split("T")[0].trim();
+          var parts = dateStr.split(/[\/\-\.]/);
+          if (parts.length >= 3) {
+            var day = parts[0].length === 1 ? "0" + parts[0] : parts[0];
+            var month = parts[1].length === 1 ? "0" + parts[1] : parts[1];
+            var year = parts[2];
+            if (year.length === 2) year = "20" + year;
+
+            if (birthdateFormat === "dd/mm/yyyy") {
+              newPass = day + "/" + month + "/" + year;
+            } else {
+              newPass = day + month + year;
+            }
+          } else {
+            var digits = dateStr.replace(/\D/g, "");
+            if (digits.length === 8) {
+              if (birthdateFormat === "dd/mm/yyyy") {
+                newPass = digits.substring(0, 2) + "/" + digits.substring(2, 4) + "/" + digits.substring(4);
+              } else {
+                newPass = digits;
+              }
+            } else {
+              newPass = fallbackPassword;
+            }
+          }
+        } else {
+          newPass = fallbackPassword;
+        }
+      } else {
+        newPass = customPassword;
+      }
+
+      passwordColumnValues.push([String(newPass)]);
+      updatedCount++;
+    } else {
+      passwordColumnValues.push([currentPass !== null && currentPass !== undefined ? String(currentPass) : ""]);
+    }
+  }
+
+  if (updatedCount > 0 && passwordColumnValues.length > 0) {
+    // Đặt định dạng văn bản cho cột B và ghi hàng loạt dữ liệu mới
+    var range = sheetHS.getRange(2, 2, passwordColumnValues.length, 1);
+    range.setNumberFormat("@");
+    range.setValues(passwordColumnValues);
+  }
+
+  return createJsonResponse({
+    success: true,
+    message: "Đã đổi mật khẩu thành công cho " + updatedCount + " học sinh thuộc " + selectedClasses.length + " lớp được chọn!",
+    updatedCount: updatedCount,
+    classes: selectedClasses
   });
 }
 

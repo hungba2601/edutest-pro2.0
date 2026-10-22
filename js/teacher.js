@@ -6567,6 +6567,346 @@ async function submitChangePassword() {
   }
 }
 
+/**
+ * Chuẩn hóa ngày sinh thành định dạng mật khẩu
+ */
+function formatBirthDateAsPassword(rawDate, format, fallback) {
+  if (!rawDate) return fallback || "123456";
+  const s = String(rawDate).trim();
+  const parts = s.split(/[\/\-\.]/);
+  if (parts.length >= 3) {
+    const day = parts[0].padStart(2, "0");
+    const month = parts[1].padStart(2, "0");
+    let year = parts[2];
+    if (year.length === 2) year = "20" + year;
+    if (format === "dd/mm/yyyy") return `${day}/${month}/${year}`;
+    return `${day}${month}${year}`;
+  }
+  const digits = s.replace(/\D/g, "");
+  if (digits.length === 8) {
+    if (format === "dd/mm/yyyy") return `${digits.substring(0, 2)}/${digits.substring(2, 4)}/${digits.substring(4)}`;
+    return digits;
+  }
+  return fallback || "123456";
+}
+
+/**
+ * Mở modal Đổi Mật Khẩu Hàng Loạt
+ */
+function openBatchChangePasswordModal() {
+  const modal = document.getElementById("batchChangePasswordModal");
+  if (!modal) return;
+
+  renderBatchClassesList();
+
+  // Reset quy tắc về mặc định: ngày tháng năm sinh
+  const radioBirthdate = document.getElementById("ruleTypeBirthdate");
+  if (radioBirthdate) radioBirthdate.checked = true;
+  toggleBatchPwdRuleDisplay("birthdate");
+
+  // Hiển thị modal
+  modal.classList.remove("hidden-modal");
+  modal.style.setProperty("display", "flex", "important");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+/**
+ * Đóng modal Đổi Mật Khẩu Hàng Loạt
+ */
+function closeBatchChangePasswordModal() {
+  const modal = document.getElementById("batchChangePasswordModal");
+  if (modal) {
+    modal.classList.add("hidden-modal");
+    modal.style.setProperty("display", "none", "important");
+    modal.setAttribute("aria-hidden", "true");
+  }
+}
+
+/**
+ * Render danh sách Checkbox Khối & Lớp trong modal Đổi MK hàng loạt
+ */
+function renderBatchClassesList() {
+  const container = document.getElementById("batchClassesListContainer");
+  if (!container) return;
+
+  // Tính số lượng học sinh trong từng lớp
+  const classStudentCountMap = {};
+  currentTeacherStudents.forEach(st => {
+    const cls = (st.lop || "").trim();
+    if (cls) {
+      classStudentCountMap[cls] = (classStudentCountMap[cls] || 0) + 1;
+    }
+  });
+
+  // Gom nhóm các lớp theo Khối
+  const gradeClassesMap = {};
+  (teacherAllClassesList || []).forEach(cls => {
+    const g = getGradeFromClass(cls) || "Khác";
+    if (!gradeClassesMap[g]) gradeClassesMap[g] = [];
+    gradeClassesMap[g].push(cls);
+  });
+
+  const sortedGrades = Object.keys(gradeClassesMap).sort((a, b) => {
+    const na = Number(a), nb = Number(b);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+
+  if (sortedGrades.length === 0) {
+    container.innerHTML = `<div style="text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 1.5rem;">Không tìm thấy lớp học nào!</div>`;
+    updateBatchSelectedSummary();
+    return;
+  }
+
+  // Lấy các lớp hiện đang được chọn ở bộ lọc chính để tích sẵn (nếu có)
+  const mainActiveClasses = Array.from(document.querySelectorAll("#classCheckboxesList .class-filter-cb:checked")).map(cb => cb.value);
+  const shouldPrecheckAll = mainActiveClasses.length === 0 || mainActiveClasses.length === (teacherAllClassesList || []).length;
+
+  let html = "";
+  sortedGrades.forEach(g => {
+    const classesInGrade = gradeClassesMap[g];
+    let totalHsInGrade = 0;
+    classesInGrade.forEach(c => totalHsInGrade += (classStudentCountMap[c] || 0));
+
+    html += `
+      <div class="batch-pwd-grade-block" data-grade="${g}">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.45rem;">
+          <label style="font-size: 0.84rem; font-weight: 700; color: #1e293b; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" class="batch-grade-cb" data-grade="${g}" checked style="accent-color: #7c3aed;">
+            <span>Khối ${g}</span>
+          </label>
+          <span style="font-size: 0.74rem; color: #64748b;">${classesInGrade.length} lớp (${totalHsInGrade} HS)</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+    `;
+
+    classesInGrade.forEach(cls => {
+      const isChecked = shouldPrecheckAll || mainActiveClasses.includes(cls);
+      const hsCount = classStudentCountMap[cls] || 0;
+      html += `
+        <label class="batch-pwd-class-chip ${isChecked ? 'is-checked' : ''}" for="batch_cls_${cls}">
+          <input type="checkbox" id="batch_cls_${cls}" class="batch-class-cb" value="${cls}" data-grade="${g}" ${isChecked ? 'checked' : ''}>
+          <span>${cls}</span>
+          <span style="font-size: 0.72rem; color: #64748b; font-weight: normal;">(${hsCount} HS)</span>
+        </label>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+
+  // Cập nhật trạng thái checkbox Khối dựa theo các lớp con
+  sortedGrades.forEach(g => {
+    const gradeCb = container.querySelector(`.batch-grade-cb[data-grade="${g}"]`);
+    const classCbs = container.querySelectorAll(`.batch-class-cb[data-grade="${g}"]`);
+    if (gradeCb && classCbs.length > 0) {
+      gradeCb.checked = Array.from(classCbs).every(cb => cb.checked);
+    }
+  });
+
+  updateBatchSelectedSummary();
+}
+
+/**
+ * Cập nhật số lượng lớp & học sinh đã chọn trong modal
+ */
+function updateBatchSelectedSummary() {
+  const container = document.getElementById("batchClassesListContainer");
+  const badge = document.getElementById("batchSelectedSummaryBadge");
+  if (!container || !badge) return;
+
+  const checkedClassCbs = container.querySelectorAll(".batch-class-cb:checked");
+  const selectedClasses = Array.from(checkedClassCbs).map(cb => cb.value);
+
+  // Đếm học sinh
+  let totalHs = 0;
+  currentTeacherStudents.forEach(st => {
+    if (st.lop && selectedClasses.includes(st.lop.trim())) {
+      totalHs++;
+    }
+  });
+
+  badge.textContent = `Đã chọn: ${selectedClasses.length} lớp (${totalHs} HS)`;
+}
+
+/**
+ * Chuyển đổi hiển thị quy tắc đặt mật khẩu (ngày sinh vs tùy ý)
+ */
+function toggleBatchPwdRuleDisplay(type) {
+  const cardBirthdate = document.getElementById("cardRuleBirthdate");
+  const cardCustom = document.getElementById("cardRuleCustom");
+  const boxBirthdate = document.getElementById("boxBirthdateFormat");
+  const boxCustom = document.getElementById("boxCustomPasswordInput");
+
+  if (type === "birthdate") {
+    if (cardBirthdate) cardBirthdate.classList.add("active");
+    if (cardCustom) cardCustom.classList.remove("active");
+    if (boxBirthdate) boxBirthdate.style.display = "flex";
+    if (boxCustom) boxCustom.style.display = "none";
+  } else {
+    if (cardBirthdate) cardBirthdate.classList.remove("active");
+    if (cardCustom) cardCustom.classList.add("active");
+    if (boxBirthdate) boxBirthdate.style.display = "none";
+    if (boxCustom) {
+      boxCustom.style.display = "block";
+      const input = document.getElementById("inputBatchCustomPassword");
+      if (input) setTimeout(() => input.focus(), 50);
+    }
+  }
+}
+
+/**
+ * Gửi yêu cầu đổi mật khẩu hàng loạt lên Google Sheets
+ */
+async function submitBatchChangePassword() {
+  const container = document.getElementById("batchClassesListContainer");
+  if (!container) return;
+
+  const checkedClassCbs = container.querySelectorAll(".batch-class-cb:checked");
+  const selectedClasses = Array.from(checkedClassCbs).map(cb => cb.value.trim()).filter(Boolean);
+
+  if (selectedClasses.length === 0) {
+    showToast("Chưa chọn lớp", "Vui lòng tích chọn ít nhất một lớp học để đổi mật khẩu!", "warning");
+    return;
+  }
+
+  const ruleTypeRadio = document.querySelector('input[name="batchPwdRuleType"]:checked');
+  const ruleType = ruleTypeRadio ? ruleTypeRadio.value : "birthdate";
+
+  let customPassword = "";
+  let birthdateFormat = "ddmmyyyy";
+  let fallbackPassword = "123456";
+
+  if (ruleType === "custom") {
+    const inputCustom = document.getElementById("inputBatchCustomPassword");
+    customPassword = inputCustom ? inputCustom.value.trim() : "";
+    if (!customPassword) {
+      showToast("Thiếu mật khẩu", "Vui lòng nhập mật khẩu chung mới cho học sinh!", "warning");
+      if (inputCustom) inputCustom.focus();
+      return;
+    }
+    if (customPassword.length < 3) {
+      showToast("Mật khẩu quá ngắn", "Mật khẩu nên có từ 3 ký tự trở lên!", "warning");
+      if (inputCustom) inputCustom.focus();
+      return;
+    }
+  } else {
+    const formatRadio = document.querySelector('input[name="batchBirthFormat"]:checked');
+    birthdateFormat = formatRadio ? formatRadio.value : "ddmmyyyy";
+    const inputFallback = document.getElementById("inputBatchFallbackPwd");
+    fallbackPassword = inputFallback && inputFallback.value.trim() ? inputFallback.value.trim() : "123456";
+  }
+
+  // Tính số lượng học sinh bị ảnh hưởng
+  let affectedCount = 0;
+  currentTeacherStudents.forEach(st => {
+    if (st.lop && selectedClasses.includes(st.lop.trim())) {
+      affectedCount++;
+    }
+  });
+
+  const ruleDesc = ruleType === "birthdate" 
+    ? `theo Ngày sinh (định dạng ${birthdateFormat})` 
+    : `thành mật khẩu chung "${customPassword}"`;
+
+  const confirmMsg = `Bạn có chắc chắn muốn đổi mật khẩu ${ruleDesc} cho ${affectedCount} học sinh thuộc ${selectedClasses.length} lớp (${selectedClasses.join(", ")})?\n\nThao tác này sẽ cập nhật trực tiếp lên Google Sheets!`;
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  const btnConfirm = document.getElementById("btnConfirmBatchChangePwd");
+  const btnText = document.getElementById("btnConfirmBatchChangePwdText");
+  const oldText = btnText ? btnText.textContent : "Xác nhận đổi mật khẩu";
+
+  if (btnConfirm) btnConfirm.disabled = true;
+  if (btnText) btnText.textContent = "Đang cập nhật Google Sheets...";
+
+  try {
+    const payload = {
+      action: "batchUpdateStudentPasswords",
+      usernameGV: currentTeacher ? currentTeacher.username : "",
+      classes: selectedClasses,
+      type: ruleType,
+      birthdateFormat: birthdateFormat,
+      customPassword: customPassword,
+      fallbackPassword: fallbackPassword
+    };
+
+    let res = null;
+
+    // 1. Thử gửi POST
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const text = await response.text();
+      if (text && !text.trim().startsWith("<")) {
+        res = JSON.parse(text);
+      }
+    } catch (ePost) {
+      console.warn("POST batchUpdateStudentPasswords thất bại, thử GET fallback:", ePost);
+    }
+
+    // 2. Fallback GET nếu POST không thành công
+    if (!res || !res.success) {
+      const getUrl = `${API_URL}?action=batchUpdateStudentPasswords&usernameGV=${encodeURIComponent(currentTeacher ? currentTeacher.username : "")}&classes=${encodeURIComponent(selectedClasses.join(","))}&type=${encodeURIComponent(ruleType)}&birthdateFormat=${encodeURIComponent(birthdateFormat)}&customPassword=${encodeURIComponent(customPassword)}&fallbackPassword=${encodeURIComponent(fallbackPassword)}&_t=${Date.now()}`;
+      const getRes = await fetch(getUrl);
+      const text2 = await getRes.text();
+      if (text2 && !text2.trim().startsWith("<")) {
+        res = JSON.parse(text2);
+      } else {
+        throw new Error("Phản hồi từ Google Sheets không hợp lệ.");
+      }
+    }
+
+    if (!res || !res.success) {
+      throw new Error(res?.message || "Không thể cập nhật mật khẩu trên Google Sheet.");
+    }
+
+    // 3. Cập nhật mật khẩu ngay trong mảng currentTeacherStudents trên giao diện
+    const updatedCount = res.updatedCount || affectedCount;
+    currentTeacherStudents.forEach(st => {
+      if (st.lop && selectedClasses.includes(st.lop.trim())) {
+        if (ruleType === "birthdate") {
+          st.password = formatBirthDateAsPassword(st.ngaySinh, birthdateFormat, fallbackPassword);
+        } else {
+          st.password = customPassword;
+        }
+      }
+    });
+
+    // Lưu ngay vào cache bộ nhớ đệm
+    saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
+
+    // Cập nhật lại giao diện bảng danh sách học sinh
+    applyStudentFilters();
+
+    // Đóng modal
+    closeBatchChangePasswordModal();
+
+    showToast(
+      "Đổi mật khẩu thành công!",
+      `Đã cập nhật mật khẩu cho ${updatedCount} học sinh thuộc ${selectedClasses.length} lớp lên Google Sheets thành công!`,
+      "success",
+      5000
+    );
+
+  } catch (err) {
+    console.error("Lỗi khi đổi mật khẩu hàng loạt:", err);
+    showToast("Cập nhật thất bại", err.message, "error", 5000);
+  } finally {
+    if (btnConfirm) btnConfirm.disabled = false;
+    if (btnText) btnText.textContent = oldText;
+  }
+}
+
 // Khởi tạo các sự kiện cho tính năng Quản lý Học sinh
 window.addEventListener("DOMContentLoaded", () => {
   // 1. Tương tác tích chọn KHỐI LỚP
@@ -6755,6 +7095,113 @@ window.addEventListener("DOMContentLoaded", () => {
   const btnExportHS = document.getElementById("btnExportStudentsExcel");
   if (btnExportHS) {
     btnExportHS.addEventListener("click", exportStudentsToExcel);
+  }
+
+  // 10. Các sự kiện cho Đổi Mật Khẩu Hàng Loạt
+  const btnOpenBatch = document.getElementById("btnOpenBatchChangePwdModal");
+  if (btnOpenBatch) {
+    btnOpenBatch.addEventListener("click", openBatchChangePasswordModal);
+  }
+
+  const btnCloseBatchModal = document.getElementById("btnCloseBatchChangePwdModal");
+  if (btnCloseBatchModal) btnCloseBatchModal.addEventListener("click", closeBatchChangePasswordModal);
+
+  const btnCancelBatchModal = document.getElementById("btnCancelBatchChangePwd");
+  if (btnCancelBatchModal) btnCancelBatchModal.addEventListener("click", closeBatchChangePasswordModal);
+
+  const batchModalOverlay = document.getElementById("batchChangePasswordModal");
+  if (batchModalOverlay) {
+    batchModalOverlay.addEventListener("click", (e) => {
+      if (e.target === batchModalOverlay) closeBatchChangePasswordModal();
+    });
+  }
+
+  const btnBatchSelectAll = document.getElementById("btnBatchSelectAllClasses");
+  if (btnBatchSelectAll) {
+    btnBatchSelectAll.addEventListener("click", () => {
+      const container = document.getElementById("batchClassesListContainer");
+      if (container) {
+        container.querySelectorAll(".batch-grade-cb, .batch-class-cb").forEach(cb => cb.checked = true);
+        container.querySelectorAll(".batch-pwd-class-chip").forEach(chip => chip.classList.add("is-checked"));
+        updateBatchSelectedSummary();
+      }
+    });
+  }
+
+  const btnBatchDeselectAll = document.getElementById("btnBatchDeselectAllClasses");
+  if (btnBatchDeselectAll) {
+    btnBatchDeselectAll.addEventListener("click", () => {
+      const container = document.getElementById("batchClassesListContainer");
+      if (container) {
+        container.querySelectorAll(".batch-grade-cb, .batch-class-cb").forEach(cb => cb.checked = false);
+        container.querySelectorAll(".batch-pwd-class-chip").forEach(chip => chip.classList.remove("is-checked"));
+        updateBatchSelectedSummary();
+      }
+    });
+  }
+
+  const batchContainer = document.getElementById("batchClassesListContainer");
+  if (batchContainer) {
+    batchContainer.addEventListener("change", (e) => {
+      const target = e.target;
+      if (!target || target.type !== "checkbox") return;
+
+      if (target.classList.contains("batch-grade-cb")) {
+        const grade = target.getAttribute("data-grade");
+        const isChecked = target.checked;
+        const classCbs = batchContainer.querySelectorAll(`.batch-class-cb[data-grade="${grade}"]`);
+        classCbs.forEach(cb => {
+          cb.checked = isChecked;
+          const chip = cb.closest(".batch-pwd-class-chip");
+          if (chip) {
+            if (isChecked) chip.classList.add("is-checked");
+            else chip.classList.remove("is-checked");
+          }
+        });
+      } else if (target.classList.contains("batch-class-cb")) {
+        const chip = target.closest(".batch-pwd-class-chip");
+        if (chip) {
+          if (target.checked) chip.classList.add("is-checked");
+          else chip.classList.remove("is-checked");
+        }
+        const grade = target.getAttribute("data-grade");
+        const gradeCb = batchContainer.querySelector(`.batch-grade-cb[data-grade="${grade}"]`);
+        const classCbs = batchContainer.querySelectorAll(`.batch-class-cb[data-grade="${grade}"]`);
+        if (gradeCb && classCbs.length > 0) {
+          gradeCb.checked = Array.from(classCbs).every(cb => cb.checked);
+        }
+      }
+
+      updateBatchSelectedSummary();
+    });
+  }
+
+  const radioBirth = document.getElementById("ruleTypeBirthdate");
+  const radioCustom = document.getElementById("ruleTypeCustom");
+  if (radioBirth) {
+    radioBirth.addEventListener("change", () => {
+      if (radioBirth.checked) toggleBatchPwdRuleDisplay("birthdate");
+    });
+  }
+  if (radioCustom) {
+    radioCustom.addEventListener("change", () => {
+      if (radioCustom.checked) toggleBatchPwdRuleDisplay("custom");
+    });
+  }
+
+  const btnRandomBatch = document.getElementById("btnRandomBatchPwd");
+  if (btnRandomBatch) {
+    btnRandomBatch.addEventListener("click", () => {
+      const inputCustom = document.getElementById("inputBatchCustomPassword");
+      if (inputCustom) {
+        inputCustom.value = Math.floor(100000 + Math.random() * 900000).toString();
+      }
+    });
+  }
+
+  const btnConfirmBatch = document.getElementById("btnConfirmBatchChangePwd");
+  if (btnConfirmBatch) {
+    btnConfirmBatch.addEventListener("click", submitBatchChangePassword);
   }
 });
 
