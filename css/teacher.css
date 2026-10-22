@@ -2514,4 +2514,112 @@ input:checked + .slider:before { transform: translateX(22px); }
   color: #dc2626 !important;
 }
 
+/* ==========================================================================
+   BỘ LỌC TRẠNG THÁI LÀM BÀI (SUBMISSION FILTER BUTTON GROUP)
+   ========================================================================== */
+.submission-filter-group {
+  display: inline-flex;
+  align-items: center;
+  background: #ffffff;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  gap: 4px;
+}
+
+.btn-sub-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.42rem 0.85rem;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-sub-filter:hover {
+  color: #1e293b;
+  background: #f8fafc;
+}
+
+.btn-sub-filter.active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+}
+
+.btn-sub-filter.active[data-filter="SUBMITTED"] {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
+}
+
+.btn-sub-filter.active[data-filter="NOT_SUBMITTED"] {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.12);
+}
+
+.sub-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  line-height: 1;
+  transition: all 0.2s ease;
+}
+
+.btn-sub-filter.active .sub-filter-badge {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-sub-filter.active[data-filter="SUBMITTED"] .sub-filter-badge {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.btn-sub-filter.active[data-filter="NOT_SUBMITTED"] .sub-filter-badge {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.sub-dot-green {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+  flex-shrink: 0;
+}
+
+.sub-dot-red {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+  flex-shrink: 0;
+}
+
+
 

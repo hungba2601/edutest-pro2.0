@@ -5152,6 +5152,31 @@ async function loadTeacherResults(filterMaDe) {
   }
 }
 
+// ============================================================================
+// BỘ LỌC TRẠNG THÁI LÀM BÀI: TẤT CẢ / ĐÃ LÀM / CHƯA LÀM
+// ============================================================================
+let currentSubmissionStatusFilter = "ALL"; // "ALL" | "SUBMITTED" | "NOT_SUBMITTED"
+
+function initSubmissionFilterButtons() {
+  const buttons = document.querySelectorAll(".btn-sub-filter");
+  if (!buttons || buttons.length === 0) return;
+  buttons.forEach(btn => {
+    btn.onclick = () => {
+      buttons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentSubmissionStatusFilter = btn.dataset.filter || "ALL";
+      applyResultsFiltersAndRender();
+    };
+  });
+}
+
+// Tự động gắn sự kiện nút lọc khi tải xong DOM
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initSubmissionFilterButtons);
+} else {
+  initSubmissionFilterButtons();
+}
+
 /**
  * Ghép nối danh sách bài nộp với CSDL học sinh gốc của lớp
  * Giữ nguyên 100% thứ tự STT / Alpha trong sổ điểm gốc của từng lớp!
@@ -5167,42 +5192,42 @@ function applyResultsFiltersAndRender() {
     filteredSubmissions = filteredSubmissions.filter(r => r.maDe === selectedMaDe);
   }
 
-  // 2. Nếu Thầy/Cô chọn "Hiện đủ danh sách lớp theo CSDL gốc"
-  if (includeNotSubmitted) {
-    // Lấy toàn bộ học sinh gốc của giáo viên (đã đúng thứ tự từ trên xuống dưới trong Sheet)
-    let baseStudents = currentTeacherStudents || [];
-    if (baseStudents.length === 0) {
-      const cached = getCachedTeacherStudents();
-      if (cached && Array.isArray(cached.students)) {
-        baseStudents = cached.students;
-      }
+  // 2. Lấy toàn bộ học sinh gốc của giáo viên (đã đúng thứ tự từ trên xuống dưới trong Sheet)
+  let baseStudents = currentTeacherStudents || [];
+  if (baseStudents.length === 0) {
+    const cached = getCachedTeacherStudents();
+    if (cached && Array.isArray(cached.students)) {
+      baseStudents = cached.students;
     }
+  }
 
-    // Xác định các lớp cần hiển thị
-    let targetStudents = baseStudents;
-    if (selectedClass && selectedClass !== "ALL") {
-      targetStudents = baseStudents.filter(s => normalizeClassName(s.lop) === normalizeClassName(selectedClass));
-    } else if (selectedMaDe && selectedMaDe !== "ALL") {
-      // Nếu chọn đề cụ thể mà chọn "Tất cả các lớp", chỉ lấy học sinh thuộc các lớp được phép thi của đề đó
-      let exam = (currentExamsList || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
-      if (!exam) {
-        const cached = getCachedExams();
-        exam = (cached || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
-      }
-      const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
-      const tokens = String(rawAllowed).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
-      const specificAllowed = tokens
-        .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
-        .map(normalizeClassName)
-        .filter(Boolean);
-
-      if (specificAllowed.length > 0) {
-        targetStudents = baseStudents.filter(s => specificAllowed.includes(normalizeClassName(s.lop)));
-      }
+  // Xác định các lớp cần hiển thị
+  let targetStudents = baseStudents;
+  if (selectedClass && selectedClass !== "ALL") {
+    targetStudents = baseStudents.filter(s => normalizeClassName(s.lop) === normalizeClassName(selectedClass));
+  } else if (selectedMaDe && selectedMaDe !== "ALL") {
+    // Nếu chọn đề cụ thể mà chọn "Tất cả các lớp", chỉ lấy học sinh thuộc các lớp được phép thi của đề đó
+    let exam = (currentExamsList || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
+    if (!exam) {
+      const cached = getCachedExams();
+      exam = (cached || []).find(e => String(e.maDe || "").trim() === String(selectedMaDe).trim());
     }
+    const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
+    const tokens = String(rawAllowed).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    const specificAllowed = tokens
+      .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
+      .map(normalizeClassName)
+      .filter(Boolean);
 
-    // Ghép từng học sinh gốc với bài làm trong DATA_KETQUA
-    const mergedList = targetStudents.map((st, idx) => {
+    if (specificAllowed.length > 0) {
+      targetStudents = baseStudents.filter(s => specificAllowed.includes(normalizeClassName(s.lop)));
+    }
+  }
+
+  // Ghép từng học sinh gốc với bài làm trong DATA_KETQUA
+  let mergedList = [];
+  if (targetStudents && targetStudents.length > 0) {
+    mergedList = targetStudents.map((st, idx) => {
       const stUser = String(st.username || "").trim().toLowerCase();
       const stName = String(st.hoTen || "").trim().toLowerCase();
       const stClass = normalizeClassName(st.lop);
@@ -5254,14 +5279,13 @@ function applyResultsFiltersAndRender() {
         };
       }
     });
-
-    currentDisplayedResultsList = mergedList;
   } else {
-    // Chỉ hiển thị các bài đã nộp
+    // Nếu chưa có CSDL gốc học sinh, lấy từ danh sách bài nộp
+    let subs = filteredSubmissions;
     if (selectedClass && selectedClass !== "ALL") {
-      filteredSubmissions = filteredSubmissions.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
+      subs = subs.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
     }
-    currentDisplayedResultsList = filteredSubmissions.map((r, idx) => ({
+    mergedList = subs.map((r, idx) => ({
       stt: idx + 1,
       usernameHS: r.usernameHS,
       hoTen: r.hoTen,
@@ -5280,9 +5304,53 @@ function applyResultsFiltersAndRender() {
     }));
   }
 
-  // Cập nhật thống kê KPI và vẽ bảng
-  computeAndRenderMetrics(currentDisplayedResultsList);
-  renderResultsTable(currentDisplayedResultsList);
+  // 3. Cập nhật số lượng đếm trên 3 nút bộ lọc
+  const totalCount = mergedList.length;
+  const submittedCount = mergedList.filter(r => r.isSubmitted).length;
+  const notSubmittedCount = totalCount - submittedCount;
+
+  const badgeAll = document.getElementById("badgeCountAll");
+  const badgeSub = document.getElementById("badgeCountSubmitted");
+  const badgeNot = document.getElementById("badgeCountNotSubmitted");
+  if (badgeAll) badgeAll.textContent = totalCount;
+  if (badgeSub) badgeSub.textContent = submittedCount;
+  if (badgeNot) badgeNot.textContent = notSubmittedCount;
+
+  // 4. Lọc theo trạng thái làm bài (TẤT CẢ / ĐÃ LÀM / CHƯA LÀM)
+  let finalList = mergedList;
+  if (currentSubmissionStatusFilter === "SUBMITTED") {
+    finalList = mergedList.filter(r => r.isSubmitted);
+  } else if (currentSubmissionStatusFilter === "NOT_SUBMITTED") {
+    finalList = mergedList.filter(r => !r.isSubmitted);
+  } else {
+    // "ALL": Nếu checkbox includeNotSubmitted là false thì chỉ hiện bài đã nộp
+    if (!includeNotSubmitted) {
+      finalList = mergedList.filter(r => r.isSubmitted);
+    }
+  }
+
+  // Đánh số thứ tự STT hiển thị tuần tự 1..N
+  finalList.forEach((r, idx) => {
+    r.stt = idx + 1;
+  });
+
+  currentDisplayedResultsList = finalList;
+
+  // 5. Cập nhật thống kê KPI và vẽ bảng
+  computeAndRenderMetrics(mergedList);
+
+  const searchInput = document.getElementById("searchStudentInput");
+  const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
+  if (query) {
+    const searchFiltered = finalList.filter(r => 
+      (r.hoTen && r.hoTen.toLowerCase().includes(query)) ||
+      (r.lop && r.lop.toLowerCase().includes(query)) ||
+      (r.usernameHS && r.usernameHS.toLowerCase().includes(query))
+    );
+    renderResultsTable(searchFiltered);
+  } else {
+    renderResultsTable(finalList);
+  }
 }
 
 function computeAndRenderMetrics(results) {

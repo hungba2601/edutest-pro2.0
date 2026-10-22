@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=7.3">
+  <link rel="stylesheet" href="css/teacher.css?v=7.4">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -666,6 +666,24 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
             </svg>
             <span>Xuất Excel Tự Luận (.xlsx)</span>
           </button>
+
+          <!-- BỘ LỌC TRẠNG THÁI LÀM BÀI (TẤT CẢ / ĐÃ LÀM / CHƯA LÀM) -->
+          <div class="submission-filter-group" id="submissionFilterGroup" title="Lọc danh sách học sinh theo trạng thái nộp bài">
+            <button type="button" class="btn-sub-filter active" data-filter="ALL" id="btnFilterAllSubs">
+              <span>Tất cả</span>
+              <span class="sub-filter-badge" id="badgeCountAll">0</span>
+            </button>
+            <button type="button" class="btn-sub-filter" data-filter="SUBMITTED" id="btnFilterSubmittedSubs">
+              <span class="sub-dot-green"></span>
+              <span>Đã làm</span>
+              <span class="sub-filter-badge badge-green" id="badgeCountSubmitted">0</span>
+            </button>
+            <button type="button" class="btn-sub-filter" data-filter="NOT_SUBMITTED" id="btnFilterNotSubmittedSubs">
+              <span class="sub-dot-red"></span>
+              <span>Chưa làm</span>
+              <span class="sub-filter-badge badge-red" id="badgeCountNotSubmitted">0</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1437,6 +1455,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   <!-- Background Music (Love Story 30%) -->
   <script src="js/bg_music.js?v=2.1"></script>
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=8.3"></script>
+  <script src="js/teacher.js?v=8.4"></script>
 </body>
 </html>
