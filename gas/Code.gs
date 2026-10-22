@@ -79,7 +79,7 @@ function initDatabase() {
   let sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
   if (!sheetDeThi) {
     sheetDeThi = ss.insertSheet(SHEETS.DETHI);
-    const headers = ["Mã đề thi", "Tên kỳ kiểm tra", "Tài khoản GV tạo", "Lớp được phép thi", "Thời gian làm bài", "Trạng thái (Đóng/Mở)", "Chế độ xem bài", "Chế độ xem điểm", "Dữ liệu đề (JSON)"];
+    const headers = ["Mã đề thi", "Tên kỳ kiểm tra", "Tài khoản GV tạo", "Lớp được phép thi", "Thời gian làm bài", "Trạng thái (Đóng/Mở)", "Chế độ xem bài", "Chế độ xem điểm", "Số lần cảnh báo", "Dữ liệu đề (JSON)"];
     sheetDeThi.appendRow(headers);
     formatHeaderRow(sheetDeThi);
   } else {
@@ -846,6 +846,7 @@ function ensureDeThiSheetColumns(sheetDeThi) {
     // 1. Kiểm tra xem đã có cột Chế độ xem bài chưa
     let reviewColIdx = -1;
     let scoreColIdx = -1;
+    let violationColIdx = -1;
     let jsonColIdx = -1;
 
     for (let c = 0; c < headerRow.length; c++) {
@@ -855,6 +856,9 @@ function ensureDeThiSheetColumns(sheetDeThi) {
       }
       if (hText.indexOf("xem điểm") !== -1 || (hText.indexOf("chế độ") !== -1 && hText.indexOf("điểm") !== -1)) {
         scoreColIdx = c;
+      }
+      if (hText.indexOf("cảnh báo") !== -1 || hText.indexOf("vi phạm") !== -1) {
+        violationColIdx = c;
       }
       if (hText.indexOf("json") !== -1 || hText.indexOf("dữ liệu") !== -1) {
         jsonColIdx = c;
@@ -871,14 +875,18 @@ function ensureDeThiSheetColumns(sheetDeThi) {
     }
 
     // Lấy lại header sau khi có thể đã chèn cột xem bài
-    const refreshedData = sheetDeThi.getDataRange().getValues();
+    let refreshedData = sheetDeThi.getDataRange().getValues();
     headerRow = refreshedData[0];
     scoreColIdx = -1;
+    violationColIdx = -1;
     jsonColIdx = -1;
     for (let c = 0; c < headerRow.length; c++) {
       const hText = String(headerRow[c] || "").toLowerCase().trim();
       if (hText.indexOf("xem điểm") !== -1 || (hText.indexOf("chế độ") !== -1 && hText.indexOf("điểm") !== -1)) {
         scoreColIdx = c;
+      }
+      if (hText.indexOf("cảnh báo") !== -1 || hText.indexOf("vi phạm") !== -1) {
+        violationColIdx = c;
       }
       if (hText.indexOf("json") !== -1 || hText.indexOf("dữ liệu") !== -1) {
         jsonColIdx = c;
@@ -910,6 +918,48 @@ function ensureDeThiSheetColumns(sheetDeThi) {
         sheetDeThi.getRange(i + 1, scoreColIdx + 1).setValue(isAllowScore ? "Cho xem điểm" : "Khóa xem điểm");
       }
     }
+
+    // Lấy lại header sau khi có thể đã chèn cột xem điểm
+    refreshedData = sheetDeThi.getDataRange().getValues();
+    headerRow = refreshedData[0];
+    violationColIdx = -1;
+    jsonColIdx = -1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const hText = String(headerRow[c] || "").toLowerCase().trim();
+      if (hText.indexOf("cảnh báo") !== -1 || hText.indexOf("vi phạm") !== -1) {
+        violationColIdx = c;
+      }
+      if (hText.indexOf("json") !== -1 || hText.indexOf("dữ liệu") !== -1) {
+        jsonColIdx = c;
+      }
+    }
+
+    // 3. Kiểm tra xem đã có cột "Số lần cảnh báo" chưa
+    if (violationColIdx === -1) {
+      const insertViolationsAt = jsonColIdx !== -1 ? jsonColIdx + 1 : (headerRow.length >= 9 ? 9 : headerRow.length + 1);
+      sheetDeThi.insertColumnBefore(insertViolationsAt);
+      sheetDeThi.getRange(1, insertViolationsAt).setValue("Số lần cảnh báo");
+      violationColIdx = insertViolationsAt - 1;
+      formatHeaderRow(sheetDeThi);
+
+      // Tự động quét và cập nhật giá trị cho các đề thi cũ
+      const latestData = sheetDeThi.getDataRange().getValues();
+      const currentJsonIdx = latestData[0].findIndex(h => String(h).toLowerCase().includes("json") || String(h).toLowerCase().includes("dữ liệu"));
+      const targetJsonCol = currentJsonIdx !== -1 ? currentJsonIdx : (latestData[0].length - 1);
+
+      for (let i = 1; i < latestData.length; i++) {
+        const jsonStr = String(latestData[i][targetJsonCol] || "");
+        let vText = "Không giới hạn";
+        try {
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.choXemLaiBai === false) {
+            const vLimit = Number(parsed.soLanViPhamChoPhep) || 5;
+            vText = vLimit + " lần";
+          }
+        } catch (e) {}
+        sheetDeThi.getRange(i + 1, violationColIdx + 1).setValue(vText);
+      }
+    }
   } catch (err) {
     Logger.log("Lỗi kiểm tra cột DATA_DETHI: " + err.toString());
   }
@@ -922,6 +972,7 @@ function getDeThiColumnIndexes(sheetDeThi) {
   const headerRow = sheetDeThi.getRange(1, 1, 1, Math.max(sheetDeThi.getLastColumn(), 1)).getValues()[0];
   let reviewCol = -1;
   let scoreCol = -1;
+  let violationCol = -1;
   let jsonCol = -1;
 
   for (let c = 0; c < headerRow.length; c++) {
@@ -932,6 +983,9 @@ function getDeThiColumnIndexes(sheetDeThi) {
     if (h.indexOf("xem điểm") !== -1 || (h.indexOf("chế độ") !== -1 && h.indexOf("điểm") !== -1)) {
       scoreCol = c;
     }
+    if (h.indexOf("cảnh báo") !== -1 || h.indexOf("vi phạm") !== -1) {
+      violationCol = c;
+    }
     if (h.indexOf("json") !== -1 || h.indexOf("dữ liệu") !== -1) {
       jsonCol = c;
     }
@@ -939,9 +993,10 @@ function getDeThiColumnIndexes(sheetDeThi) {
 
   if (jsonCol === -1) jsonCol = headerRow.length - 1;
   if (reviewCol === -1) reviewCol = 6;
-  if (scoreCol === -1) scoreCol = (jsonCol > reviewCol + 1) ? reviewCol + 1 : 7;
+  if (scoreCol === -1) scoreCol = 7;
+  if (violationCol === -1) violationCol = (jsonCol > 8) ? 8 : -1;
 
-  return { reviewCol, scoreCol, jsonCol };
+  return { reviewCol, scoreCol, violationCol, jsonCol };
 }
 
 /**
@@ -1004,6 +1059,8 @@ function handleSaveExam(payload) {
     return createJsonResponse({ success: false, message: "Tên kỳ kiểm tra không được để trống!" });
   }
 
+  const canhBaoViPhamText = !choXemLaiBai ? ((Number(payload.soLanViPhamChoPhep) > 0 ? Number(payload.soLanViPhamChoPhep) : 5) + " lần") : "Không giới hạn";
+
   const data = sheetDeThi.getDataRange().getValues();
   let updated = false;
 
@@ -1019,6 +1076,9 @@ function handleSaveExam(payload) {
         sheetDeThi.getRange(rowNum, 6).setValue(trangThai);
         sheetDeThi.getRange(rowNum, cols.reviewCol + 1).setValue(cheDoXemText);
         sheetDeThi.getRange(rowNum, cols.scoreCol + 1).setValue(cheDoXemDiemText);
+        if (cols.violationCol !== -1) {
+          sheetDeThi.getRange(rowNum, cols.violationCol + 1).setValue(canhBaoViPhamText);
+        }
         sheetDeThi.getRange(rowNum, cols.jsonCol + 1).setValue(duLieuDeStr);
         updated = true;
         break;
@@ -1038,6 +1098,9 @@ function handleSaveExam(payload) {
         sheetDeThi.getRange(rowNum, 6).setValue(trangThai);
         sheetDeThi.getRange(rowNum, cols.reviewCol + 1).setValue(cheDoXemText);
         sheetDeThi.getRange(rowNum, cols.scoreCol + 1).setValue(cheDoXemDiemText);
+        if (cols.violationCol !== -1) {
+          sheetDeThi.getRange(rowNum, cols.violationCol + 1).setValue(canhBaoViPhamText);
+        }
         sheetDeThi.getRange(rowNum, cols.jsonCol + 1).setValue(duLieuDeStr);
         updated = true;
         break;
@@ -1048,7 +1111,12 @@ function handleSaveExam(payload) {
   // 3. Nếu thực sự là đề mới hoàn toàn
   if (!updated) {
     maDe = "DE_" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + "_" + Math.floor(Math.random() * 1000);
-    const newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
+    let newRow = [];
+    if (cols.violationCol !== -1) {
+      newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, canhBaoViPhamText, duLieuDeStr];
+    } else {
+      newRow = [maDe, tenKyThi, usernameGV, lopChoPhep, thoiGian, trangThai, cheDoXemText, cheDoXemDiemText, duLieuDeStr];
+    }
     sheetDeThi.appendRow(newRow);
   }
 
