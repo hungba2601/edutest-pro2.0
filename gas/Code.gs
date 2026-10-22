@@ -1145,7 +1145,21 @@ function handleToggleExamStatus(payload) {
     if (String(data[i][0]).trim() === maDe) {
       const isOwner = isSameTeacherAccount(data[i][2], usernameGV);
       const isAdmin = isAdminAccount(usernameGV);
-      if (usernameGV && !isOwner && !isAdmin) {
+
+      // Kiểm tra xem đề thi có phải là đề được chia sẻ không (trong duLieuDe JSON)
+      let isShared = false;
+      try {
+        const jsonColIdx = data[0].findIndex(h => String(h).toLowerCase().includes("json") || String(h).toLowerCase().includes("dữ liệu"));
+        if (jsonColIdx !== -1) {
+          const rawJson = data[i][jsonColIdx];
+          const parsed = typeof rawJson === "string" ? JSON.parse(rawJson) : (rawJson || {});
+          if (parsed && (parsed.sharedBy || parsed.sharedFromAdmin || parsed.nguonDe)) {
+            isShared = true;
+          }
+        }
+      } catch (eJson) {}
+
+      if (usernameGV && !isOwner && !isAdmin && !isShared) {
         return createJsonResponse({ success: false, message: "Bạn không có quyền sửa đề thi này!" });
       }
       sheetDeThi.getRange(i + 1, 6).setValue(newStatus);
@@ -1179,7 +1193,21 @@ function handleDeleteExam(payload) {
     if (String(data[i][0]).trim() === maDe) {
       const isOwner = isSameTeacherAccount(data[i][2], usernameGV);
       const isAdmin = isAdminAccount(usernameGV);
-      if (usernameGV && !isOwner && !isAdmin) {
+
+      // Cho phép xóa nếu là chủ sở hữu, là Admin, hoặc là đề thi được chia sẻ
+      let isShared = false;
+      try {
+        const jsonColIdx = data[0].findIndex(h => String(h).toLowerCase().includes("json") || String(h).toLowerCase().includes("dữ liệu"));
+        if (jsonColIdx !== -1) {
+          const rawJson = data[i][jsonColIdx];
+          const parsed = typeof rawJson === "string" ? JSON.parse(rawJson) : (rawJson || {});
+          if (parsed && (parsed.sharedBy || parsed.sharedFromAdmin || parsed.nguonDe)) {
+            isShared = true;
+          }
+        }
+      } catch (eJson) {}
+
+      if (usernameGV && !isOwner && !isAdmin && !isShared) {
         return createJsonResponse({ success: false, message: "Bạn không có quyền xóa đề thi này!" });
       }
       sheetDeThi.deleteRow(i + 1);

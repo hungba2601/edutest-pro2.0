@@ -3473,8 +3473,11 @@ function previewExamModal(maDe) {
         ${essayCount > 0 ? ` | Tự luận: <strong style="color: #047857; font-weight: 800;">${essayCount} câu</strong>` : ''}
         ${isShared ? ` | <span style="background: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 6px; font-weight: 700; border: 1px solid #fde68a; font-size: 0.78rem;">📥 ${sourceInfo}</span>` : ''}
       </div>
-      <div>
-        Trạng thái: <strong style="color: ${exam.trangThai === 'Mở' ? '#16a34a' : '#dc2626'}; font-weight: 800; background: #ffffff; padding: 0.2rem 0.65rem; border-radius: 6px; border: 1px solid #cbd5e1;">${exam.trangThai === 'Mở' ? '🟢 Đang Mở' : '🔴 Đang Đóng'}</strong>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn-preview-export-docx" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #7e22ce, #6b21a8); color: #ffffff; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(126, 34, 206, 0.25);" onclick="exportExamFromPreviewModal('${exam.maDe}')" title="Tải file Word (.docx) kèm bảng đáp án chấm">
+          📄 Xuất DOCX
+        </button>
+        <strong style="color: ${exam.trangThai === 'Mở' ? '#16a34a' : '#dc2626'}; font-weight: 800; background: #ffffff; padding: 0.2rem 0.65rem; border-radius: 6px; border: 1px solid #cbd5e1;">${exam.trangThai === 'Mở' ? '🟢 Đang Mở' : '🔴 Đang Đóng'}</strong>
       </div>
     </div>
   `;
@@ -3594,11 +3597,17 @@ function previewExamModal(maDe) {
     body.appendChild(essayDiv);
   }
 
-  // Thêm nút Mở sửa ngay từ modal
+  // Thêm nút Mở sửa ngay từ modal & Nút Xuất DOCX
   const footerBtn = document.createElement("div");
   footerBtn.style.marginTop = "1.5rem";
-  footerBtn.style.textAlign = "right";
+  footerBtn.style.display = "flex";
+  footerBtn.style.justifyContent = "flex-end";
+  footerBtn.style.gap = "0.75rem";
+  footerBtn.style.flexWrap = "wrap";
   footerBtn.innerHTML = `
+    <button type="button" class="btn-action-export-docx" style="padding: 0.65rem 1.35rem; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #7e22ce, #6b21a8); color: #ffffff; border: none; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(126, 34, 206, 0.25);" onclick="exportExamFromPreviewModal('${exam.maDe}');">
+      📄 Xuất File Word (.docx) Kèm Đáp Án
+    </button>
     <button type="button" class="btn-action-edit" style="padding: 0.65rem 1.35rem; font-size: 0.92rem; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #ffffff; border: none; border-radius: 8px; cursor: pointer;" onclick="document.getElementById('detailModal').style.display='none'; openExamForEditing('${exam.maDe}');">
       ✏ Mở Chỉnh Sửa Đề Này
     </button>
@@ -3608,6 +3617,796 @@ function previewExamModal(maDe) {
   // CỐ ĐỊNH CHÍNH GIỮA MÀN HÌNH VỚI ĐỘ ƯU TIÊN CAO NHẤT
   const modalEl = document.getElementById("detailModal");
   modalEl.style.cssText = "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.7) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;";
+}
+
+// ============================================================================
+// 6.5. XUẤT ĐỀ THI RA FILE WORD (.DOCX) KÈM ĐÁP ÁN CHẤM CHUẨN BỘ GIÁO DỤC
+// ============================================================================
+
+window.exportExamFromPreviewModal = function(maDe) {
+  const exam = (currentExamsList || []).find(e => e.maDe === maDe);
+  if (!exam) {
+    showToast("Lỗi", "Không tìm thấy thông tin đề thi để xuất Word!", "error", 3000);
+    return;
+  }
+  exportExamToDocx(exam);
+};
+
+window.exportCurrentExamToDocx = function() {
+  const questions = parsedQuestions || [];
+  const essayList = parsedEssayQuestions || [];
+
+  if (questions.length === 0 && essayList.length === 0) {
+    showToast("Chưa có câu hỏi", "Vui lòng bóc tách hoặc tạo câu hỏi cho đề thi trước khi xuất file Word!", "warning", 3500);
+    return;
+  }
+
+  const titleInput = document.getElementById("examTitle");
+  const durationInput = document.getElementById("examDuration");
+  const classesInput = document.getElementById("examAllowedClasses");
+  const essayFormInput = document.getElementById("essayFormLink");
+
+  const currentExamData = {
+    maDe: editingExamCode || ("DE_" + (Date.now() % 100000)),
+    tenKyThi: titleInput ? (titleInput.value.trim() || "BÀI KIỂM TRA ĐÁNH GIÁ ĐỊNH KỲ") : "BÀI KIỂM TRA ĐÁNH GIÁ ĐỊNH KỲ",
+    thoiGian: durationInput ? (Number(durationInput.value) || 45) : 45,
+    lopChoPhep: classesInput ? (classesInput.value.trim() || "Tất cả các lớp") : "Tất cả các lớp",
+    cauHoi: questions,
+    tuLuan: {
+      danhSachCauHoi: essayList,
+      linkForm: essayFormInput ? essayFormInput.value.trim() : ""
+    },
+    truong: currentTeacher?.truong || "",
+    hoTenGV: currentTeacher?.hoTenGV || currentTeacher?.hoTen || currentTeacher?.username || ""
+  };
+
+  exportExamToDocx(currentExamData);
+};
+
+// Gắn sự kiện nút Xuất DOCX ở Bản Xem Trước & Chỉnh Sửa Đề Thi
+const btnExportCurrentExamDocx = document.getElementById("btnExportCurrentExamDocx");
+if (btnExportCurrentExamDocx) {
+  btnExportCurrentExamDocx.addEventListener("click", () => {
+    window.exportCurrentExamToDocx();
+  });
+}
+
+/**
+ * Hàm điều phối xuất file Word (.docx) kèm đáp án
+ */
+async function exportExamToDocx(examData) {
+  if (!examData) return;
+
+  const rawQuestions = examData.cauHoi || examData.duLieuDe?.cauHoi || [];
+  const tuLuanObj = examData.tuLuan || examData.duLieuDe?.tuLuan || {};
+  const essayQuestions = Array.isArray(tuLuanObj?.danhSachCauHoi) && tuLuanObj.danhSachCauHoi.length > 0
+    ? tuLuanObj.danhSachCauHoi
+    : (tuLuanObj?.noiDung ? [{ noiDung: tuLuanObj.noiDung, diem: tuLuanObj.diem || 1, dapAn: tuLuanObj.dapAn || "" }] : []);
+
+  if (rawQuestions.length === 0 && essayQuestions.length === 0) {
+    showToast("Không có câu hỏi", "Đề thi không có câu hỏi nào để xuất ra file Word!", "warning", 3000);
+    return;
+  }
+
+  const safeTitle = (examData.tenKyThi || "De_Thi").replace(/[\/\\:*?"<>|]/g, "_").replace(/\s+/g, "_").substring(0, 50);
+  const maDeStr = String(examData.maDe || "DE").replace(/[\/\\:*?"<>|]/g, "_");
+  const fileName = `${safeTitle}_${maDeStr}.docx`;
+
+  showToast("Đang tạo file Word...", "Đang định dạng tiêu đề, câu hỏi và bảng đáp án chấm chuẩn Bộ GD&ĐT...", "info", 2500);
+
+  // 1. Ưu tiên tạo file chuẩn OpenXML .docx nếu thư viện docx đã nạp
+  if (typeof docx !== "undefined" && docx.Document && docx.Packer) {
+    try {
+      const blob = await generateDocxWithLibrary(examData, rawQuestions, essayQuestions);
+      downloadBlobFile(blob, fileName);
+      showToast("Xuất Word thành công! 📄", `Đã lưu file "${fileName}" kèm bảng đáp án chi tiết!`, "success", 4500);
+      return;
+    } catch (docxErr) {
+      console.warn("Lỗi khi tạo file qua thư viện docx.js, chuyển sang giải pháp Fallback:", docxErr);
+    }
+  }
+
+  // 2. Fallback sang file Word HTML chuẩn Microsoft Office (.doc)
+  try {
+    const fallbackFileName = fileName.replace(/\.docx$/i, ".doc");
+    generateDocxHtmlFallback(examData, rawQuestions, essayQuestions, fallbackFileName);
+    showToast("Xuất Word thành công! 📄", `Đã lưu file "${fallbackFileName}" chuẩn Microsoft Word kèm đáp án!`, "success", 4500);
+  } catch (fallbackErr) {
+    console.error("Lỗi xuất file Word:", fallbackErr);
+    showToast("Lỗi xuất file", "Không thể tạo file Word: " + fallbackErr.message, "error", 4000);
+  }
+}
+
+/**
+ * Sinh file DOCX nhị phân chuẩn bằng thư viện docx.js
+ */
+async function generateDocxWithLibrary(examData, rawQuestions, essayQuestions) {
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, PageBreak, ShadingType } = docx;
+
+  const fontName = "Times New Roman";
+  const fontSizeBase = 24;   // 12pt
+  const fontSizeSmall = 20;  // 10pt
+  const fontSizeTitle = 26;  // 13pt
+  const fontSizeHeader = 22; // 11pt
+
+  const noBorder = {
+    top: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    bottom: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    left: { style: BorderStyle.NONE, size: 0, color: "auto" },
+    right: { style: BorderStyle.NONE, size: 0, color: "auto" }
+  };
+
+  const thinBorder = {
+    style: BorderStyle.SINGLE,
+    size: 4,
+    color: "999999"
+  };
+
+  const tableBorders = {
+    top: thinBorder,
+    bottom: thinBorder,
+    left: thinBorder,
+    right: thinBorder,
+    insideHorizontal: thinBorder,
+    insideVertical: thinBorder
+  };
+
+  const truongName = (examData.truong || currentTeacher?.truong || "TRƯỜNG THCS ...").toUpperCase();
+  const tenKyThi = (examData.tenKyThi || "ĐỀ KIỂM TRA ĐÁNH GIÁ ĐỊNH KỲ").toUpperCase();
+  const lop = examData.lopChoPhep || examData.lop || "9";
+  const thoiGian = examData.thoiGian || 45;
+  const maDe = examData.maDe || "DE_01";
+
+  const mcQuestions = rawQuestions.filter(q => q.loaiCauHoi !== "true_false");
+  const tfQuestions = rawQuestions.filter(q => q.loaiCauHoi === "true_false");
+
+  const children = [];
+
+  // --- BẢNG TIÊU ĐỀ ĐẦU ĐỀ THI (2 CỘT) ---
+  const headerTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: noBorder,
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            width: { size: 45, type: WidthType.PERCENTAGE },
+            borders: noBorder,
+            children: [
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SỞ GD&ĐT ... / PHÒNG GD&ĐT", font: fontName, size: fontSizeHeader })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: truongName, bold: true, font: fontName, size: fontSizeHeader })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "TỔ CHUYÊN MÔN", bold: true, font: fontName, size: fontSizeHeader })] })
+            ]
+          }),
+          new TableCell({
+            width: { size: 55, type: WidthType.PERCENTAGE },
+            borders: noBorder,
+            children: [
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: tenKyThi, bold: true, font: fontName, size: fontSizeHeader })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Khối / Lớp: ${lop}`, font: fontName, size: fontSizeHeader })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Thời gian làm bài: ${thoiGian} phút (không kể phát đề)`, italic: true, font: fontName, size: fontSizeSmall })] }),
+              new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `MÃ ĐỀ THI: ${maDe}`, bold: true, font: fontName, size: fontSizeHeader })] })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+  children.push(headerTable);
+
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 80, after: 80 },
+    children: [new TextRun({ text: "--------------------------------------------------------------------------------", font: fontName, size: fontSizeSmall, color: "888888" })]
+  }));
+
+  // Khung thông tin thí sinh
+  children.push(new Paragraph({
+    spacing: { before: 40, after: 40 },
+    children: [
+      new TextRun({ text: "Họ và tên thí sinh: ", bold: true, font: fontName, size: fontSizeBase }),
+      new TextRun({ text: ".........................................................................................  ", font: fontName, size: fontSizeBase }),
+      new TextRun({ text: "Lớp: ", bold: true, font: fontName, size: fontSizeBase }),
+      new TextRun({ text: "....................", font: fontName, size: fontSizeBase })
+    ]
+  }));
+  children.push(new Paragraph({
+    spacing: { before: 40, after: 120 },
+    children: [
+      new TextRun({ text: "Số báo danh: ", bold: true, font: fontName, size: fontSizeBase }),
+      new TextRun({ text: ".............................................................................................  ", font: fontName, size: fontSizeBase }),
+      new TextRun({ text: "Phòng thi: ", bold: true, font: fontName, size: fontSizeBase }),
+      new TextRun({ text: "............", font: fontName, size: fontSizeBase })
+    ]
+  }));
+
+  // --- PHẦN I: TRẮC NGHIỆM NHIỀU LỰA CHỌN ---
+  if (mcQuestions.length > 0) {
+    children.push(new Paragraph({
+      spacing: { before: 140, after: 80 },
+      children: [
+        new TextRun({ text: "PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn.", bold: true, font: fontName, size: fontSizeTitle }),
+        new TextRun({ text: ` Thí sinh trả lời từ câu 1 đến câu ${mcQuestions.length}. Mỗi câu hỏi thí sinh chỉ chọn một phương án.`, italic: true, font: fontName, size: fontSizeBase })
+      ]
+    }));
+
+    mcQuestions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      const pts = q.diem !== undefined ? ` (${q.diem} điểm)` : "";
+      children.push(new Paragraph({
+        spacing: { before: 100, after: 40 },
+        children: [
+          new TextRun({ text: `Câu ${qNum}: `, bold: true, font: fontName, size: fontSizeBase }),
+          new TextRun({ text: q.noiDung || "", font: fontName, size: fontSizeBase }),
+          pts ? new TextRun({ text: pts, italic: true, font: fontName, size: fontSizeSmall, color: "666666" }) : new TextRun({ text: "" })
+        ]
+      }));
+
+      const opts = q.luaChon || [];
+      const maxLen = opts.reduce((max, opt) => Math.max(max, (opt.noiDung || "").length), 0);
+      if (maxLen < 20 && opts.length === 4) {
+        children.push(new Paragraph({
+          spacing: { before: 30, after: 30 },
+          children: [
+            new TextRun({ text: `A. `, bold: true, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: `${opts[0]?.noiDung || ""}\t\t`, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: `B. `, bold: true, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: `${opts[1]?.noiDung || ""}`, font: fontName, size: fontSizeBase })
+          ]
+        }));
+        children.push(new Paragraph({
+          spacing: { before: 30, after: 50 },
+          children: [
+            new TextRun({ text: `C. `, bold: true, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: `${opts[2]?.noiDung || ""}\t\t`, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: `D. `, bold: true, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: `${opts[3]?.noiDung || ""}`, font: fontName, size: fontSizeBase })
+          ]
+        }));
+      } else {
+        opts.forEach(opt => {
+          children.push(new Paragraph({
+            spacing: { before: 25, after: 25 },
+            indent: { left: 360 },
+            children: [
+              new TextRun({ text: `${opt.key}. `, bold: true, font: fontName, size: fontSizeBase }),
+              new TextRun({ text: opt.noiDung || "", font: fontName, size: fontSizeBase })
+            ]
+          }));
+        });
+      }
+    });
+  }
+
+  // --- PHẦN II: TRẮC NGHIỆM ĐÚNG SAI ---
+  if (tfQuestions.length > 0) {
+    children.push(new Paragraph({
+      spacing: { before: 180, after: 80 },
+      children: [
+        new TextRun({ text: "PHẦN II. Câu trắc nghiệm đúng sai.", bold: true, font: fontName, size: fontSizeTitle }),
+        new TextRun({ text: ` Thí sinh trả lời từ câu 1 đến câu ${tfQuestions.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.`, italic: true, font: fontName, size: fontSizeBase })
+      ]
+    }));
+
+    tfQuestions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      const pts = q.diem !== undefined ? ` (${q.diem} điểm)` : "";
+      children.push(new Paragraph({
+        spacing: { before: 100, after: 40 },
+        children: [
+          new TextRun({ text: `Câu ${qNum}: `, bold: true, font: fontName, size: fontSizeBase }),
+          new TextRun({ text: q.noiDung || "", font: fontName, size: fontSizeBase }),
+          pts ? new TextRun({ text: pts, italic: true, font: fontName, size: fontSizeSmall, color: "666666" }) : new TextRun({ text: "" })
+        ]
+      }));
+
+      const subItems = q.y || [];
+      subItems.forEach(y => {
+        children.push(new Paragraph({
+          spacing: { before: 25, after: 25 },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: `${y.key}) `, bold: true, font: fontName, size: fontSizeBase }),
+            new TextRun({ text: y.noiDung || "", font: fontName, size: fontSizeBase })
+          ]
+        }));
+      });
+    });
+  }
+
+  // --- PHẦN III: TỰ LUẬN ---
+  if (essayQuestions.length > 0) {
+    children.push(new Paragraph({
+      spacing: { before: 180, after: 80 },
+      children: [
+        new TextRun({ text: "PHẦN III. Câu hỏi tự luận.", bold: true, font: fontName, size: fontSizeTitle }),
+        new TextRun({ text: " Thí sinh trình bày chi tiết lời giải vào giấy kiểm tra.", italic: true, font: fontName, size: fontSizeBase })
+      ]
+    }));
+
+    essayQuestions.forEach((eq, idx) => {
+      const eqNum = idx + 1;
+      const pts = eq.diem !== undefined ? ` (${eq.diem} điểm)` : "";
+      children.push(new Paragraph({
+        spacing: { before: 100, after: 50 },
+        children: [
+          new TextRun({ text: `Câu ${eqNum} (Tự luận): `, bold: true, font: fontName, size: fontSizeBase }),
+          new TextRun({ text: eq.noiDung || "", font: fontName, size: fontSizeBase }),
+          pts ? new TextRun({ text: pts, italic: true, font: fontName, size: fontSizeSmall, color: "666666" }) : new TextRun({ text: "" })
+        ]
+      }));
+    });
+  }
+
+  // KẾT THÚC ĐỀ
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 250, after: 150 },
+    children: [new TextRun({ text: "-------------------------- HẾT --------------------------", bold: true, font: fontName, size: fontSizeBase })]
+  }));
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 150 },
+    children: [new TextRun({ text: "(Cán bộ coi thi không giải thích gì thêm)", italic: true, font: fontName, size: fontSizeSmall })]
+  }));
+
+  // --- NGẮT TRANG SANG HƯỚNG DẪN CHẤM & ĐÁP ÁN ---
+  children.push(new Paragraph({ children: [new PageBreak()] }));
+
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 80, after: 40 },
+    children: [new TextRun({ text: "HƯỚNG DẪN CHẤM VÀ ĐÁP ÁN ĐỀ THI", bold: true, font: fontName, size: 28, color: "1e3a8a" })]
+  }));
+  children.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 180 },
+    children: [new TextRun({ text: `KỲ KIỂM TRA: ${tenKyThi} - MÃ ĐỀ: ${maDe}`, bold: true, font: fontName, size: fontSizeTitle })]
+  }));
+
+  // BẢNG ĐÁP ÁN PHẦN I
+  if (mcQuestions.length > 0) {
+    children.push(new Paragraph({
+      spacing: { before: 140, after: 70 },
+      children: [new TextRun({ text: "1. ĐÁP ÁN PHẦN I (TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN LỰA CHỌN)", bold: true, font: fontName, size: fontSizeTitle })]
+    }));
+
+    const chunkSize = 10;
+    for (let c = 0; c < mcQuestions.length; c += chunkSize) {
+      const chunk = mcQuestions.slice(c, c + chunkSize);
+      const rowCau = [
+        new TableCell({
+          borders: tableBorders,
+          width: { size: 12, type: WidthType.PERCENTAGE },
+          shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Câu", bold: true, font: fontName, size: fontSizeHeader })] })]
+        })
+      ];
+      const rowDapAn = [
+        new TableCell({
+          borders: tableBorders,
+          width: { size: 12, type: WidthType.PERCENTAGE },
+          shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Chọn", bold: true, font: fontName, size: fontSizeHeader })] })]
+        })
+      ];
+
+      chunk.forEach((q, i) => {
+        const colWidth = Math.floor(88 / chunk.length);
+        const qNum = c + i + 1;
+        rowCau.push(new TableCell({
+          borders: tableBorders,
+          width: { size: colWidth, type: WidthType.PERCENTAGE },
+          shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(qNum), bold: true, font: fontName, size: fontSizeHeader })] })]
+        }));
+        rowDapAn.push(new TableCell({
+          borders: tableBorders,
+          width: { size: colWidth, type: WidthType.PERCENTAGE },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(q.dapAnDung || "").toUpperCase(), bold: true, font: fontName, size: fontSizeTitle, color: "1d4ed8" })] })]
+        }));
+      });
+
+      const mcTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        borders: tableBorders,
+        rows: [new TableRow({ children: rowCau }), new TableRow({ children: rowDapAn })]
+      });
+      children.push(mcTable);
+      children.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
+    }
+  }
+
+  // BẢNG ĐÁP ÁN PHẦN II (ĐÚNG / SAI)
+  if (tfQuestions.length > 0) {
+    children.push(new Paragraph({
+      spacing: { before: 140, after: 70 },
+      children: [new TextRun({ text: "2. ĐÁP ÁN PHẦN II (TRẮC NGHIỆM ĐÚNG SAI)", bold: true, font: fontName, size: fontSizeTitle })]
+    }));
+
+    const tfRows = [
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 15, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Câu hỏi", bold: true, font: fontName, size: fontSizeHeader })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 15, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Lệnh hỏi", bold: true, font: fontName, size: fontSizeHeader })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 25, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Đáp án (Đ / S)", bold: true, font: fontName, size: fontSizeHeader })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 45, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Ghi chú quy cách điểm", bold: true, font: fontName, size: fontSizeHeader })] })]
+          })
+        ]
+      })
+    ];
+
+    tfQuestions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      const subItems = q.y || [];
+      subItems.forEach((y, subIdx) => {
+        const isTrue = Boolean(y.dung);
+        const answerText = isTrue ? "ĐÚNG" : "SAI";
+        const answerColor = isTrue ? "059669" : "dc2626";
+
+        tfRows.push(new TableRow({
+          children: [
+            new TableCell({
+              borders: tableBorders,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: subIdx === 0 ? `Câu ${qNum}` : "", bold: true, font: fontName, size: fontSizeBase })] })]
+            }),
+            new TableCell({
+              borders: tableBorders,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${y.key})`, bold: true, font: fontName, size: fontSizeBase })] })]
+            }),
+            new TableCell({
+              borders: tableBorders,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: answerText, bold: true, font: fontName, size: fontSizeBase, color: answerColor })] })]
+            }),
+            new TableCell({
+              borders: tableBorders,
+              children: [new Paragraph({ children: [new TextRun({ text: subIdx === 0 ? "Đúng 1 ý: 0.1đ | Đúng 2 ý: 0.25đ | Đúng 3 ý: 0.5đ | Đúng 4 ý: 1.0đ" : "", italic: true, font: fontName, size: fontSizeSmall })] })]
+            })
+          ]
+        }));
+      });
+    });
+
+    const tfTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: tableBorders,
+      rows: tfRows
+    });
+    children.push(tfTable);
+  }
+
+  // ĐÁP ÁN & THANG ĐIỂM PHẦN III (TỰ LUẬN)
+  if (essayQuestions.length > 0) {
+    children.push(new Paragraph({
+      spacing: { before: 160, after: 70 },
+      children: [new TextRun({ text: "3. HƯỚNG DẪN CHẤM PHẦN III (TỰ LUẬN)", bold: true, font: fontName, size: fontSizeTitle })]
+    }));
+
+    const essayRows = [
+      new TableRow({
+        children: [
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 15, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Câu", bold: true, font: fontName, size: fontSizeHeader })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 70, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Nội dung yêu cầu / Đáp án mẫu", bold: true, font: fontName, size: fontSizeHeader })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            width: { size: 15, type: WidthType.PERCENTAGE },
+            shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Điểm", bold: true, font: fontName, size: fontSizeHeader })] })]
+          })
+        ]
+      })
+    ];
+
+    essayQuestions.forEach((eq, idx) => {
+      const eqNum = idx + 1;
+      const pts = eq.diem !== undefined ? `${eq.diem} đ` : "1.0 đ";
+      essayRows.push(new TableRow({
+        children: [
+          new TableCell({
+            borders: tableBorders,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `Câu ${eqNum}`, bold: true, font: fontName, size: fontSizeBase })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            children: [new Paragraph({ children: [new TextRun({ text: eq.dapAn || eq.noiDung || "Học sinh trình bày đúng yêu cầu câu hỏi.", font: fontName, size: fontSizeBase })] })]
+          }),
+          new TableCell({
+            borders: tableBorders,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: pts, bold: true, font: fontName, size: fontSizeBase, color: "059669" })] })]
+          })
+        ]
+      }));
+    });
+
+    const essayTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: tableBorders,
+      rows: essayRows
+    });
+    children.push(essayTable);
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: { margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } }
+      },
+      children: children
+    }]
+  });
+
+  return await Packer.toBlob(doc);
+}
+
+/**
+ * Tạo file Word HTML (.doc) mở bằng Microsoft Word hoàn hảo khi không có docx.js
+ */
+function generateDocxHtmlFallback(examData, rawQuestions, essayQuestions, fileName) {
+  const truongName = (examData.truong || currentTeacher?.truong || "TRƯỜNG THCS ...").toUpperCase();
+  const tenKyThi = (examData.tenKyThi || "ĐỀ KIỂM TRA ĐÁNH GIÁ ĐỊNH KỲ").toUpperCase();
+  const lop = examData.lopChoPhep || examData.lop || "9";
+  const thoiGian = examData.thoiGian || 45;
+  const maDe = examData.maDe || "DE_01";
+
+  const mcQuestions = rawQuestions.filter(q => q.loaiCauHoi !== "true_false");
+  const tfQuestions = rawQuestions.filter(q => q.loaiCauHoi === "true_false");
+
+  let html = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <title>${tenKyThi}</title>
+      <style>
+        @page {
+          size: 21.0cm 29.7cm;
+          margin: 2.0cm 2.0cm 2.0cm 2.0cm;
+          mso-page-orientation: portrait;
+        }
+        body {
+          font-family: 'Times New Roman', Times, serif;
+          font-size: 12pt;
+          line-height: 1.35;
+          color: #000000;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 12pt;
+        }
+        .header-table td {
+          border: none;
+          text-align: center;
+          vertical-align: top;
+          padding: 2pt 4pt;
+        }
+        .border-table th, .border-table td {
+          border: 1px solid #333333;
+          padding: 5pt 6pt;
+          text-align: center;
+        }
+        .border-table th {
+          background-color: #f1f5f9;
+        }
+        .q-title {
+          font-weight: bold;
+          margin-top: 10pt;
+          margin-bottom: 4pt;
+        }
+        .opt-item {
+          margin-left: 20pt;
+          margin-bottom: 2pt;
+        }
+        .page-break {
+          page-break-before: always;
+          mso-break-type: section-break;
+        }
+      </style>
+    </head>
+    <body>
+      <table class="header-table">
+        <tr>
+          <td style="width: 45%;">
+            <div>SỞ GD&ĐT ... / PHÒNG GD&ĐT</div>
+            <div style="font-weight: bold;">${truongName}</div>
+            <div style="font-weight: bold;">TỔ CHUYÊN MÔN</div>
+          </td>
+          <td style="width: 55%;">
+            <div style="font-weight: bold; font-size: 12.5pt;">${tenKyThi}</div>
+            <div>Khối / Lớp: ${lop}</div>
+            <div style="font-style: italic; font-size: 11pt;">Thời gian làm bài: ${thoiGian} phút (không kể phát đề)</div>
+            <div style="font-weight: bold;">MÃ ĐỀ THI: ${maDe}</div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="text-align: center; color: #888; margin: 4pt 0 10pt 0;">--------------------------------------------------------------------------------</div>
+
+      <div style="margin-bottom: 4pt;">
+        <strong>Họ và tên thí sinh:</strong> ......................................................................................... <strong>Lớp:</strong> ....................
+      </div>
+      <div style="margin-bottom: 14pt;">
+        <strong>Số báo danh:</strong> ............................................................................................. <strong>Phòng thi:</strong> ............
+      </div>
+  `;
+
+  // Phần I
+  if (mcQuestions.length > 0) {
+    html += `
+      <div style="margin-top: 10pt; margin-bottom: 6pt;">
+        <strong style="font-size: 13pt;">PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn.</strong>
+        <em>Thí sinh trả lời từ câu 1 đến câu ${mcQuestions.length}. Mỗi câu hỏi thí sinh chỉ chọn một phương án.</em>
+      </div>
+    `;
+
+    mcQuestions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      const pts = q.diem !== undefined ? ` <em>(${q.diem} điểm)</em>` : "";
+      html += `
+        <div class="q-title"><strong>Câu ${qNum}:</strong> ${q.noiDung || ""}${pts}</div>
+      `;
+      (q.luaChon || []).forEach(opt => {
+        html += `<div class="opt-item"><strong>${opt.key}.</strong> ${opt.noiDung || ""}</div>`;
+      });
+    });
+  }
+
+  // Phần II
+  if (tfQuestions.length > 0) {
+    html += `
+      <div style="margin-top: 14pt; margin-bottom: 6pt;">
+        <strong style="font-size: 13pt;">PHẦN II. Câu trắc nghiệm đúng sai.</strong>
+        <em>Thí sinh trả lời từ câu 1 đến câu ${tfQuestions.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.</em>
+      </div>
+    `;
+
+    tfQuestions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      const pts = q.diem !== undefined ? ` <em>(${q.diem} điểm)</em>` : "";
+      html += `<div class="q-title"><strong>Câu ${qNum}:</strong> ${q.noiDung || ""}${pts}</div>`;
+      (q.y || []).forEach(y => {
+        html += `<div class="opt-item"><strong>${y.key})</strong> ${y.noiDung || ""}</div>`;
+      });
+    });
+  }
+
+  // Phần III
+  if (essayQuestions.length > 0) {
+    html += `
+      <div style="margin-top: 14pt; margin-bottom: 6pt;">
+        <strong style="font-size: 13pt;">PHẦN III. Câu hỏi tự luận.</strong>
+        <em>Thí sinh trình bày chi tiết lời giải vào giấy kiểm tra.</em>
+      </div>
+    `;
+
+    essayQuestions.forEach((eq, idx) => {
+      const eqNum = idx + 1;
+      const pts = eq.diem !== undefined ? ` <em>(${eq.diem} điểm)</em>` : "";
+      html += `<div class="q-title"><strong>Câu ${eqNum} (Tự luận):</strong> ${eq.noiDung || ""}${pts}</div>`;
+    });
+  }
+
+  html += `
+    <div style="text-align: center; margin-top: 20pt; margin-bottom: 6pt; font-weight: bold;">-------------------------- HẾT --------------------------</div>
+    <div style="text-align: center; font-style: italic; font-size: 10pt; margin-bottom: 20pt;">(Cán bộ coi thi không giải thích gì thêm)</div>
+
+    <br clear="all" class="page-break" style="page-break-before: always; mso-break-type: section-break;" />
+
+    <div style="text-align: center; font-size: 15pt; font-weight: bold; color: #1e3a8a; margin-top: 10pt;">HƯỚNG DẪN CHẤM VÀ ĐÁP ÁN ĐỀ THI</div>
+    <div style="text-align: center; font-size: 12pt; font-weight: bold; margin-bottom: 14pt;">KỲ KIỂM TRA: ${tenKyThi} - MÃ ĐỀ: ${maDe}</div>
+  `;
+
+  // Bảng đáp án Phần I
+  if (mcQuestions.length > 0) {
+    html += `<div style="font-weight: bold; margin-bottom: 6pt;">1. ĐÁP ÁN PHẦN I (TRẮC NGHIỆM NHIỀU PHƯƠNG ÁN LỰA CHỌN)</div>`;
+    const chunkSize = 10;
+    for (let c = 0; c < mcQuestions.length; c += chunkSize) {
+      const chunk = mcQuestions.slice(c, c + chunkSize);
+      html += `<table class="border-table"><tr><th style="width: 12%;">Câu</th>`;
+      chunk.forEach((q, i) => { html += `<th>${c + i + 1}</th>`; });
+      html += `</tr><tr><td><strong>Chọn</strong></td>`;
+      chunk.forEach(q => { html += `<td style="font-weight: bold; color: #1d4ed8; font-size: 12pt;">${String(q.dapAnDung || "").toUpperCase()}</td>`; });
+      html += `</tr></table>`;
+    }
+  }
+
+  // Bảng đáp án Phần II
+  if (tfQuestions.length > 0) {
+    html += `<div style="font-weight: bold; margin-top: 12pt; margin-bottom: 6pt;">2. ĐÁP ÁN PHẦN II (TRẮC NGHIỆM ĐÚNG SAI)</div>`;
+    html += `
+      <table class="border-table">
+        <tr>
+          <th style="width: 15%;">Câu hỏi</th>
+          <th style="width: 15%;">Lệnh hỏi</th>
+          <th style="width: 25%;">Đáp án (Đ / S)</th>
+          <th style="width: 45%;">Ghi chú quy cách điểm</th>
+        </tr>
+    `;
+    tfQuestions.forEach((q, idx) => {
+      const qNum = idx + 1;
+      (q.y || []).forEach((y, subIdx) => {
+        const isTrue = Boolean(y.dung);
+        html += `
+          <tr>
+            <td>${subIdx === 0 ? `<strong>Câu ${qNum}</strong>` : ""}</td>
+            <td><strong>${y.key})</strong></td>
+            <td style="font-weight: bold; color: ${isTrue ? '#059669' : '#dc2626'};">${isTrue ? 'ĐÚNG' : 'SAI'}</td>
+            <td style="font-style: italic; font-size: 10pt;">${subIdx === 0 ? 'Đúng 1 ý: 0.1đ | Đúng 2 ý: 0.25đ | Đúng 3 ý: 0.5đ | Đúng 4 ý: 1.0đ' : ''}</td>
+          </tr>
+        `;
+      });
+    });
+    html += `</table>`;
+  }
+
+  // Bảng đáp án Phần III
+  if (essayQuestions.length > 0) {
+    html += `<div style="font-weight: bold; margin-top: 12pt; margin-bottom: 6pt;">3. HƯỚNG DẪN CHẤM PHẦN III (TỰ LUẬN)</div>`;
+    html += `
+      <table class="border-table">
+        <tr>
+          <th style="width: 15%;">Câu</th>
+          <th style="width: 70%;">Nội dung yêu cầu / Đáp án mẫu</th>
+          <th style="width: 15%;">Điểm</th>
+        </tr>
+    `;
+    essayQuestions.forEach((eq, idx) => {
+      html += `
+        <tr>
+          <td><strong>Câu ${idx + 1}</strong></td>
+          <td style="text-align: left;">${eq.dapAn || eq.noiDung || "Học sinh trình bày đúng yêu cầu câu hỏi."}</td>
+          <td style="font-weight: bold; color: #059669;">${eq.diem !== undefined ? `${eq.diem} đ` : "1.0 đ"}</td>
+        </tr>
+      `;
+    });
+    html += `</table>`;
+  }
+
+  html += `</body></html>`;
+
+  const blob = new Blob(["\ufeff" + html], { type: "application/msword;charset=utf-8" });
+  downloadBlobFile(blob, fileName);
+}
+
+function downloadBlobFile(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 300);
 }
 
 // ============================================================================
