@@ -8668,6 +8668,22 @@ function initTeacherDashboard() {
     // Khởi tạo tính năng Chia sẻ đề thi cho Giáo viên
     try { initShareExamModal(); } catch (e) { console.warn("Share exam modal warning:", e); }
 
+    // Khởi tạo nút Cuộn lên đầu trang (Scroll to Top)
+    const btnScrollToTop = document.getElementById("btnScrollToTop");
+    if (btnScrollToTop) {
+      window.addEventListener("scroll", () => {
+        if (window.scrollY > 280) {
+          btnScrollToTop.classList.add("show");
+        } else {
+          btnScrollToTop.classList.remove("show");
+        }
+      }, { passive: true });
+
+      btnScrollToTop.addEventListener("click", () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+
     // Đăng xuất
     const btnLogout = document.getElementById("btnLogout");
     if (btnLogout) {

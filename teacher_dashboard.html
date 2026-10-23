@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=7.4">
+  <link rel="stylesheet" href="css/teacher.css?v=8.0">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -583,6 +583,9 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           </button>
         </div>
 
+        <div class="mobile-table-hint">
+          <span>👉 Vuốt ngang bảng để xem đầy đủ cột & thao tác</span>
+        </div>
         <div class="table-responsive">
           <table class="exam-table">
             <thead>
@@ -718,6 +721,9 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           <input type="text" id="searchStudentInput" class="form-input search-box" placeholder="Tìm theo tên học sinh, lớp...">
         </div>
 
+        <div class="mobile-table-hint">
+          <span>👉 Vuốt ngang bảng để xem đầy đủ cột & thao tác</span>
+        </div>
         <div class="table-responsive">
           <table class="exam-table" id="resultsTable">
             <thead>
@@ -838,6 +844,9 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           </div>
         </div>
 
+        <div class="mobile-table-hint">
+          <span>👉 Vuốt ngang bảng để xem đầy đủ cột & thao tác</span>
+        </div>
         <div class="table-responsive" style="overflow-x: auto; width: 100%;">
           <table class="exam-table" id="studentsManagementTable" style="width: 100%; table-layout: fixed; min-width: 1050px;">
             <thead>
@@ -872,6 +881,13 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   <footer class="app-footer">
     <p>Made by Nguyễn Phi Hùng - Zalo 0938750424</p>
   </footer>
+
+  <!-- Floating Scroll-To-Top Button (Mobile & Desktop) -->
+  <button type="button" id="btnScrollToTop" class="btn-scroll-to-top" title="Lên đầu trang" aria-label="Lên đầu trang">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  </button>
 
   <!-- Modal xem chi tiết bài làm học sinh & Xem nhanh đề thi (Luôn cố định chính giữa màn hình) -->
   <div class="modal-backdrop" id="detailModal" style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.7) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;">
@@ -1605,6 +1621,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   <!-- Background Music (Love Story 30%) -->
   <script src="js/bg_music.js?v=2.1"></script>
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=8.4"></script>
+  <script src="js/teacher.js?v=8.5"></script>
 </body>
 </html>
