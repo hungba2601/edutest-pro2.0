@@ -2530,9 +2530,9 @@ function initStudentAccountDropdownAndModals() {
     if (trigger) trigger.classList.remove("active");
     closeStudentProfile();
 
-    const inpOld = document.getElementById("inputOldPassword");
-    const inpNew = document.getElementById("inputNewPassword");
-    const inpConfirm = document.getElementById("inputConfirmNewPassword");
+    const inpOld = document.getElementById("inputStudentOldPassword") || document.getElementById("inputOldPassword");
+    const inpNew = document.getElementById("inputStudentNewPassword") || document.getElementById("inputNewPassword");
+    const inpConfirm = document.getElementById("inputStudentConfirmNewPassword") || document.getElementById("inputConfirmNewPassword");
     if (inpOld) inpOld.value = "";
     if (inpNew) inpNew.value = "";
     if (inpConfirm) inpConfirm.value = "";
@@ -2592,9 +2592,9 @@ function initStudentAccountDropdownAndModals() {
   // 6. Xử lý Lưu Đổi Mật Khẩu
   if (btnSaveChangePwd) {
     btnSaveChangePwd.addEventListener("click", async () => {
-      const inpOld = document.getElementById("inputOldPassword");
-      const inpNew = document.getElementById("inputNewPassword");
-      const inpConfirm = document.getElementById("inputConfirmNewPassword");
+      const inpOld = document.getElementById("inputStudentOldPassword") || document.getElementById("inputOldPassword");
+      const inpNew = document.getElementById("inputStudentNewPassword") || document.getElementById("inputNewPassword");
+      const inpConfirm = document.getElementById("inputStudentConfirmNewPassword") || document.getElementById("inputConfirmNewPassword");
 
       const oldPassword = inpOld ? inpOld.value.trim() : "";
       const newPassword = inpNew ? inpNew.value.trim() : "";
@@ -2671,6 +2671,12 @@ function initStudentAccountDropdownAndModals() {
 
         if (res && res.success) {
           showToast("Thành công", res.message || "Đã đổi mật khẩu và cập nhật lên Google Sheets thành công!", "success", 4000);
+          if (currentStudent) {
+            currentStudent.password = newPassword;
+            try {
+              localStorage.setItem("currentUser", JSON.stringify(currentStudent));
+            } catch (e) {}
+          }
           closeStudentChangePwd();
         } else {
           showAlert(res ? res.message : "Mật khẩu hiện tại không chính xác hoặc không thể cập nhật!");
