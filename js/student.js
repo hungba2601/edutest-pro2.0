@@ -80,6 +80,92 @@ let studentEssayAnswers = {}; // Lưu trữ: { [qId]: "bài làm tự luận..."
 let lastExamResult = null; // Kết quả chấm bài thi mới nhất
 
 // ============================================================================
+// HỆ THỐNG HIỆU ỨNG ÂM THANH TƯƠNG TÁC (WEB AUDIO API - PHÁT TỨC THÌ, SIÊU MƯỢT)
+// ============================================================================
+let examAudioCtx = null;
+function getExamAudioContext() {
+  if (!examAudioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      examAudioCtx = new AudioContextClass();
+    }
+  }
+  if (examAudioCtx && examAudioCtx.state === "suspended") {
+    examAudioCtx.resume().catch(() => {});
+  }
+  return examAudioCtx;
+}
+
+// 1. Âm thanh tương tác nhẹ nhàng khi học sinh chọn đáp án (tần số 620-880Hz, cực êm dịu)
+function playOptionSelectSound() {
+  try {
+    const ctx = getExamAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(620, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.08);
+  } catch (e) {
+    // Bỏ qua nếu môi trường không cho phép audio
+  }
+}
+
+// 2. Âm thanh chúc mừng hân hoan khi nộp bài thành công (kéo dài ~2 giây)
+function playExamSuccessFanfare() {
+  try {
+    const ctx = getExamAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    // Giai điệu hợp âm C Major arpeggio + chuông chúc mừng ngân vang kéo dài đúng 2 giây
+    const notes = [
+      { freq: 523.25, time: 0.00, dur: 0.35, gain: 0.16 }, // C5
+      { freq: 659.25, time: 0.16, dur: 0.35, gain: 0.16 }, // E5
+      { freq: 783.99, time: 0.32, dur: 0.45, gain: 0.18 }, // G5
+      { freq: 1046.50, time: 0.52, dur: 1.45, gain: 0.22 }, // C6 (ngân vang)
+      { freq: 1318.51, time: 0.60, dur: 1.35, gain: 0.14 }  // E6 (hòa âm nốt cao lung linh)
+    ];
+
+    notes.forEach(n => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "triangle"; // Âm sắc trong trẻo, ấm áp như chuông marimba
+      osc.frequency.setValueAtTime(n.freq, now + n.time);
+
+      const startT = now + n.time;
+      const endT = startT + n.dur;
+
+      gain.gain.setValueAtTime(0.0001, startT);
+      gain.gain.linearRampToValueAtTime(n.gain, startT + 0.035);
+      gain.gain.exponentialRampToValueAtTime(0.0001, endT);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startT);
+      osc.stop(endT + 0.05);
+    });
+  } catch (e) {
+    console.warn("Không thể phát âm thanh chúc mừng:", e);
+  }
+}
+
+// ============================================================================
 // 1. KHỞI TẠO & PHÂN QUYỀN HỌC SINH
 // ============================================================================
 window.addEventListener("DOMContentLoaded", () => {
@@ -1291,6 +1377,13 @@ function attachStudentAnswerEvents() {
     });
   });
 
+  // Âm thanh phản hồi tương tác nhẹ nhàng khi click chọn đáp án 4 lựa chọn
+  document.querySelectorAll(".student-option-label").forEach(label => {
+    label.addEventListener("click", () => {
+      playOptionSelectSound();
+    });
+  });
+
   // Đúng / Sai
   document.querySelectorAll(".tf-radio-cell input[type='radio']").forEach(radio => {
     radio.addEventListener("change", (e) => {
@@ -1310,6 +1403,11 @@ function attachStudentAnswerEvents() {
       const isAllSubAnswered = subItems.length > 0 && subItems.every(s => userAns[s.key] !== undefined && userAns[s.key] !== null);
 
       markPaletteAnswered(qId, isAllSubAnswered);
+    });
+
+    // Âm thanh phản hồi tương tác nhẹ nhàng khi click chọn Đúng/Sai
+    radio.addEventListener("click", () => {
+      playOptionSelectSound();
     });
   });
 
@@ -2104,6 +2202,9 @@ function UtilitiesFormatTime() {
 function showExamResultScreen(result) {
   lastExamResult = result;
   stopProctoringListeners();
+
+  // Phát âm thanh chúc mừng hân hoan 2 giây khi nộp bài thành công
+  playExamSuccessFanfare();
 
   document.getElementById("viewExamRoom").style.display = "none";
   document.getElementById("viewExamResult").style.display = "flex";
