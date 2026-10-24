@@ -353,6 +353,98 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+/**
+ * Tự động phục hồi định dạng xuống dòng cho các câu hỏi, câu tự luận, phương án
+ * Khi các ý a. b. c. d. hoặc dấu gạch đầu dòng -, + bị dính trên cùng 1 dòng
+ */
+function restoreMultilineFormatting(str) {
+  if (!str) return "";
+  let s = String(str);
+
+  // Chuẩn hóa \r\n thành \n
+  s = s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  // Tách a. b. c. d. hoặc a) b) c) d) sau dấu chấm / dấu câu / dấu ngoặc nếu chưa có xuống dòng
+  s = s.replace(/([.?!;:]|\))[ \t\u00A0]+([a-dA-D][\.\)])[ \t\u00A0]+/g, "$1\n$2 ");
+
+  // Tách gạch đầu dòng - hoặc – hoặc — sau dấu chấm / dấu câu nếu chưa có xuống dòng
+  s = s.replace(/([.?!;:]|\))[ \t\u00A0]+([-–—])[ \t\u00A0]+/g, "$1\n$2 ");
+
+  // Tách dấu + hoặc * hoặc ý 1, ý 2 sau dấu câu nếu chưa có xuống dòng
+  s = s.replace(/([.?!;:]|\))[ \t\u00A0]+([+*])[ \t\u00A0]+/g, "$1\n$2 ");
+  s = s.replace(/([.?!;:]|\))[ \t\u00A0]+((?:Ý|ý)\s*\d+[\.:])[ \t\u00A0]*/g, "$1\n$2 ");
+
+  return s.trim();
+}
+
+/**
+ * Trích xuất nội dung văn bản bảo toàn 100% xuống dòng từ thẻ contenteditable
+ */
+function extractCleanMultilineText(el) {
+  if (!el) return "";
+  let text = "";
+  if (typeof el.innerText === "string") {
+    text = el.innerText;
+  } else {
+    text = el.textContent || "";
+  }
+  return restoreMultilineFormatting(text);
+}
+
+/**
+ * Đồng bộ toàn bộ nội dung người dùng đang nhập từ bản xem trước vào state (parsedQuestions, parsedEssayQuestions)
+ */
+function syncAllPreviewInputsToState() {
+  // 1. Đồng bộ câu hỏi trắc nghiệm / Đúng sai
+  document.querySelectorAll(".q-prompt-editable:not(.q-essay-prompt)").forEach(el => {
+    const idx = parseInt(el.dataset.index);
+    if (!isNaN(idx) && typeof parsedQuestions !== "undefined" && parsedQuestions[idx]) {
+      parsedQuestions[idx].noiDung = extractCleanMultilineText(el);
+    }
+  });
+
+  // 2. Đồng bộ các phương án trắc nghiệm
+  document.querySelectorAll(".q-opt-text").forEach(el => {
+    const qIdx = parseInt(el.dataset.qidx);
+    const optKey = el.dataset.optkey;
+    const q = (typeof parsedQuestions !== "undefined" && parsedQuestions) ? parsedQuestions[qIdx] : null;
+    if (q && q.luaChon) {
+      const opt = q.luaChon.find(o => o.key === optKey);
+      if (opt) opt.noiDung = extractCleanMultilineText(el);
+    }
+  });
+
+  // 3. Đồng bộ mệnh đề Đúng / Sai
+  document.querySelectorAll(".q-tf-text").forEach(el => {
+    const qIdx = parseInt(el.dataset.qidx);
+    const subIdx = parseInt(el.dataset.subidx);
+    const q = (typeof parsedQuestions !== "undefined" && parsedQuestions) ? parsedQuestions[qIdx] : null;
+    if (q && q.y && q.y[subIdx]) {
+      q.y[subIdx].noiDung = extractCleanMultilineText(el);
+    }
+  });
+
+  // 4. Đồng bộ câu hỏi tự luận (đề bài và đáp án)
+  document.querySelectorAll(".q-essay-prompt").forEach(el => {
+    const eqIdx = parseInt(el.dataset.index);
+    if (!isNaN(eqIdx) && typeof parsedEssayQuestions !== "undefined" && parsedEssayQuestions[eqIdx]) {
+      const cleanText = extractCleanMultilineText(el);
+      parsedEssayQuestions[eqIdx].noiDung = cleanText;
+      const leftTx = document.querySelector(`.essay-content-input[data-index="${eqIdx}"]`);
+      if (leftTx && leftTx.value !== cleanText) leftTx.value = cleanText;
+    }
+  });
+
+  document.querySelectorAll(".q-essay-answer-editable").forEach(el => {
+    const eqIdx = parseInt(el.dataset.index);
+    if (!isNaN(eqIdx) && typeof parsedEssayQuestions !== "undefined" && parsedEssayQuestions[eqIdx]) {
+      const cleanText = extractCleanMultilineText(el);
+      parsedEssayQuestions[eqIdx].dapAn = cleanText;
+      const leftTx = document.querySelector(`.essay-answer-input[data-index="${eqIdx}"]`);
+      if (leftTx && leftTx.value !== cleanText) leftTx.value = cleanText;
+    }
+  });
+}
 
 // Cập nhật giao diện chuyển chế độ Xem lại bài
 function updateReviewModeDisplay(isAllow) {
@@ -1987,9 +2079,9 @@ function smartParseQuestions(rawText) {
           }
           essayList.push({
             id: qId,
-            noiDung: prompt,
+            noiDung: restoreMultilineFormatting(prompt),
             diem: itemDiem,
-            dapAn: essayAns
+            dapAn: restoreMultilineFormatting(essayAns)
           });
         }
       });
@@ -2004,9 +2096,9 @@ function smartParseQuestions(rawText) {
         const essayAns = (answerKeys && answerKeys.essayAnswers && answerKeys.essayAnswers[qId]) ? answerKeys.essayAnswers[qId] : "";
         essayList.push({
           id: qId,
-          noiDung: pText,
+          noiDung: restoreMultilineFormatting(pText),
           diem: p3DefaultDiem,
-          dapAn: essayAns
+          dapAn: restoreMultilineFormatting(essayAns)
         });
       });
     }
@@ -2189,14 +2281,14 @@ function renderEssayQuestionsEditor() {
       </div>
       <div style="margin-bottom: 0.5rem;">
         <label style="font-size: 0.78rem; font-weight: 700; color: #475569; display: block; margin-bottom: 0.2rem;">Nội dung đề bài tự luận ${eq.id}:</label>
-        <textarea class="form-textarea essay-content-input" data-index="${idx}" rows="2" placeholder="Nhập nội dung đề bài câu hỏi tự luận ${eq.id}..." style="font-size: 0.9rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 8px;">${escapeHtml(eq.noiDung || '')}</textarea>
+        <textarea class="form-textarea essay-content-input" data-index="${idx}" rows="3" placeholder="Nhập nội dung đề bài câu hỏi tự luận ${eq.id}..." style="font-size: 0.9rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 8px; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.noiDung || '')}</textarea>
       </div>
       <div style="margin-top: 0.5rem; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 8px; padding: 0.6rem 0.85rem;">
         <label style="font-size: 0.8rem; font-weight: 700; color: #065f46; display: flex; align-items: center; gap: 5px; margin-bottom: 0.25rem;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           <span>Đáp án đúng / Lời giải mẫu (hiện khi học sinh ôn tập, học bài):</span>
         </label>
-        <textarea class="form-textarea essay-answer-input" data-index="${idx}" rows="2" placeholder="Nhập đáp án chuẩn, gợi ý trả lời hoặc lời giải chi tiết cho câu tự luận ${eq.id}..." style="font-size: 0.88rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 6px; border: 1px solid #6ee7b7; color: #064e3b; font-weight: 500; line-height: 1.45;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</textarea>
+        <textarea class="form-textarea essay-answer-input" data-index="${idx}" rows="3" placeholder="Nhập đáp án chuẩn, gợi ý trả lời hoặc lời giải chi tiết cho câu tự luận ${eq.id}..." style="font-size: 0.88rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 6px; border: 1px solid #6ee7b7; color: #064e3b; font-weight: 500; line-height: 1.45; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</textarea>
       </div>
     `;
 
@@ -2221,10 +2313,19 @@ function renderEssayQuestionsEditor() {
       const idx = parseInt(e.target.dataset.index);
       if (parsedEssayQuestions[idx]) {
         parsedEssayQuestions[idx].noiDung = e.target.value;
+        const rightPreview = document.querySelector(`.q-essay-prompt[data-index="${idx}"]`);
+        if (rightPreview && rightPreview.innerText !== e.target.value) {
+          rightPreview.innerText = e.target.value;
+        }
       }
     });
-    tx.addEventListener("blur", () => {
-      renderQuestionsPreview(parsedQuestions);
+    tx.addEventListener("blur", (e) => {
+      const idx = parseInt(e.target.dataset.index);
+      if (parsedEssayQuestions[idx]) {
+        parsedEssayQuestions[idx].noiDung = restoreMultilineFormatting(e.target.value);
+        e.target.value = parsedEssayQuestions[idx].noiDung;
+        renderQuestionsPreview(parsedQuestions);
+      }
     });
   });
 
@@ -2234,6 +2335,17 @@ function renderEssayQuestionsEditor() {
       const idx = parseInt(e.target.dataset.index);
       if (parsedEssayQuestions[idx]) {
         parsedEssayQuestions[idx].dapAn = e.target.value;
+        const rightPreview = document.querySelector(`.q-essay-answer-editable[data-index="${idx}"]`);
+        if (rightPreview && rightPreview.innerText !== e.target.value) {
+          rightPreview.innerText = e.target.value;
+        }
+      }
+    });
+    tx.addEventListener("blur", (e) => {
+      const idx = parseInt(e.target.dataset.index);
+      if (parsedEssayQuestions[idx]) {
+        parsedEssayQuestions[idx].dapAn = restoreMultilineFormatting(e.target.value);
+        e.target.value = parsedEssayQuestions[idx].dapAn;
         const rightPreview = document.querySelector(`.q-essay-answer-editable[data-index="${idx}"]`);
         if (rightPreview && rightPreview.innerText !== e.target.value) {
           rightPreview.innerText = e.target.value;
@@ -2467,7 +2579,7 @@ function renderQuestionsPreview(questions) {
 
         <div style="margin-bottom: 0.5rem;">
           <div style="font-size: 0.78rem; font-weight: 700; color: #64748b; margin-bottom: 0.2rem;">Đề bài tự luận:</div>
-          <div class="q-prompt-editable q-essay-prompt" contenteditable="true" data-index="${eqIdx}" style="min-height: 48px; background: #ffffff; padding: 0.6rem 0.85rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+          <div class="q-prompt-editable q-essay-prompt" contenteditable="true" data-index="${eqIdx}" style="min-height: 48px; background: #ffffff; padding: 0.6rem 0.85rem; border-radius: 8px; border: 1px solid #e2e8f0; white-space: pre-wrap !important; word-break: break-word;">
             ${escapeHtml(eq.noiDung)}
           </div>
         </div>
@@ -2477,7 +2589,7 @@ function renderQuestionsPreview(questions) {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             <span>Đáp án câu tự luận đúng (Học sinh xem lại khi ôn tập):</span>
           </div>
-          <div class="q-essay-answer-editable" contenteditable="true" data-index="${eqIdx}" placeholder="Nhập đáp án chuẩn hoặc lời giải chi tiết..." style="min-height: 38px; background: #ffffff; padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #bbf7d0; font-size: 0.88rem; color: #166534; line-height: 1.45;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</div>
+          <div class="q-essay-answer-editable" contenteditable="true" data-index="${eqIdx}" placeholder="Nhập đáp án chuẩn hoặc lời giải chi tiết..." style="min-height: 38px; background: #ffffff; padding: 0.5rem 0.75rem; border-radius: 6px; border: 1px solid #bbf7d0; font-size: 0.88rem; color: #166534; line-height: 1.45; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</div>
         </div>
       `;
 
@@ -2511,8 +2623,8 @@ function createQuestionReviewCard(q, realIdx, type) {
       <button type="button" class="btn-delete-q" data-index="${realIdx}">Xóa câu này</button>
     </div>
 
-    <div class="q-prompt-editable" contenteditable="true" data-index="${realIdx}" data-field="noiDung">
-      ${q.noiDung}
+    <div class="q-prompt-editable" contenteditable="true" data-index="${realIdx}" data-field="noiDung" style="white-space: pre-wrap !important; word-break: break-word;">
+      ${escapeHtml(q.noiDung)}
     </div>
 
     ${isTf ? renderTfOptionsPreview(q, realIdx) : renderMcOptionsPreview(q, realIdx)}
@@ -2534,7 +2646,7 @@ function renderMcOptionsPreview(q, qIdx) {
       <div class="q-opt-item ${isCorrect ? 'is-correct' : ''}">
         <input type="radio" name="correct_mc_${qIdx}" value="${opt.key}" ${isCorrect ? 'checked' : ''} class="q-opt-radio" data-qidx="${qIdx}">
         <strong>${opt.key}.</strong>
-        <div class="q-opt-text" contenteditable="true" data-qidx="${qIdx}" data-optkey="${opt.key}">${opt.noiDung}</div>
+        <div class="q-opt-text" contenteditable="true" data-qidx="${qIdx}" data-optkey="${opt.key}" style="white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(opt.noiDung)}</div>
       </div>
     `;
   });
@@ -2557,7 +2669,7 @@ function renderTfOptionsPreview(q, qIdx) {
       <tr class="q-tf-row">
         <td class="q-tf-key">${sub.key})</td>
         <td>
-          <div class="q-tf-text" contenteditable="true" data-qidx="${qIdx}" data-subidx="${sIdx}">${sub.noiDung}</div>
+          <div class="q-tf-text" contenteditable="true" data-qidx="${qIdx}" data-subidx="${sIdx}" style="white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(sub.noiDung)}</div>
         </td>
         <td class="q-tf-toggle">
           <button type="button" class="tf-pill-btn ${isTrue ? 'true' : 'false'}" data-qidx="${qIdx}" data-subidx="${sIdx}">
@@ -2647,36 +2759,60 @@ function attachPreviewEvents() {
 
   // 1. Sửa nội dung câu hỏi trắc nghiệm
   document.querySelectorAll(".q-prompt-editable:not(.q-essay-prompt)").forEach(el => {
+    el.addEventListener("input", (e) => {
+      const idx = parseInt(e.target.dataset.index);
+      if (parsedQuestions && parsedQuestions[idx]) {
+        parsedQuestions[idx].noiDung = extractCleanMultilineText(e.target);
+      }
+    });
     el.addEventListener("blur", (e) => {
       const idx = parseInt(e.target.dataset.index);
-      if (parsedQuestions[idx]) {
-        parsedQuestions[idx].noiDung = e.target.innerText.trim();
+      if (parsedQuestions && parsedQuestions[idx]) {
+        parsedQuestions[idx].noiDung = extractCleanMultilineText(e.target);
       }
     });
   });
 
   // 1.1 Sửa nội dung câu hỏi tự luận trên bản xem trước
   document.querySelectorAll(".q-essay-prompt").forEach(el => {
+    el.addEventListener("input", (e) => {
+      const eqIdx = parseInt(e.target.dataset.index);
+      if (parsedEssayQuestions && parsedEssayQuestions[eqIdx]) {
+        const cleanVal = extractCleanMultilineText(e.target);
+        parsedEssayQuestions[eqIdx].noiDung = cleanVal;
+        const leftTx = document.querySelector(`.essay-content-input[data-index="${eqIdx}"]`);
+        if (leftTx && leftTx.value !== cleanVal) leftTx.value = cleanVal;
+      }
+    });
     el.addEventListener("blur", (e) => {
       const eqIdx = parseInt(e.target.dataset.index);
-      if (parsedEssayQuestions[eqIdx]) {
-        parsedEssayQuestions[eqIdx].noiDung = e.target.innerText.trim();
-        // Đồng bộ sang editor bên trái
+      if (parsedEssayQuestions && parsedEssayQuestions[eqIdx]) {
+        const cleanVal = extractCleanMultilineText(e.target);
+        parsedEssayQuestions[eqIdx].noiDung = cleanVal;
         const leftTx = document.querySelector(`.essay-content-input[data-index="${eqIdx}"]`);
-        if (leftTx) leftTx.value = parsedEssayQuestions[eqIdx].noiDung;
+        if (leftTx && leftTx.value !== cleanVal) leftTx.value = cleanVal;
       }
     });
   });
 
   // 1.2 Sửa đáp án câu hỏi tự luận trên bản xem trước
   document.querySelectorAll(".q-essay-answer-editable").forEach(el => {
+    el.addEventListener("input", (e) => {
+      const eqIdx = parseInt(e.target.dataset.index);
+      if (parsedEssayQuestions && parsedEssayQuestions[eqIdx]) {
+        const cleanVal = extractCleanMultilineText(e.target);
+        parsedEssayQuestions[eqIdx].dapAn = cleanVal;
+        const leftTx = document.querySelector(`.essay-answer-input[data-index="${eqIdx}"]`);
+        if (leftTx && leftTx.value !== cleanVal) leftTx.value = cleanVal;
+      }
+    });
     el.addEventListener("blur", (e) => {
       const eqIdx = parseInt(e.target.dataset.index);
-      if (parsedEssayQuestions[eqIdx]) {
-        parsedEssayQuestions[eqIdx].dapAn = e.target.innerText.trim();
-        // Đồng bộ sang editor bên trái
+      if (parsedEssayQuestions && parsedEssayQuestions[eqIdx]) {
+        const cleanVal = extractCleanMultilineText(e.target);
+        parsedEssayQuestions[eqIdx].dapAn = cleanVal;
         const leftTx = document.querySelector(`.essay-answer-input[data-index="${eqIdx}"]`);
-        if (leftTx) leftTx.value = parsedEssayQuestions[eqIdx].dapAn;
+        if (leftTx && leftTx.value !== cleanVal) leftTx.value = cleanVal;
       }
     });
   });
@@ -2697,13 +2833,22 @@ function attachPreviewEvents() {
 
   // 3. Sửa nội dung các lựa chọn A/B/C/D
   document.querySelectorAll(".q-opt-text").forEach(el => {
+    el.addEventListener("input", (e) => {
+      const qIdx = parseInt(e.target.dataset.qidx);
+      const optKey = e.target.dataset.optkey;
+      const q = parsedQuestions ? parsedQuestions[qIdx] : null;
+      if (q && q.luaChon) {
+        const found = q.luaChon.find(o => o.key === optKey);
+        if (found) found.noiDung = extractCleanMultilineText(e.target);
+      }
+    });
     el.addEventListener("blur", (e) => {
       const qIdx = parseInt(e.target.dataset.qidx);
       const optKey = e.target.dataset.optkey;
-      const q = parsedQuestions[qIdx];
+      const q = parsedQuestions ? parsedQuestions[qIdx] : null;
       if (q && q.luaChon) {
         const found = q.luaChon.find(o => o.key === optKey);
-        if (found) found.noiDung = e.target.innerText.trim();
+        if (found) found.noiDung = extractCleanMultilineText(e.target);
       }
     });
   });
@@ -2725,12 +2870,20 @@ function attachPreviewEvents() {
 
   // 5. Sửa nội dung mệnh đề Đúng/Sai
   document.querySelectorAll(".q-tf-text").forEach(el => {
+    el.addEventListener("input", (e) => {
+      const qIdx = parseInt(e.target.dataset.qidx);
+      const sIdx = parseInt(e.target.dataset.subidx);
+      const q = parsedQuestions ? parsedQuestions[qIdx] : null;
+      if (q && q.y && q.y[sIdx]) {
+        q.y[sIdx].noiDung = extractCleanMultilineText(e.target);
+      }
+    });
     el.addEventListener("blur", (e) => {
       const qIdx = parseInt(e.target.dataset.qidx);
       const sIdx = parseInt(e.target.dataset.subidx);
-      const q = parsedQuestions[qIdx];
+      const q = parsedQuestions ? parsedQuestions[qIdx] : null;
       if (q && q.y && q.y[sIdx]) {
-        q.y[sIdx].noiDung = e.target.innerText.trim();
+        q.y[sIdx].noiDung = extractCleanMultilineText(e.target);
       }
     });
   });
@@ -3059,6 +3212,11 @@ function saveCachedExams(exams) {
 const btnSaveExam = document.getElementById("btnSaveExam");
 
 btnSaveExam.addEventListener("click", async () => {
+  // Đồng bộ toàn bộ nội dung người dùng vừa sửa/nhập từ bản xem trước vào state
+  if (typeof syncAllPreviewInputsToState === "function") {
+    syncAllPreviewInputsToState();
+  }
+
   const tenKyThi = document.getElementById("examTitle").value.trim();
   const thoiGian = parseInt(document.getElementById("examDuration").value) || 45;
   const isOpening = document.getElementById("examStatusToggle").checked;
@@ -3361,10 +3519,16 @@ function openExamForEditing(maDe) {
   if (Array.isArray(tuLuan.danhSachCauHoi) && tuLuan.danhSachCauHoi.length > 0) {
     parsedEssayQuestions = JSON.parse(JSON.stringify(tuLuan.danhSachCauHoi)).map(eq => ({
       ...eq,
-      dapAn: eq.dapAn || eq.dapAnDung || ""
+      noiDung: restoreMultilineFormatting(eq.noiDung || ""),
+      dapAn: restoreMultilineFormatting(eq.dapAn || eq.dapAnDung || "")
     }));
   } else if (tuLuan.noiDung && String(tuLuan.noiDung).trim().length > 0) {
-    parsedEssayQuestions = [{ id: 1, noiDung: tuLuan.noiDung, diem: 1, dapAn: tuLuan.dapAn || tuLuan.dapAnDung || "" }];
+    parsedEssayQuestions = [{
+      id: 1,
+      noiDung: restoreMultilineFormatting(tuLuan.noiDung),
+      diem: 1,
+      dapAn: restoreMultilineFormatting(tuLuan.dapAn || tuLuan.dapAnDung || "")
+    }];
   } else {
     parsedEssayQuestions = [];
   }
@@ -3398,8 +3562,21 @@ function openExamForEditing(maDe) {
     updateAntiCheatHint();
   }
 
-  // 6. Tải danh sách câu hỏi trắc nghiệm vào trình chỉnh sửa
-  parsedQuestions = JSON.parse(JSON.stringify(exam.duLieuDe?.cauHoi || []));
+  // 6. Tải danh sách câu hỏi trắc nghiệm vào trình chỉnh sửa (phục hồi xuống dòng sạch sẽ)
+  parsedQuestions = JSON.parse(JSON.stringify(exam.duLieuDe?.cauHoi || [])).map(q => {
+    if (q.noiDung) q.noiDung = restoreMultilineFormatting(q.noiDung);
+    if (Array.isArray(q.luaChon)) {
+      q.luaChon.forEach(opt => {
+        if (opt.noiDung) opt.noiDung = restoreMultilineFormatting(opt.noiDung);
+      });
+    }
+    if (Array.isArray(q.y)) {
+      q.y.forEach(sub => {
+        if (sub.noiDung) sub.noiDung = restoreMultilineFormatting(sub.noiDung);
+      });
+    }
+    return q;
+  });
   renderQuestionsPreview(parsedQuestions);
 
   // 7. Cập nhật nút bấm thành Cập nhật
@@ -3561,8 +3738,8 @@ function previewExamModal(maDe) {
             </div>
             <span style="font-size: 0.82rem; font-weight: 800; color: #1d4ed8; background: #eff6ff; border: 1.5px solid #bfdbfe; padding: 0.2rem 0.65rem; border-radius: 6px;">${qDiem} đ</span>
           </div>
-          <div style="font-size: 1rem; font-weight: 700; color: #0f172a; line-height: 1.55; margin-bottom: 0.85rem;">
-            ${q.noiDung}
+          <div style="font-size: 1rem; font-weight: 700; color: #0f172a; line-height: 1.55; margin-bottom: 0.85rem; white-space: pre-wrap !important; word-break: break-word;">
+            ${escapeHtml(restoreMultilineFormatting(q.noiDung))}
           </div>
           <table style="width: 100%; font-size: 0.9rem; border-collapse: collapse; border: 1.5px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
             <thead>
@@ -3576,7 +3753,7 @@ function previewExamModal(maDe) {
               ${(q.y || []).map(y => `
                 <tr style="border-bottom: 1px solid #e2e8f0;">
                   <td style="padding: 0.65rem 0.75rem; text-align: center; font-weight: 800; color: #1d4ed8;">${y.key})</td>
-                  <td style="padding: 0.65rem 0.75rem; color: #0f172a; font-weight: 600; line-height: 1.45;">${y.noiDung}</td>
+                  <td style="padding: 0.65rem 0.75rem; color: #0f172a; font-weight: 600; line-height: 1.45; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(restoreMultilineFormatting(y.noiDung))}</td>
                   <td style="padding: 0.65rem 0.75rem; text-align: center;">
                     <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 800; font-size: 0.84rem; ${y.dung ? 'background: #dcfce7; border: 1.5px solid #16a34a; color: #15803d;' : 'background: #fee2e2; border: 1.5px solid #ef4444; color: #b91c1c;'}">
                       ${y.dung ? '✔ Đúng' : '✘ Sai'}
@@ -3589,15 +3766,15 @@ function previewExamModal(maDe) {
         `;
       } else {
         qDiv.innerHTML = `
-          <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: gap; gap: 0.5rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span style="background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; font-size: 0.78rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 6px;">4 LỰA CHỌN</span>
               <strong style="color: #0f172a; font-size: 1.05rem; font-weight: 800;">Câu ${idx + 1}</strong>
             </div>
             <span style="font-size: 0.82rem; font-weight: 800; color: #1d4ed8; background: #eff6ff; border: 1.5px solid #bfdbfe; padding: 0.2rem 0.65rem; border-radius: 6px;">${qDiem} đ</span>
           </div>
-          <div style="font-size: 1rem; font-weight: 700; color: #0f172a; line-height: 1.55; margin-bottom: 0.85rem;">
-            ${q.noiDung}
+          <div style="font-size: 1rem; font-weight: 700; color: #0f172a; line-height: 1.55; margin-bottom: 0.85rem; white-space: pre-wrap !important; word-break: break-word;">
+            ${escapeHtml(restoreMultilineFormatting(q.noiDung))}
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.65rem;">
             ${(q.luaChon || []).map(opt => {
@@ -3605,7 +3782,7 @@ function previewExamModal(maDe) {
               return `
                 <div style="padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.95rem; line-height: 1.45; display: flex; align-items: flex-start; gap: 0.65rem; ${isCorrect ? 'background: #ecfdf5; border: 2px solid #059669; color: #065f46; font-weight: 700;' : 'background: #f8fafc; border: 1.5px solid #cbd5e1; color: #0f172a; font-weight: 600;'}">
                   <strong style="color: ${isCorrect ? '#059669' : '#1d4ed8'}; font-size: 1rem;">${opt.key}.</strong> 
-                  <span style="flex: 1;">${opt.noiDung}</span>
+                  <span style="flex: 1; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(restoreMultilineFormatting(opt.noiDung))}</span>
                   ${isCorrect ? '<span style="margin-left: auto; background: #059669; color: #ffffff; font-size: 0.72rem; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 4px; white-space: nowrap;">★ ĐÁP ÁN ĐÚNG</span>' : ''}
                 </div>
               `;
@@ -3640,8 +3817,8 @@ function previewExamModal(maDe) {
               <strong style="color: #7e22ce; font-size: 0.95rem;">Câu ${eqIdx + 1} (Tự luận)</strong>
               <span style="font-size: 0.82rem; font-weight: 800; color: #7e22ce; background: #f3e8ff; border: 1px solid #d8b4fe; padding: 0.15rem 0.55rem; border-radius: 6px;">${eq.diem !== undefined ? eq.diem : 1} đ</span>
             </div>
-            <p style="font-size: 0.93rem; color: #0f172a; font-weight: 600; line-height: 1.55; margin: 0;">${eq.noiDung || ''}</p>
-            ${eq.dapAn ? `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #059669; background: #ecfdf5; padding: 0.4rem 0.6rem; border-radius: 6px;"><strong>Đáp án mẫu:</strong> ${eq.dapAn}</div>` : ''}
+            <p style="font-size: 0.93rem; color: #0f172a; font-weight: 600; line-height: 1.55; margin: 0; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(restoreMultilineFormatting(eq.noiDung || ''))}</p>
+            ${eq.dapAn ? `<div style="margin-top: 0.5rem; font-size: 0.85rem; color: #059669; background: #ecfdf5; padding: 0.4rem 0.6rem; border-radius: 6px; white-space: pre-wrap !important; word-break: break-word;"><strong>Đáp án mẫu:</strong> ${escapeHtml(restoreMultilineFormatting(eq.dapAn))}</div>` : ''}
           </div>
         `;
       });

@@ -948,11 +948,23 @@ input:checked + .slider:before { transform: translateX(22px); }
   border-radius: 6px;
   background: #f8fafc;
   transition: all var(--transition-fast);
+  white-space: pre-wrap !important;
+  word-break: break-word;
 }
 .q-prompt-editable:focus {
   border-color: #2563eb;
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.q-essay-prompt,
+.q-essay-answer-editable,
+.q-opt-text,
+.q-tf-text,
+.essay-content-input,
+.essay-answer-input {
+  white-space: pre-wrap !important;
+  word-break: break-word;
 }
 
 /* MCQ Options list (Lưới 2 cột rộng rãi thoáng đãng) */

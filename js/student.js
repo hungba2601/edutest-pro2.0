@@ -2318,7 +2318,7 @@ function openExamReviewModal() {
           </div>
           <span class="review-badge-status" style="background: #f0fdf4; color: #047857; border: 1px solid #a7f3d0;">📝 Tự luận - Chờ GV chấm</span>
         </div>
-        <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; line-height: 1.5;">${escapeHtml(item.noiDung || "Chưa có đề bài.")}</div>
+        <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; line-height: 1.5; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(item.noiDung || "Chưa có đề bài.")}</div>
         <div style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 0.35rem;">✍️ Bài làm của bạn:</div>
         <div class="review-essay-student-ans">
           ${studentAnsText ? escapeHtml(studentAnsText) : '<em style="color: #94a3b8;">(Thí sinh chưa nhập câu trả lời cho câu hỏi này)</em>'}
@@ -2499,7 +2499,7 @@ function renderReviewQuestionCard(q, detailedList, container) {
       </div>
       ${statusBadgeHtml}
     </div>
-    <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; line-height: 1.5;">${q.noiDung}</div>
+    <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.5rem; line-height: 1.5; white-space: pre-wrap !important; word-break: break-word;">${q.noiDung}</div>
     ${qBodyHtml}
   `;
 

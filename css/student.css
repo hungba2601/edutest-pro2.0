@@ -611,6 +611,8 @@ body {
   line-height: 1.55;
   color: #0f172a;
   margin-bottom: 1.25rem;
+  white-space: pre-wrap !important;
+  word-break: break-word;
 }
 
 /* 4-OPTIONS CHOICE GROUP */
