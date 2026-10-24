@@ -572,9 +572,6 @@ function renderExamList(availableExams) {
           ${isAllowScore 
             ? `<span class="badge-score-tag allowed" title="Cho phép học sinh xem điểm số ngay sau khi nộp bài"><i class="fas fa-check-circle"></i> Cho xem điểm</span>`
             : `<span class="badge-score-tag locked" title="Khóa xem điểm - Điểm số được bảo mật, Giáo viên sẽ công bố sau"><i class="fas fa-lock"></i> Khóa xem điểm</span>`}
-          ${essayCount > 0 
-            ? `<span class="badge-essay-tag" title="Đề thi có ${essayCount} câu hỏi tự luận"><i class="fas fa-pen-nib"></i> ${essayCount} câu tự luận</span>` 
-            : (hasGoogleForm ? `<span class="badge-essay-tag" title="Đề thi có kèm liên kết Google Form tự luận"><i class="fas fa-external-link-alt"></i> Form tự luận</span>` : '')}
         </div>
         <span class="exam-card-code">${exam.maDe}</span>
       </div>
