@@ -1020,6 +1020,20 @@ function isSameTeacherAccount(acc1, acc2) {
   return false;
 }
 
+function isSameStudentAccount(acc1, acc2) {
+  if (!acc1 || !acc2) return false;
+  var s1 = String(acc1 || "").trim().toLowerCase();
+  var s2 = String(acc2 || "").trim().toLowerCase();
+  if (s1 === s2) return true;
+  if (s1.startsWith("'")) s1 = s1.substring(1).trim();
+  if (s2.startsWith("'")) s2 = s2.substring(1).trim();
+  if (s1 === s2) return true;
+  var clean1 = s1.replace(/^0+/, "");
+  var clean2 = s2.replace(/^0+/, "");
+  if (clean1 && clean2 && clean1 === clean2) return true;
+  return false;
+}
+
 function isAdminAccount(username) {
   var s = String(username || "").trim().toLowerCase();
   var clean = s.replace(/^0+/, "");
@@ -1671,14 +1685,20 @@ function handleGetStudentExams(payload) {
       // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
       // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
       for (let r = 1; r < kqData.length; r++) {
-        const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+        const rHs = String(kqData[r][0] || "").trim();
         const rMaDe = String(kqData[r][7] || "").trim();
-        if (rHs === usernameHS.toUpperCase() && rMaDe) {
+        if (rMaDe && isSameStudentAccount(rHs, usernameHS)) {
+          const rawDiem = kqData[r][9];
+          let numDiem = null;
+          if (rawDiem !== "" && rawDiem !== null && rawDiem !== undefined) {
+            const parsed = parseFloat(String(rawDiem).replace(",", "."));
+            if (!isNaN(parsed)) numDiem = Math.round(parsed * 100) / 100;
+          }
           submittedExamsMap[rMaDe] = {
             daLam: true,
-            diemTong: kqData[r][9],
-            soCauDungSai: kqData[r][10],
-            thoiGianNop: kqData[r][11]
+            diemTong: (numDiem !== null ? numDiem : rawDiem),
+            soCauDungSai: String(kqData[r][10] || ""),
+            thoiGianNop: formatDateValue(kqData[r][11])
           };
         }
       }
@@ -2033,11 +2053,11 @@ function handleSubmitExam(payload) {
   let existingKqRowIndex = -1;
   const kqData = sheetKetQua.getDataRange().getValues();
   for (let r = 1; r < kqData.length; r++) {
-    const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+    const rHs = String(kqData[r][0] || "").trim();
     const rMaDe = String(kqData[r][7] || "").trim();
-    if (rHs === usernameHS.toUpperCase() && rMaDe === maDe) {
+    if (rMaDe === maDe && isSameStudentAccount(rHs, usernameHS)) {
       existingKqRowIndex = r;
-      break;
+      if (!choXemLaiBai) break; // Thi chính thức dừng ở dòng đầu tiên, Ôn tập tiếp tục để lấy dòng nộp cuối cùng
     }
   }
 

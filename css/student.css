@@ -405,12 +405,25 @@ body {
   gap: 0.75rem;
 }
 .exam-active-tag {
-  background: #fee2e2;
-  color: #dc2626;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.3rem 0.75rem;
   border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.exam-active-tag.review-mode {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1.5px solid #86efac !important;
+}
+.exam-active-tag.exam-mode {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  border: 1.5px solid #fca5a5 !important;
 }
 .exam-active-title {
   font-size: 1.1rem;

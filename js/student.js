@@ -434,6 +434,23 @@ function getExamEssayCount(exam) {
   return 0;
 }
 
+function formatSubmitTimeDisplay(timeStr) {
+  if (!timeStr) return "";
+  try {
+    const d = new Date(timeStr);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const seconds = String(d.getSeconds()).padStart(2, '0');
+      return `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
+    }
+  } catch (e) {}
+  return String(timeStr);
+}
+
 function renderExamList(availableExams) {
   const grid = document.getElementById("studentExamsGrid");
   if (!grid) return;
@@ -461,7 +478,8 @@ function renderExamList(availableExams) {
     const hasGoogleForm = !!(exam.tuLuan && exam.tuLuan.linkForm);
     const isAllowReview = (exam.choXemLaiBai !== false);
     const isAllowScore = (exam.choXemDiem !== false);
-    const hasDone = !!exam.daLam;
+    const hasDone = !!(exam.daLam || (exam.diemCu !== null && exam.diemCu !== undefined));
+    const formattedSubmitTime = formatSubmitTimeDisplay(exam.thoiGianNopCu);
 
     // Thiết kế trạng thái hiển thị theo loại kỳ thi
     let statusBadgeHtml = "";
@@ -471,13 +489,17 @@ function renderExamList(availableExams) {
     if (!isAllowReview) {
       // 1. THI / KIỂM TRA CHÍNH THỨC: CHỈ LÀM 1 LẦN
       if (hasDone) {
-        statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 700;">🚫 ĐÃ LÀM BÀI (KHÓA LÀM LẠI)</span>`;
+        statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; font-weight: 800;">🚫 ĐÃ THI (KHÓA LÀM LẠI)</span>`;
         noticeAlertHtml = `
-          <div style="margin-top: 0.75rem; padding: 0.65rem 0.85rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem; line-height: 1.45;">
+          <div style="margin-top: 0.75rem; padding: 0.75rem 0.95rem; background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 10px; color: #9f1239; font-size: 0.85rem; line-height: 1.5;">
             ⚠️ <strong>Bạn đã hoàn thành bài thi này!</strong><br>
             Kỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để ghi nhận điểm vào bảng điểm. Bạn không thể làm lại.
-            ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `<br>📊 Điểm trắc nghiệm đã ghi nhận: <strong style="color: #dc2626; font-size: 0.95rem;">${exam.diemCu} điểm</strong>` : ''}
-            ${exam.thoiGianNopCu ? `<br>⏱ Thời gian nộp: <strong>${exam.thoiGianNopCu}</strong>` : ''}
+            ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
+              <div style="margin-top: 0.4rem; padding: 0.45rem 0.65rem; background: #ffffff; border-radius: 8px; border: 1px solid #fda4af;">
+                📊 <strong>Điểm trắc nghiệm đã ghi nhận:</strong> <span style="color: #dc2626; font-size: 1.15rem; font-weight: 800;">${exam.diemCu} điểm</span>
+                ${formattedSubmitTime ? `<div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">⏱ Thời gian nộp: <b>${formattedSubmitTime}</b></div>` : ''}
+              </div>
+            ` : ''}
           </div>
         `;
         actionBtnHtml = `
@@ -496,19 +518,36 @@ function renderExamList(availableExams) {
         `;
       }
     } else {
-      // 2. ÔN TẬP / LUYỆN TẬP: LÀM NHIỀU LẦN (GHI NHẬN LẦN CUỐI CÙNG)
+      // 2. ÔN TẬP / LUYỆN TẬP: LÀM NHIỀU LẦN (HIỆN ĐIỂM LẦN CUỐI CÙNG TRÊN GOOGLE SHEETS)
       if (hasDone) {
-        statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; font-weight: 700;">🔄 ĐÃ LÀM (LUYỆN TẬP TIẾP ĐƯỢC)</span>`;
+        const hasScore = (exam.diemCu !== null && exam.diemCu !== undefined);
+        const scoreBadgeText = hasScore ? `: ${exam.diemCu}đ` : "";
+
+        statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; font-weight: 800;">🔄 ĐÃ ÔN LUYỆN${scoreBadgeText}</span>`;
         noticeAlertHtml = `
-          <div style="margin-top: 0.75rem; padding: 0.55rem 0.85rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; color: #166534; font-size: 0.82rem; line-height: 1.45;">
-            📖 <strong>Chế độ Ôn tập:</strong> Bạn được làm bài nhiều lần để rèn luyện. Kết quả nộp bài sẽ <strong>ghi nhận lần làm cuối cùng</strong>.
-            ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `<br>📊 Điểm lần nộp gần nhất: <strong style="color: #15803d; font-size: 0.95rem;">${exam.diemCu} điểm</strong>` : ''}
+          <div style="margin-top: 0.75rem; padding: 0.75rem 0.95rem; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 10px; color: #065f46; font-size: 0.85rem; line-height: 1.5;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.35rem; flex-wrap: wrap;">
+              <span style="font-weight: 800; color: #047857; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Bạn đã làm bài ôn tập này
+              </span>
+              <span style="font-size: 0.75rem; background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 999px; font-weight: 700; border: 1px solid #6ee7b7;">Được luyện tập lại</span>
+            </div>
+            ${hasScore ? `
+              <div style="padding: 0.45rem 0.65rem; background: #ffffff; border-radius: 8px; border: 1px solid #bbf7d0; margin-top: 0.35rem;">
+                📊 <strong>Điểm lưu trên hệ thống (Lần nộp cuối):</strong> <span style="color: #059669; font-size: 1.15rem; font-weight: 800;">${exam.diemCu} điểm</span>
+                ${formattedSubmitTime ? `<div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">⏱ Thời gian nộp lần gần nhất: <b>${formattedSubmitTime}</b></div>` : ''}
+              </div>
+            ` : ''}
+            <div style="font-size: 0.78rem; color: #047857; margin-top: 0.4rem; font-style: italic;">
+              💡 Đây là bài Ôn tập (cho phép làm nhiều lần). Bạn có thể bấm nút bên dưới để luyện tập tiếp, điểm số lần nộp cuối cùng sẽ tự động cập nhật lên hệ thống!
+            </div>
           </div>
         `;
         actionBtnHtml = `
           <button type="button" class="btn-start-exam" data-index="${idx}" style="background: linear-gradient(135deg, #059669, #047857);">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-            <span>Luyện Tập Lại (Ghi nhận lần cuối)</span>
+            <span>Tiếp Tục Ôn Luyện (Làm Lại)</span>
           </button>
         `;
       } else {
@@ -927,6 +966,17 @@ function proceedIntoExamRoom(exam, isProctoring = false) {
   scrollToTopExam();
 
   // Cập nhật thông tin phòng thi
+  const isAllowReview = (exam.choXemLaiBai !== false);
+  const activeTag = document.getElementById("roomExamActiveTag") || document.querySelector(".exam-active-tag");
+  if (activeTag) {
+    if (isAllowReview) {
+      activeTag.className = "exam-active-tag review-mode";
+      activeTag.innerHTML = `🟢 Đang ôn luyện`;
+    } else {
+      activeTag.className = "exam-active-tag exam-mode";
+      activeTag.innerHTML = `🔴 Đang thi`;
+    }
+  }
   document.getElementById("roomExamTitle").textContent = exam.tenKyThi;
   document.getElementById("roomExamCode").textContent = exam.maDe;
 
