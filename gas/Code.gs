@@ -2042,12 +2042,35 @@ function handleSubmitExam(payload) {
   }
 
   // QUY TẮC 1: ĐỐI VỚI THI / KIỂM TRA CHÍNH THỨC (Khóa xem bài)
-  // Học sinh CHỈ ĐƯỢC LÀM 1 LẦN DUY NHẤT. Nếu đã có kết quả thì KHÔNG cho làm lại!
+  // Nếu học sinh đã có kết quả trong DATA_KETQUA (do mạng chậm/bấm nộp lại),
+  // trả về thành công kèm đúng điểm số đã ghi nhận để học sinh thấy màn hình kết quả!
   if (!choXemLaiBai && existingKqRowIndex !== -1) {
+    const existingRow = kqData[existingKqRowIndex];
+    let parsedDetail = {};
+    try {
+      parsedDetail = JSON.parse(existingRow[12] || "{}");
+    } catch (e) {}
+
+    const choXemDiem = (originalExamData.choXemDiem !== false);
+
     return createJsonResponse({
-      success: false,
+      success: true,
       daLamRoi: true,
-      message: "Bạn đã hoàn thành bài kiểm tra chính thức này rồi! Kỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để bảo đảm tính công bằng."
+      daGhiNhan: true,
+      message: "Bài thi của bạn đã được hệ thống ghi nhận thành công trước đó!",
+      diemTong: existingRow[9],
+      diemTracNghiem: existingRow[9],
+      tongDiemTracNghiem: tongDiemTracNghiem,
+      soCauDung: correctCount,
+      tongSoCau: questions.length,
+      soCauDungSai: String(existingRow[10] || soCauDungSaiText),
+      thoiGianNop: existingRow[11] || thoiGianNop,
+      choXemLaiBai: false,
+      choXemDiem: choXemDiem,
+      chiTietKetQua: [],
+      baiLamTuLuan: (parsedDetail && parsedDetail.tuLuan) ? parsedDetail.tuLuan : essayDetailsForStudent,
+      danhSachCauHoiTuLuan: [],
+      linkTuLuan: (originalExamData.tuLuan && originalExamData.tuLuan.linkForm) ? originalExamData.tuLuan.linkForm : ""
     });
   }
 

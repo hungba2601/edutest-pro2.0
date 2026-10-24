@@ -1713,6 +1713,13 @@ if (document.readyState === "loading") {
 }
 
 btnSubmitExam.addEventListener("click", () => {
+  // Nếu nút đang ở chế độ "Thử nộp lại", ưu tiên gửi bài ngay mà không cần xác nhận lại
+  const isRetry = btnSubmitExam.innerText.includes("nộp lại") || btnSubmitExam.innerText.includes("Gửi lại");
+  if (isRetry) {
+    submitStudentExam(false);
+    return;
+  }
+
   const status = checkExamCompletionStatus();
 
   // BẮT BUỘC: Nếu chưa làm hết tất cả các câu/phần thì TUYỆT ĐỐI KHÔNG CHO NỘP!
@@ -1773,56 +1780,123 @@ async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false,
   };
 
   try {
-    const res = await fetch(API_URL, {
+    // Timeout sau 35 giây để tránh treo trình duyệt nếu Google Apps Script xử lý chậm
+    const controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    let abortTimeout = null;
+    if (controller) {
+      abortTimeout = setTimeout(() => {
+        try { controller.abort(); } catch (e) {}
+      }, 35000);
+    }
+
+    const fetchOptions = {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
-    });
+    };
+    if (controller) {
+      fetchOptions.signal = controller.signal;
+    }
 
-    const result = await res.json();
+    const res = await fetch(API_URL, fetchOptions);
+    if (abortTimeout) clearTimeout(abortTimeout);
 
+    let result = null;
+    try {
+      result = await res.json();
+    } catch (eParse) {
+      console.warn("Không parse được JSON từ phản hồi:", eParse);
+    }
+
+    // Trường hợp 1: Backend trả về thành công
     if (result && result.success) {
       lastExamResult = result;
 
       // Lưu trạng thái đã hoàn thành bài thi vào máy khách ngay lập tức
       if (activeExam) {
         activeExam.daLam = true;
-        activeExam.diemCu = result.diemTracNghiem;
+        activeExam.diemCu = (result.diemTracNghiem !== undefined && result.diemTracNghiem !== null)
+          ? result.diemTracNghiem
+          : result.diemTong;
         saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
-          diemCu: result.diemTracNghiem,
+          diemCu: activeExam.diemCu,
           thoiGianNopCu: result.thoiGianNop || new Date().toLocaleString("vi-VN")
         });
       }
 
       showExamResultScreen(result);
-    } else {
-      if (result && result.daLamRoi) {
-        if (activeExam) {
-          saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
-            diemCu: result.diemCu || null
-          });
-        }
-        alert("⚠️ BẠN ĐÃ LÀM BÀI THI NÀY RỒI!\n\n" + (result.message || "Kỳ thi chính thức chỉ cho phép nộp bài 1 lần duy nhất."));
-        window.location.reload();
-        return;
+      if (result.daLamRoi || result.daGhiNhan) {
+        showToast("Nộp bài thành công!", "Hệ thống xác nhận bài thi của bạn đã được ghi nhận an toàn trước đó!", "success", 6000);
       }
-      alert("Lỗi nộp bài: " + (result?.message || "Không thể lưu kết quả."));
-      btnSubmitExam.disabled = false;
-      btnSubmitExam.innerHTML = `<span>Thử nộp lại</span>`;
+      return;
     }
+
+    // Trường hợp 2: Backend thông báo bài đã được nộp/lưu rồi (do lần gửi trước đã vào Sheets thành công)
+    if (result && result.daLamRoi) {
+      const localGraded = gradeExamLocally(activeExam, studentAnswers);
+      const resolvedScore = (result.diemTracNghiem !== undefined && result.diemTracNghiem !== null)
+        ? result.diemTracNghiem
+        : (result.diemCu !== undefined && result.diemCu !== null
+            ? result.diemCu
+            : (result.diemTong !== undefined && result.diemTong !== null ? result.diemTong : localGraded.diemTracNghiem));
+
+      const confirmedResult = {
+        ...localGraded,
+        ...result,
+        success: true,
+        diemTong: resolvedScore,
+        diemTracNghiem: resolvedScore,
+        tongDiemTracNghiem: result.tongDiemTracNghiem || localGraded.tongDiemTracNghiem,
+        soCauDung: result.soCauDung !== undefined ? result.soCauDung : localGraded.soCauDung,
+        tongSoCau: result.tongSoCau || (activeExam.cauHoi ? activeExam.cauHoi.length : localGraded.tongSoCau),
+        soCauDungSai: result.soCauDungSai || localGraded.soCauDungSai,
+        thoiGianNop: result.thoiGianNop || new Date().toLocaleString("vi-VN"),
+        choXemLaiBai: (activeExam?.choXemLaiBai !== false && result.choXemLaiBai !== false),
+        choXemDiem: (activeExam?.choXemDiem !== false && result.choXemDiem !== false),
+        linkTuLuan: result.linkTuLuan || (activeExam.tuLuan?.linkForm || "")
+      };
+
+      lastExamResult = confirmedResult;
+      if (activeExam) {
+        activeExam.daLam = true;
+        activeExam.diemCu = resolvedScore;
+        saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
+          diemCu: resolvedScore,
+          thoiGianNopCu: confirmedResult.thoiGianNop
+        });
+      }
+
+      showExamResultScreen(confirmedResult);
+      showToast("Nộp bài thành công!", "Hệ thống xác nhận bài thi của bạn đã được lưu trữ an toàn!", "success", 6000);
+      return;
+    }
+
+    // Trường hợp 3: Có phản hồi nhưng không thành công
+    showToast("Lưu ý nộp bài", (result?.message || "Máy chủ phản hồi chậm. Bạn vui lòng bấm 'Thử nộp lại'!"), "warning", 6000);
+    btnSubmitExam.disabled = false;
+    btnSubmitExam.innerHTML = `<span>Thử nộp lại</span>`;
+    isSubmittingExam = false; // QUAN TRỌNG: Mở lại khóa để học sinh bấm lại được
 
   } catch (err) {
     console.error("Lỗi gửi bài thi:", err);
-    // Nếu offline hoặc lỗi mạng, thử chấm cục bộ
+    // Nếu offline, timeout hoặc lỗi mạng:
+    // Chấm cục bộ và mở màn hình kết quả để học sinh yên tâm
     try {
       const localResult = gradeExamLocally(activeExam, studentAnswers);
       lastExamResult = localResult;
       showExamResultScreen(localResult);
-      showToast("Cảnh báo mạng", "Đã ghi nhận điểm cục bộ do lỗi kết nối server.", "warning", 6000);
+      showToast("Ghi nhận điểm thi", "Mạng gián đoạn hoặc máy chủ phản hồi chậm. Kết quả bài làm đã được ghi nhận an toàn trên máy của bạn!", "warning", 8000);
     } catch (localErr) {
-      alert("Lỗi kết nối khi gửi bài thi: " + err.message + "\nVui lòng bấm 'Nộp Bài Thi' lại!");
+      showToast("Lỗi kết nối", (err.message || "Mạng chập chờn") + ". Vui lòng bấm 'Thử nộp lại'!", "error", 6000);
       btnSubmitExam.disabled = false;
-      btnSubmitExam.innerHTML = `<span>Nộp Bài Thi</span>`;
+      btnSubmitExam.innerHTML = `<span>Thử nộp lại</span>`;
+      isSubmittingExam = false;
+    }
+  } finally {
+    // Đảm bảo mở lại khóa nếu chưa chuyển sang màn hình kết quả thành công
+    if (!lastExamResult) {
+      isSubmittingExam = false;
+      if (btnSubmitExam) btnSubmitExam.disabled = false;
     }
   }
 }

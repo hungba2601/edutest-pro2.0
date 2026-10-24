@@ -1668,6 +1668,51 @@ function handleSubmitExam(payload) {
   const choXemLaiBai = (originalExamData.choXemLaiBai !== false);
   const essayDetailsForStudent = [];
 
+  // Tra cứu xem học sinh này đã từng nộp bài thi này trong DATA_KETQUA chưa
+  let existingKqRowIndex = -1;
+  const kqData = sheetKetQua.getDataRange().getValues();
+  for (let r = 1; r < kqData.length; r++) {
+    const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+    const rMaDe = String(kqData[r][7] || "").trim();
+    if (rHs === usernameHS.toUpperCase() && rMaDe === maDe) {
+      existingKqRowIndex = r;
+      break;
+    }
+  }
+
+  // QUY TẮC 1: ĐỐI VỚI THI / KIỂM TRA CHÍNH THỨC (Khóa xem bài)
+  // Nếu học sinh đã có kết quả trong DATA_KETQUA (do mạng chậm/bấm nộp lại),
+  // trả về thành công kèm đúng điểm số đã ghi nhận để học sinh thấy màn hình kết quả!
+  if (!choXemLaiBai && existingKqRowIndex !== -1) {
+    const existingRow = kqData[existingKqRowIndex];
+    let parsedDetail = {};
+    try {
+      parsedDetail = JSON.parse(existingRow[12] || "{}");
+    } catch (e) {}
+
+    const choXemDiem = (originalExamData.choXemDiem !== false);
+
+    return createJsonResponse({
+      success: true,
+      daLamRoi: true,
+      daGhiNhan: true,
+      message: "Bài thi của bạn đã được hệ thống ghi nhận thành công trước đó!",
+      diemTong: existingRow[9],
+      diemTracNghiem: existingRow[9],
+      tongDiemTracNghiem: tongDiemTracNghiem,
+      soCauDung: correctCount,
+      tongSoCau: questions.length,
+      soCauDungSai: String(existingRow[10] || soCauDungSaiText),
+      thoiGianNop: existingRow[11] || thoiGianNop,
+      choXemLaiBai: false,
+      choXemDiem: choXemDiem,
+      chiTietKetQua: [],
+      baiLamTuLuan: (parsedDetail && parsedDetail.tuLuan) ? parsedDetail.tuLuan : essayDetailsForStudent,
+      danhSachCauHoiTuLuan: [],
+      linkTuLuan: (originalExamData.tuLuan && originalExamData.tuLuan.linkForm) ? originalExamData.tuLuan.linkForm : ""
+    });
+  }
+
   if (essayCount > 0) {
     try {
       const sheetTuLuan = ensureTuLuanSheet(ss, essayCount);
@@ -1725,21 +1770,34 @@ function handleSubmitExam(payload) {
     tuLuan: essayDetailsForStudent
   };
 
-  sheetKetQua.appendRow([
-    usernameHS,
-    lop.includes("/") ? "'" + lop : lop,
-    hoTen,
-    ngaySinh,
-    gioiTinh,
-    truong,
-    thoiGianVaoThi || thoiGianNop,
-    maDe,
-    usernameGV,
-    diemTracNghiem,
-    soCauDungSaiText,
-    thoiGianNop,
-    JSON.stringify(fullDetailObject)
-  ]);
+  if (choXemLaiBai && existingKqRowIndex !== -1) {
+    const targetRow = existingKqRowIndex + 1;
+    sheetKetQua.getRange(targetRow, 7, 1, 7).setValues([[
+      thoiGianVaoThi || thoiGianNop,
+      maDe,
+      usernameGV,
+      diemTracNghiem,
+      soCauDungSaiText,
+      thoiGianNop,
+      JSON.stringify(fullDetailObject)
+    ]]);
+  } else {
+    sheetKetQua.appendRow([
+      usernameHS,
+      lop.includes("/") ? "'" + lop : lop,
+      hoTen,
+      ngaySinh,
+      gioiTinh,
+      truong,
+      thoiGianVaoThi || thoiGianNop,
+      maDe,
+      usernameGV,
+      diemTracNghiem,
+      soCauDungSaiText,
+      thoiGianNop,
+      JSON.stringify(fullDetailObject)
+    ]);
+  }
 
   const choXemDiem = (originalExamData.choXemDiem !== false);
 
