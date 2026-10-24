@@ -2268,3 +2268,387 @@ body.palette-modal-open {
   }
 }
 
+/* ==========================================================================
+   CANVAS HIỆU ỨNG NÉM GIẤY MÀU TUNG TÓE (CONFETTI CELEBRATION ENGINE)
+   ========================================================================== */
+.confetti-canvas {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  pointer-events: none !important;
+  z-index: 1000005 !important;
+  display: none;
+}
+
+/* ==========================================================================
+   HỘP THOẠI THÔNG BÁO NỘP BÀI THÀNH CÔNG RỰC RỠ
+   ========================================================================== */
+.modal-submit-success-backdrop {
+  z-index: 1000000 !important;
+  background: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  animation: fadeInBackdrop 0.25s ease-out;
+}
+
+.modal-card-success-celebrate {
+  background: #ffffff;
+  border-radius: 24px;
+  max-width: 520px;
+  width: 100%;
+  padding: 2.25rem 2rem 1.75rem;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 25px 60px -10px rgba(15, 23, 42, 0.4), 0 0 40px rgba(37, 99, 235, 0.2);
+  border: 1.5px solid #dbeafe;
+  animation: zoomBounceSuccess 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+@keyframes zoomBounceSuccess {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(40px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04) translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.btn-close-success-modal {
+  position: absolute;
+  top: 1rem;
+  right: 1.1rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+.btn-close-success-modal:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+  transform: scale(1.08);
+}
+
+/* Biểu tượng pháo hoa & vầng sáng lung linh */
+.success-celebrate-badge-wrap {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  margin: 0 auto 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.success-celebrate-glow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.35) 0%, rgba(16, 185, 129, 0.25) 50%, transparent 75%);
+  animation: celebrateGlowPulse 2.2s infinite ease-in-out;
+}
+
+@keyframes celebrateGlowPulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.28); opacity: 1; }
+}
+
+.success-celebrate-icon-box {
+  position: relative;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #bfdbfe 100%);
+  border: 3px solid #ffffff;
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: celebrateIconBounce 2s infinite ease-in-out;
+}
+
+@keyframes celebrateIconBounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-7px) rotate(-6deg); }
+  65% { transform: translateY(-2px) rotate(6deg); }
+}
+
+.celebrate-emoji {
+  font-size: 2.75rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.15));
+}
+
+.celebrate-sparkle {
+  position: absolute;
+  font-size: 1.25rem;
+  animation: floatSparkle 2s infinite ease-in-out;
+  pointer-events: none;
+}
+.celebrate-sparkle.sp-1 { top: -4px; left: 0px; animation-delay: 0s; }
+.celebrate-sparkle.sp-2 { top: 6px; right: -6px; animation-delay: 0.4s; }
+.celebrate-sparkle.sp-3 { bottom: 0px; left: -8px; animation-delay: 0.8s; }
+
+@keyframes floatSparkle {
+  0%, 100% { transform: translateY(0) scale(0.9); opacity: 0.7; }
+  50% { transform: translateY(-8px) scale(1.2); opacity: 1; }
+}
+
+.success-modal-header {
+  margin-bottom: 1.15rem;
+}
+.success-super-tag {
+  display: inline-block;
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+  padding: 0.25rem 0.8rem;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+}
+.success-modal-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+.success-modal-sub {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #475569;
+  line-height: 1.55;
+}
+.success-modal-sub strong {
+  color: #0f172a;
+}
+
+/* Hộp tóm tắt */
+.success-summary-box {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.1rem;
+  margin-bottom: 1.35rem;
+  text-align: left;
+}
+.success-exam-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px dashed #cbd5e1;
+}
+.summary-exam-badge {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.summary-exam-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Banner điểm */
+.success-score-banner {
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  text-align: center;
+}
+.score-banner-label {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+.score-banner-value-wrap {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 0.45rem;
+}
+.score-banner-num {
+  font-size: 2.35rem;
+  font-weight: 800;
+  color: #16a34a;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.score-banner-max {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.score-banner-stats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.badge-stat-item {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+/* Khóa xem điểm */
+.success-score-locked-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+}
+.locked-banner-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+}
+.locked-banner-content strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #92400e;
+  margin-bottom: 2px;
+}
+.locked-banner-content p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #b45309;
+  line-height: 1.45;
+}
+
+/* Nút hành động */
+.success-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.btn-fire-more-confetti {
+  padding: 0.75rem 1.25rem;
+  background: #f1f5f9;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+.btn-fire-more-confetti:hover {
+  background: #fdf2f8;
+  border-color: #f472b6;
+  color: #be185d;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(244, 114, 182, 0.25);
+}
+.btn-view-result-detail {
+  padding: 0.75rem 1.45rem;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.35);
+  transition: all 0.2s ease;
+}
+.btn-view-result-detail:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+}
+
+.btn-replay-confetti {
+  padding: 0.85rem 1.4rem;
+  background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);
+  transition: all 0.2s ease;
+}
+.btn-replay-confetti:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.45);
+}
+
+@media (max-width: 540px) {
+  .modal-card-success-celebrate {
+    padding: 1.75rem 1.25rem 1.5rem;
+  }
+  .success-modal-title {
+    font-size: 1.35rem;
+  }
+  .score-banner-num {
+    font-size: 2rem;
+  }
+  .success-modal-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .btn-fire-more-confetti,
+  .btn-view-result-detail {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+

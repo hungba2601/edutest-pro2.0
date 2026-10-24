@@ -247,6 +247,48 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Các nút tương tác trên Hộp thoại thông báo Nộp bài thành công
+  const btnCloseSuccess = document.getElementById("btnCloseSuccessModal");
+  if (btnCloseSuccess) {
+    btnCloseSuccess.addEventListener("click", closeSubmitSuccessModal);
+  }
+
+  const btnViewResultDetail = document.getElementById("btnViewResultDetail");
+  if (btnViewResultDetail) {
+    btnViewResultDetail.addEventListener("click", () => {
+      closeSubmitSuccessModal();
+    });
+  }
+
+  const btnFireMore = document.getElementById("btnFireMoreConfetti");
+  if (btnFireMore) {
+    btnFireMore.addEventListener("click", () => {
+      triggerSubmitCelebrationConfetti();
+    });
+  }
+
+  const btnReplayConfetti = document.getElementById("btnResultReplayConfetti");
+  if (btnReplayConfetti) {
+    btnReplayConfetti.addEventListener("click", () => {
+      triggerSubmitCelebrationConfetti();
+    });
+  }
+
+  const modalSuccessBackdrop = document.getElementById("modalSubmitSuccess");
+  if (modalSuccessBackdrop) {
+    modalSuccessBackdrop.addEventListener("click", (e) => {
+      if (e.target === modalSuccessBackdrop) {
+        closeSubmitSuccessModal();
+      }
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeSubmitSuccessModal();
+    }
+  });
+
   // Khởi tạo điều khiển Bảng câu hỏi trên Mobile (Bottom Sheet Drawer)
   const btnTogglePalette = document.getElementById("btnToggleMobilePalette");
   const paletteCol = document.getElementById("examPaletteCol");
@@ -2298,6 +2340,291 @@ function showExamResultScreen(result) {
   } else {
     if (btnReview) btnReview.style.display = "none";
     if (lockedNotice) lockedNotice.style.display = "block";
+  }
+
+  // ==========================================================================
+  // HIỂN THỊ HỘP THOẠI THÔNG BÁO NỘP BÀI THÀNH CÔNG & NÉM GIẤY MÀU TUNG TÓE
+  // ==========================================================================
+  openSubmitSuccessModal(result, displayScore, maxTracNghiemScore, isAllowScore);
+}
+
+// ============================================================================
+// HỘP THOẠI THÔNG BÁO NỘP BÀI THÀNH CÔNG & HIỆU ỨNG NÉM GIẤY MÀU (CONFETTI)
+// ============================================================================
+let confettiCelebrationInstance = null;
+
+function triggerSubmitCelebrationConfetti() {
+  try {
+    if (!confettiCelebrationInstance) {
+      confettiCelebrationInstance = new ConfettiCelebration("confettiCanvas");
+    }
+    confettiCelebrationInstance.blastCelebration();
+  } catch (err) {
+    console.warn("Không thể kích hoạt hiệu ứng pháo giấy:", err);
+  }
+}
+
+function openSubmitSuccessModal(result, displayScore, maxTracNghiemScore, isAllowScore) {
+  const modal = document.getElementById("modalSubmitSuccess");
+  if (!modal) return;
+
+  const studentName = currentStudent ? (currentStudent.hoTen || currentStudent.username) : "Thí sinh";
+  const studentClass = currentStudent?.lop ? ` (Lớp ${currentStudent.lop})` : "";
+  const examTitle = activeExam?.tenKyThi || activeExam?.maDe || "Bài kiểm tra trực tuyến";
+
+  const nameEl = document.getElementById("successModalStudentName");
+  if (nameEl) nameEl.textContent = `${studentName}${studentClass}`;
+
+  const examEl = document.getElementById("successModalExamTitle");
+  if (examEl) examEl.textContent = examTitle;
+
+  const scoreSec = document.getElementById("successModalScoreSection");
+  const lockedSec = document.getElementById("successModalScoreLockedSection");
+
+  if (isAllowScore) {
+    if (scoreSec) scoreSec.style.display = "block";
+    if (lockedSec) lockedSec.style.display = "none";
+
+    const scoreNum = document.getElementById("successModalScoreNum");
+    if (scoreNum) scoreNum.textContent = displayScore;
+
+    const scoreMax = document.getElementById("successModalScoreMax");
+    if (scoreMax) scoreMax.textContent = `/ ${maxTracNghiemScore} điểm`;
+
+    const correctCount = document.getElementById("successModalCorrectCount");
+    if (correctCount) correctCount.textContent = `✓ Đúng: ${result.soCauDung || 0}/${result.tongSoCau || 0} câu`;
+  } else {
+    if (scoreSec) scoreSec.style.display = "none";
+    if (lockedSec) lockedSec.style.display = "flex";
+  }
+
+  const timeEl = document.getElementById("successModalTimeText");
+  if (timeEl) timeEl.textContent = `⏰ Nộp lúc: ${result.thoiGianNop || UtilitiesFormatTime()}`;
+
+  modal.style.display = "flex";
+
+  // Bắn pháo hoa giấy màu tung tóe chúc mừng
+  setTimeout(() => {
+    triggerSubmitCelebrationConfetti();
+  }, 120);
+}
+
+function closeSubmitSuccessModal() {
+  const modal = document.getElementById("modalSubmitSuccess");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+
+// ============================================================================
+// CONFETTI CELEBRATION ENGINE (HIỆU ỨNG GIẤY MÀU TUNG TÓE CANVAS 60FPS)
+// ============================================================================
+class ConfettiCelebration {
+  constructor(canvasId = "confettiCanvas") {
+    this.canvas = document.getElementById(canvasId);
+    this.ctx = this.canvas ? this.canvas.getContext("2d") : null;
+    this.particles = [];
+    this.animationId = null;
+    this.isActive = false;
+    this.colors = [
+      "#ef4444", "#f97316", "#f59e0b", "#10b981", "#06b6d4", 
+      "#3b82f6", "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#ffd700"
+    ];
+
+    if (this.canvas) {
+      this.resize();
+      window.addEventListener("resize", () => this.resize());
+    }
+  }
+
+  resize() {
+    if (!this.canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.canvas.width = this.width * dpr;
+    this.canvas.height = this.height * dpr;
+    if (this.ctx) {
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+
+  createParticle(originX, originY, angleDeg, velocitySpread, type = null) {
+    const angleRad = (angleDeg + (Math.random() - 0.5) * 44) * (Math.PI / 180);
+    const speed = velocitySpread * (0.65 + Math.random() * 0.75);
+    const shapes = ['rect', 'rect', 'rect', 'circle', 'streamer', 'star'];
+    const shape = type || shapes[Math.floor(Math.random() * shapes.length)];
+    const color = this.colors[Math.floor(Math.random() * this.colors.length)];
+
+    return {
+      x: originX,
+      y: originY,
+      vx: Math.cos(angleRad) * speed,
+      vy: -Math.sin(angleRad) * speed,
+      gravity: 0.22 + Math.random() * 0.16,
+      drag: 0.982 + Math.random() * 0.012,
+      w: shape === 'streamer' ? (16 + Math.random() * 10) : (7 + Math.random() * 9),
+      h: shape === 'streamer' ? (4 + Math.random() * 3) : (5 + Math.random() * 7),
+      rotation: Math.random() * 360,
+      rotationSpeed: (Math.random() - 0.5) * 12,
+      tilt: Math.random() * 360,
+      tiltSpeed: (Math.random() - 0.5) * 10,
+      oscillationSpeed: 0.04 + Math.random() * 0.06,
+      oscillationDistance: 1 + Math.random() * 2,
+      wobble: Math.random() * 10,
+      shape: shape,
+      color: color,
+      opacity: 1,
+      fadeRate: 0.003 + Math.random() * 0.005,
+      life: 0,
+      maxLife: 240 + Math.random() * 120
+    };
+  }
+
+  burst(originRatioX, originRatioY, angleDeg, count = 75, velocity = 19) {
+    if (!this.canvas || !this.ctx) {
+      this.canvas = document.getElementById("confettiCanvas");
+      if (this.canvas) this.ctx = this.canvas.getContext("2d");
+    }
+    if (!this.canvas || !this.ctx) return;
+
+    this.resize();
+    this.canvas.style.display = "block";
+
+    const originX = this.width * originRatioX;
+    const originY = this.height * originRatioY;
+
+    for (let i = 0; i < count; i++) {
+      this.particles.push(this.createParticle(originX, originY, angleDeg, velocity));
+    }
+
+    if (!this.isActive) {
+      this.isActive = true;
+      this.render();
+    }
+  }
+
+  // Đợt ném pháo giấy đa điểm cực kỳ rực rỡ và sống động
+  blastCelebration() {
+    // Đợt 1: Hai pháo giấy bắn vút lên từ 2 góc dưới
+    this.burst(0.1, 0.92, 58, 85, 23);
+    this.burst(0.9, 0.92, 122, 85, 23);
+
+    // Đợt 2: Vòi pháo hoa bung tỏa giữa màn hình
+    setTimeout(() => {
+      this.burst(0.5, 0.5, 90, 80, 17);
+      this.burst(0.25, 0.72, 55, 60, 20);
+      this.burst(0.75, 0.72, 125, 60, 20);
+    }, 280);
+
+    // Đợt 3: Mưa giấy màu tung tóe dồn dập
+    setTimeout(() => {
+      this.burst(0.15, 0.82, 65, 75, 24);
+      this.burst(0.85, 0.82, 115, 75, 24);
+      this.burst(0.5, 0.35, 270, 60, 14);
+    }, 650);
+
+    // Đợt 4: Lấp lánh kết thúc ngân vang
+    setTimeout(() => {
+      this.burst(0.35, 0.6, 75, 55, 18);
+      this.burst(0.65, 0.6, 105, 55, 18);
+    }, 1200);
+  }
+
+  render() {
+    if (!this.ctx || !this.canvas) return;
+
+    this.ctx.clearRect(0, 0, this.width, this.height);
+
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+
+      p.life++;
+      p.vx *= p.drag;
+      p.vy *= p.drag;
+      p.vy += p.gravity;
+
+      p.wobble += p.oscillationSpeed;
+      p.x += p.vx + Math.sin(p.wobble) * p.oscillationDistance;
+      p.y += p.vy;
+
+      p.rotation += p.rotationSpeed;
+      p.tilt += p.tiltSpeed;
+
+      if (p.life > p.maxLife - 60) {
+        p.opacity = Math.max(0, p.opacity - p.fadeRate * 3);
+      }
+
+      if (p.y > this.height + 80 || p.opacity <= 0.01) {
+        this.particles.splice(i, 1);
+        continue;
+      }
+
+      this.ctx.save();
+      this.ctx.globalAlpha = p.opacity;
+      this.ctx.translate(p.x, p.y);
+      this.ctx.rotate((p.rotation * Math.PI) / 180);
+
+      // Mô phỏng lật giấy 3D sinh động bằng cos(tilt)
+      const scaleTilt = Math.cos((p.tilt * Math.PI) / 180);
+      this.ctx.scale(1, scaleTilt);
+
+      this.ctx.fillStyle = p.color;
+
+      if (p.shape === 'circle') {
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+        this.ctx.fill();
+      } else if (p.shape === 'star') {
+        this.drawStar(0, 0, 5, p.w * 0.9, p.w * 0.45);
+      } else {
+        this.ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      }
+
+      this.ctx.restore();
+    }
+
+    if (this.particles.length > 0) {
+      this.animationId = requestAnimationFrame(() => this.render());
+    } else {
+      this.isActive = false;
+      this.ctx.clearRect(0, 0, this.width, this.height);
+      if (this.canvas) this.canvas.style.display = "none";
+    }
+  }
+
+  drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+    let rot = (Math.PI / 2) * 3;
+    let x = cx;
+    let y = cy;
+    const step = Math.PI / spikes;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(cx, cy - outerRadius);
+    for (let i = 0; i < spikes; i++) {
+      x = cx + Math.cos(rot) * outerRadius;
+      y = cy + Math.sin(rot) * outerRadius;
+      this.ctx.lineTo(x, y);
+      rot += step;
+
+      x = cx + Math.cos(rot) * innerRadius;
+      y = cy + Math.sin(rot) * innerRadius;
+      this.ctx.lineTo(x, y);
+      rot += step;
+    }
+    this.ctx.lineTo(cx, cy - outerRadius);
+    this.ctx.closePath();
+    this.ctx.fill();
+  }
+
+  clear() {
+    this.particles = [];
+    if (this.animationId) cancelAnimationFrame(this.animationId);
+    this.isActive = false;
+    if (this.ctx && this.canvas) {
+      this.ctx.clearRect(0, 0, this.width, this.height);
+      this.canvas.style.display = "none";
+    }
   }
 }
 
