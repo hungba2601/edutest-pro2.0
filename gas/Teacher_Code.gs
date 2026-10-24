@@ -711,6 +711,20 @@ function isSameTeacherAccount(acc1, acc2) {
   return false;
 }
 
+function isSameStudentAccount(acc1, acc2) {
+  if (!acc1 || !acc2) return false;
+  var s1 = String(acc1 || "").trim().toLowerCase();
+  var s2 = String(acc2 || "").trim().toLowerCase();
+  if (s1 === s2) return true;
+  if (s1.startsWith("'")) s1 = s1.substring(1).trim();
+  if (s2.startsWith("'")) s2 = s2.substring(1).trim();
+  if (s1 === s2) return true;
+  var clean1 = s1.replace(/^0+/, "");
+  var clean2 = s2.replace(/^0+/, "");
+  if (clean1 && clean2 && clean1 === clean2) return true;
+  return false;
+}
+
 function handleSaveExam(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
@@ -1333,12 +1347,20 @@ function handleGetStudentExams(payload) {
       // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
       // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
       for (let r = 1; r < kqData.length; r++) {
-        const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+        const rHs = String(kqData[r][0] !== null && kqData[r][0] !== undefined ? kqData[r][0] : "").trim();
         const rMaDe = String(kqData[r][7] || "").trim();
-        if (rHs === usernameHS.toUpperCase() && rMaDe) {
+        if (isSameStudentAccount(rHs, usernameHS) && rMaDe) {
+          const rawDiem = kqData[r][9];
+          let parsedDiem = rawDiem;
+          if (rawDiem !== "" && rawDiem !== null && rawDiem !== undefined) {
+            const numVal = parseFloat(String(rawDiem).replace(",", "."));
+            if (!isNaN(numVal)) {
+              parsedDiem = numVal;
+            }
+          }
           submittedExamsMap[rMaDe] = {
             daLam: true,
-            diemTong: kqData[r][9],
+            diemTong: parsedDiem,
             soCauDungSai: kqData[r][10],
             thoiGianNop: kqData[r][11]
           };
@@ -1672,11 +1694,14 @@ function handleSubmitExam(payload) {
   let existingKqRowIndex = -1;
   const kqData = sheetKetQua.getDataRange().getValues();
   for (let r = 1; r < kqData.length; r++) {
-    const rHs = String(kqData[r][0] || "").trim().toUpperCase();
+    const rHs = String(kqData[r][0] !== null && kqData[r][0] !== undefined ? kqData[r][0] : "").trim();
     const rMaDe = String(kqData[r][7] || "").trim();
-    if (rHs === usernameHS.toUpperCase() && rMaDe === maDe) {
+    if (isSameStudentAccount(rHs, usernameHS) && rMaDe === maDe) {
       existingKqRowIndex = r;
-      break;
+      if (!choXemLaiBai) {
+        break; // Với bài thi chính thức, lấy ngay kết quả đầu tiên đã ghi nhận
+      }
+      // Với bài ôn tập, tiếp tục quét đến cuối để cập nhật đúng lượt nộp bài gần nhất
     }
   }
 
