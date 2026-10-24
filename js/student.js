@@ -491,15 +491,16 @@ function renderExamList(availableExams) {
       if (hasDone) {
         statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; font-weight: 800;">🚫 ĐÃ THI (KHÓA LÀM LẠI)</span>`;
         noticeAlertHtml = `
-          <div style="margin-top: 0.75rem; padding: 0.75rem 0.95rem; background: #fff1f2; border: 1.5px solid #fecdd3; border-radius: 10px; color: #9f1239; font-size: 0.85rem; line-height: 1.5;">
-            ⚠️ <strong>Bạn đã hoàn thành bài thi này!</strong><br>
-            Kỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để ghi nhận điểm vào bảng điểm. Bạn không thể làm lại.
-            ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
-              <div style="margin-top: 0.4rem; padding: 0.45rem 0.65rem; background: #ffffff; border-radius: 8px; border: 1px solid #fda4af;">
-                📊 <strong>Điểm trắc nghiệm đã ghi nhận:</strong> <span style="color: #dc2626; font-size: 1.15rem; font-weight: 800;">${exam.diemCu} điểm</span>
-                ${formattedSubmitTime ? `<div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">⏱ Thời gian nộp: <b>${formattedSubmitTime}</b></div>` : ''}
-              </div>
-            ` : ''}
+          <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
+              <span style="font-weight: 700; color: #dc2626; display: flex; align-items: center; gap: 4px;">
+                ⚠️ Đã nộp bài (Khóa làm lại)
+              </span>
+              ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
+                <span style="font-weight: 800; color: #dc2626; font-size: 1rem;">${exam.diemCu} điểm</span>
+              ` : ''}
+            </div>
+            ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
           </div>
         `;
         actionBtnHtml = `
@@ -525,23 +526,17 @@ function renderExamList(availableExams) {
 
         statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #ecfdf5; color: #047857; border: 1.5px solid #a7f3d0; font-weight: 800;">🔄 ĐÃ ÔN LUYỆN${scoreBadgeText}</span>`;
         noticeAlertHtml = `
-          <div style="margin-top: 0.75rem; padding: 0.75rem 0.95rem; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 10px; color: #065f46; font-size: 0.85rem; line-height: 1.5;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.35rem; flex-wrap: wrap;">
-              <span style="font-weight: 800; color: #047857; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Bạn đã làm bài ôn tập này
+          <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; color: #065f46; font-size: 0.82rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
+              <span style="font-weight: 700; color: #059669; display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Điểm lưu hệ thống (lần cuối)
               </span>
-              <span style="font-size: 0.75rem; background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 999px; font-weight: 700; border: 1px solid #6ee7b7;">Được luyện tập lại</span>
+              ${hasScore ? `
+                <span style="font-weight: 800; color: #059669; font-size: 1rem;">${exam.diemCu} điểm</span>
+              ` : ''}
             </div>
-            ${hasScore ? `
-              <div style="padding: 0.45rem 0.65rem; background: #ffffff; border-radius: 8px; border: 1px solid #bbf7d0; margin-top: 0.35rem;">
-                📊 <strong>Điểm lưu trên hệ thống (Lần nộp cuối):</strong> <span style="color: #059669; font-size: 1.15rem; font-weight: 800;">${exam.diemCu} điểm</span>
-                ${formattedSubmitTime ? `<div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">⏱ Thời gian nộp lần gần nhất: <b>${formattedSubmitTime}</b></div>` : ''}
-              </div>
-            ` : ''}
-            <div style="font-size: 0.78rem; color: #047857; margin-top: 0.4rem; font-style: italic;">
-              💡 Đây là bài Ôn tập (cho phép làm nhiều lần). Bạn có thể bấm nút bên dưới để luyện tập tiếp, điểm số lần nộp cuối cùng sẽ tự động cập nhật lên hệ thống!
-            </div>
+            ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
           </div>
         `;
         actionBtnHtml = `
@@ -608,7 +603,7 @@ function renderExamList(availableExams) {
       </div>
 
       ${noticeAlertHtml}
-      <div style="margin-top: 1rem;">
+      <div style="margin-top: 0.75rem;">
         ${actionBtnHtml}
       </div>
     `;
