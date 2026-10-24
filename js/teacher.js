@@ -4660,9 +4660,6 @@ function renderTeacherExamsTable(examsList, isFromCache) {
           <button type="button" class="btn-action-results" data-made="${exam.maDe}" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700;" title="Xem bảng điểm và kết quả của đề thi này">
             📊 Điểm
           </button>
-          <button type="button" class="btn-action-copy-link" data-made="${exam.maDe}" style="background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669; font-weight: 700;" title="Sao chép link làm bài gửi học sinh (kết nối đúng Google Sheet của thầy/cô)">
-            🔗 Link thi
-          </button>
           <button type="button" class="btn-action-edit" data-made="${exam.maDe}" title="Mở lên giao diện để chỉnh sửa">
             ✏ Sửa đề
           </button>
@@ -4697,21 +4694,6 @@ function renderEmptyExamsTable(tbody) {
 }
 
 function attachExamTableEvents(tbody) {
-  // 0. Gắn sự kiện Sao chép link phòng thi gửi học sinh
-  tbody.querySelectorAll(".btn-action-copy-link").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      const maDe = e.currentTarget.dataset.made;
-      const baseUrl = window.location.href.split("?")[0].replace("teacher_dashboard.html", "student_dashboard.html");
-      const examLink = `${baseUrl}?server=${encodeURIComponent(API_URL)}&exam=${encodeURIComponent(maDe)}`;
-      try {
-        await navigator.clipboard.writeText(examLink);
-        showToast("Đã chép link phòng thi! 🔗", `Đã copy link đề ${maDe}. Học sinh mở link sẽ nộp bài chuẩn 100% về Google Sheet của thầy/cô!`, "success", 5000);
-      } catch (err) {
-        prompt("Sao chép link làm bài gửi cho học sinh:", examLink);
-      }
-    });
-  });
-
   // 1. Gắn sự kiện Mở chỉnh sửa đề thi
   tbody.querySelectorAll(".btn-action-edit, .exam-clickable-title").forEach(btn => {
     btn.addEventListener("click", (e) => {
