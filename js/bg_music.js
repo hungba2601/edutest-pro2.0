@@ -64,7 +64,7 @@
 
     const track = getCurrentTrack();
     bgAudio = new Audio(track.src);
-    bgAudio.loop = false; // Tắt loop bài đơn để kích hoạt event 'ended' tự động chuyển bài
+    bgAudio.loop = true; // Luôn phát đi phát lại duy nhất bài đã chọn ngẫu nhiên
     bgAudio.preload = "auto";
 
     // Luôn luôn cố định mặc định âm lượng ở mức 30% (0.3) theo đúng yêu cầu
@@ -87,11 +87,6 @@
     bgAudio.addEventListener("volumechange", () => {
       isMuted = bgAudio.muted || bgAudio.volume === 0;
       updateVolumeDisplay();
-    });
-
-    // Khi phát hết bài -> Tự động chuyển tiếp sang bản nhạc tiếp theo
-    bgAudio.addEventListener("ended", () => {
-      switchTrack((currentTrackIndex + 1) % PLAYLIST.length, true);
     });
 
     // Bắt lỗi nếu có vấn đề đọc file
@@ -122,6 +117,7 @@
     bgAudio.src = nextTrack.src;
     bgAudio.currentTime = 0;
     bgAudio.volume = currentVolume;
+    bgAudio.loop = true; // Luôn phát lặp lại duy nhất bài này
 
     updateTrackInfoDisplay();
 
@@ -492,7 +488,7 @@
 
         <!-- Ghi chú chân bảng -->
         <p class="popover-footer-tip">
-          🎶 Tự động phát ngẫu nhiên: <b>Love Story</b> &amp; <b>Sealed With a Kiss</b>.
+          🎶 Mỗi phiên mở trang chọn ngẫu nhiên 1 bản nhạc và phát lặp lại liên tục.
         </p>
 
       </div>

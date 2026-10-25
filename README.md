@@ -32,8 +32,8 @@ Hệ thống thi trắc nghiệm và kiểm tra trực tuyến hiện đại dà
 
 ### 3. Nhạc Nền Du Dương "Love Story" & "Sealed With a Kiss"
 * Widget icon cái loa nhỏ gọn gàng ở góc trên bên phải thanh điều hướng.
-* Tự động phát ngẫu nhiên 1 trong 2 bản nhạc bất hủ (**Love Story** / **Sealed With a Kiss**) ở mức âm lượng chuẩn **30%** khi đăng nhập thành công.
-* Tự động chuyển bài khi kết thúc bản nhạc và hỗ trợ nút chuyển bài nhanh (⏭️) trong Popup.
+* Mỗi lần mở trang chọn ngẫu nhiên 1 bản nhạc và phát lặp lại liên tục (loop) bản nhạc đó (không tự động đổi bài khi hết).
+* Hỗ trợ nút chuyển bài nhanh (⏭️) trong Popup khi người dùng muốn đổi bài thủ công.
 * Bảng điều khiển Popup đầy đủ: Play/Pause, Chuyển bài, Tắt/Bật tiếng, Thanh trượt âm lượng và các phím chọn nhanh (15%, 30%, 50%, 80%).
 
 ---
