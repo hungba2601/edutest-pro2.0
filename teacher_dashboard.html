@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=8.1">
+  <link rel="stylesheet" href="css/teacher.css?v=8.2">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -1620,7 +1620,33 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   <script src="js/gas_code_content.js?v=3.1"></script>
   <!-- Background Music (Love Story & Sealed With a Kiss 30%) -->
   <script src="js/bg_music.js?v=2.3"></script>
+  <!-- Script đồng bộ thanh Bottom Navigation Tabs mượt mà trên mobile -->
+  <script>
+    (function() {
+      function syncMobileTabsImmediate() {
+        var tabs = document.querySelector('.nav-tabs');
+        var navbar = document.querySelector('.teacher-navbar');
+        if (!tabs || !navbar) return;
+        if (window.innerWidth <= 768) {
+          if (tabs.parentElement !== document.body) {
+            document.body.appendChild(tabs);
+          }
+        } else {
+          var navUser = navbar.querySelector('.nav-user');
+          if (tabs.parentElement !== navbar) {
+            navbar.insertBefore(tabs, navUser);
+          }
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', syncMobileTabsImmediate);
+      } else {
+        syncMobileTabsImmediate();
+      }
+      window.addEventListener('resize', syncMobileTabsImmediate, { passive: true });
+    })();
+  </script>
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=8.7"></script>
+  <script src="js/teacher.js?v=8.8"></script>
 </body>
 </html>

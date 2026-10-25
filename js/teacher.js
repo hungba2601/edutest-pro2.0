@@ -8843,6 +8843,28 @@ function initTeacherDashboard() {
       });
     }
 
+    // Tối ưu hóa thanh điều hướng Tab trên thiết bị di động (<= 768px):
+    // Gắn trực tiếp vào <body> làm Bottom Navigation Bar chuẩn Native App
+    // Tránh bị kẹp trong header sticky, giúp hiển thị đầy đủ Brand, TK, Nút Loa và Đăng xuất
+    function syncMobileNavTabs() {
+      const navTabs = document.querySelector(".nav-tabs");
+      const navbar = document.querySelector(".teacher-navbar");
+      if (!navTabs || !navbar) return;
+      const navUser = navbar.querySelector(".nav-user");
+
+      if (window.innerWidth <= 768) {
+        if (navTabs.parentElement !== document.body) {
+          document.body.appendChild(navTabs);
+        }
+      } else {
+        if (navTabs.parentElement !== navbar) {
+          navbar.insertBefore(navTabs, navUser);
+        }
+      }
+    }
+    syncMobileNavTabs();
+    window.addEventListener("resize", syncMobileNavTabs, { passive: true });
+
     // Đăng xuất
     const btnLogout = document.getElementById("btnLogout");
     if (btnLogout) {
