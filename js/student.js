@@ -247,47 +247,13 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Các nút tương tác trên Hộp thoại thông báo Nộp bài thành công
-  const btnCloseSuccess = document.getElementById("btnCloseSuccessModal");
-  if (btnCloseSuccess) {
-    btnCloseSuccess.addEventListener("click", closeSubmitSuccessModal);
-  }
-
-  const btnViewResultDetail = document.getElementById("btnViewResultDetail");
-  if (btnViewResultDetail) {
-    btnViewResultDetail.addEventListener("click", () => {
-      closeSubmitSuccessModal();
-    });
-  }
-
-  const btnFireMore = document.getElementById("btnFireMoreConfetti");
-  if (btnFireMore) {
-    btnFireMore.addEventListener("click", () => {
-      triggerSubmitCelebrationConfetti();
-    });
-  }
-
+  // Nút bắn lại pháo hoa giấy màu trên màn hình kết quả thi (Khung h2)
   const btnReplayConfetti = document.getElementById("btnResultReplayConfetti");
   if (btnReplayConfetti) {
     btnReplayConfetti.addEventListener("click", () => {
       triggerSubmitCelebrationConfetti();
     });
   }
-
-  const modalSuccessBackdrop = document.getElementById("modalSubmitSuccess");
-  if (modalSuccessBackdrop) {
-    modalSuccessBackdrop.addEventListener("click", (e) => {
-      if (e.target === modalSuccessBackdrop) {
-        closeSubmitSuccessModal();
-      }
-    });
-  }
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeSubmitSuccessModal();
-    }
-  });
 
   // Khởi tạo điều khiển Bảng câu hỏi trên Mobile (Bottom Sheet Drawer)
   const btnTogglePalette = document.getElementById("btnToggleMobilePalette");
@@ -2343,9 +2309,11 @@ function showExamResultScreen(result) {
   }
 
   // ==========================================================================
-  // HIỂN THỊ HỘP THOẠI THÔNG BÁO NỘP BÀI THÀNH CÔNG & NÉM GIẤY MÀU TUNG TÓE
+  // HIỆU ỨNG PHÁO HOA GIẤY MÀU CHÚC MỪNG HOÀN THÀNH BÀI THI (KHUNG H2)
   // ==========================================================================
-  openSubmitSuccessModal(result, displayScore, maxTracNghiemScore, isAllowScore);
+  setTimeout(() => {
+    triggerSubmitCelebrationConfetti();
+  }, 150);
 }
 
 // ============================================================================
@@ -2364,57 +2332,7 @@ function triggerSubmitCelebrationConfetti() {
   }
 }
 
-function openSubmitSuccessModal(result, displayScore, maxTracNghiemScore, isAllowScore) {
-  const modal = document.getElementById("modalSubmitSuccess");
-  if (!modal) return;
 
-  const studentName = currentStudent ? (currentStudent.hoTen || currentStudent.username) : "Thí sinh";
-  const studentClass = currentStudent?.lop ? ` (Lớp ${currentStudent.lop})` : "";
-  const examTitle = activeExam?.tenKyThi || activeExam?.maDe || "Bài kiểm tra trực tuyến";
-
-  const nameEl = document.getElementById("successModalStudentName");
-  if (nameEl) nameEl.textContent = `${studentName}${studentClass}`;
-
-  const examEl = document.getElementById("successModalExamTitle");
-  if (examEl) examEl.textContent = examTitle;
-
-  const scoreSec = document.getElementById("successModalScoreSection");
-  const lockedSec = document.getElementById("successModalScoreLockedSection");
-
-  if (isAllowScore) {
-    if (scoreSec) scoreSec.style.display = "block";
-    if (lockedSec) lockedSec.style.display = "none";
-
-    const scoreNum = document.getElementById("successModalScoreNum");
-    if (scoreNum) scoreNum.textContent = displayScore;
-
-    const scoreMax = document.getElementById("successModalScoreMax");
-    if (scoreMax) scoreMax.textContent = `/ ${maxTracNghiemScore} điểm`;
-
-    const correctCount = document.getElementById("successModalCorrectCount");
-    if (correctCount) correctCount.textContent = `✓ Đúng: ${result.soCauDung || 0}/${result.tongSoCau || 0} câu`;
-  } else {
-    if (scoreSec) scoreSec.style.display = "none";
-    if (lockedSec) lockedSec.style.display = "flex";
-  }
-
-  const timeEl = document.getElementById("successModalTimeText");
-  if (timeEl) timeEl.textContent = `⏰ Nộp lúc: ${result.thoiGianNop || UtilitiesFormatTime()}`;
-
-  modal.style.display = "flex";
-
-  // Bắn pháo hoa giấy màu tung tóe chúc mừng
-  setTimeout(() => {
-    triggerSubmitCelebrationConfetti();
-  }, 120);
-}
-
-function closeSubmitSuccessModal() {
-  const modal = document.getElementById("modalSubmitSuccess");
-  if (modal) {
-    modal.style.display = "none";
-  }
-}
 
 // ============================================================================
 // CONFETTI CELEBRATION ENGINE (HIỆU ỨNG GIẤY MÀU TUNG TÓE CANVAS 60FPS)
