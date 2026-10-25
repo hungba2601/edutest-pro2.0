@@ -315,6 +315,7 @@
   height: 16px;
 }
 
+.btn-popover-next,
 .btn-popover-mute {
   width: 36px;
   height: 36px;
@@ -330,12 +331,20 @@
   flex-shrink: 0;
 }
 
+.btn-popover-next:hover,
 .btn-popover-mute:hover {
   background: #e2e8f0;
-  border-color: #94a3b8;
-  color: #0f172a;
+  border-color: #0284c7;
+  color: #0284c7;
+  transform: translateY(-1px);
 }
 
+.btn-popover-next:active,
+.btn-popover-mute:active {
+  transform: translateY(0);
+}
+
+.btn-popover-next svg,
 .btn-popover-mute svg {
   width: 16px;
   height: 16px;

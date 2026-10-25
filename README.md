@@ -30,10 +30,11 @@ Hệ thống thi trắc nghiệm và kiểm tra trực tuyến hiện đại dà
   * Hiển thị điểm số, số câu đúng và lời chúc mừng.
   * Xem lại chi tiết từng câu hỏi, đáp án đã chọn và đáp án đúng (ở chế độ Ôn tập).
 
-### 3. Nhạc Nền Du Dương "Love Story"
+### 3. Nhạc Nền Du Dương "Love Story" & "Sealed With a Kiss"
 * Widget icon cái loa nhỏ gọn gàng ở góc trên bên phải thanh điều hướng.
-* Tự động phát nhạc êm dịu ở mức âm lượng chuẩn **30%** khi đăng nhập thành công.
-* Bảng điều khiển Popup đầy đủ: Play/Pause, Tắt/Bật tiếng, Thanh trượt âm lượng và các phím chọn nhanh.
+* Tự động phát ngẫu nhiên 1 trong 2 bản nhạc bất hủ (**Love Story** / **Sealed With a Kiss**) ở mức âm lượng chuẩn **30%** khi đăng nhập thành công.
+* Tự động chuyển bài khi kết thúc bản nhạc và hỗ trợ nút chuyển bài nhanh (⏭️) trong Popup.
+* Bảng điều khiển Popup đầy đủ: Play/Pause, Chuyển bài, Tắt/Bật tiếng, Thanh trượt âm lượng và các phím chọn nhanh (15%, 30%, 50%, 80%).
 
 ---
 
@@ -66,7 +67,8 @@ npx serve .
 ├── index.html                   # Trang đăng nhập & Cấu hình Backend
 ├── student_dashboard.html       # Bảng điều khiển & Phòng thi Học sinh
 ├── teacher_dashboard.html       # Bảng điều khiển Giáo viên
-├── love story.mp3               # Tệp nhạc nền du dương (30%)
+├── Sealed with a kiss.m4a        # Tệp nhạc nền du dương (Phát ngẫu nhiên)
+├── love story.mp3               # Tệp nhạc nền du dương (Phát ngẫu nhiên, 30%)
 ├── css/
 │   ├── style.css                # Hệ thống thiết kế chung & Design tokens
 │   ├── student.css              # Giao diện thi trắc nghiệm học sinh
