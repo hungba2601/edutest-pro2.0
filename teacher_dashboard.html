@@ -1521,6 +1521,31 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           </div>
         </div>
 
+        <!-- Hộp cảnh báo yêu cầu cập nhật phiên bản Backend (tự động hiện khi ô G1 đổi khác phiên bản hiện tại) -->
+        <div id="hubVersionUpdateNotice" style="display: none; background: #fff7ed; border: 2px solid #f97316; border-radius: 12px; padding: 1rem 1.15rem; box-shadow: 0 4px 15px rgba(249, 115, 22, 0.15);">
+          <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+            <span style="font-size: 1.5rem; line-height: 1;">📢</span>
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.35rem;">
+                <strong style="color: #9a3412; font-size: 0.95rem;">YÊU CẦU CẬP NHẬT MÃ NGUỒN BACKEND MỚI!</strong>
+                <span id="badgeVersionCompare" style="font-size: 0.75rem; font-weight: 800; background: #ffedd5; color: #c2410c; padding: 2px 8px; border-radius: 6px; border: 1px solid #fed7aa;">Bản mới: 2.1</span>
+              </div>
+              <p style="font-size: 0.84rem; color: #9a3412; line-height: 1.5; margin-bottom: 0.5rem;">
+                Hệ thống máy chủ trung tâm đã phát hành phiên bản mới <strong id="noticeRequiredVersionText" style="color: #c2410c;">2.1</strong> (máy chủ cá nhân của Thầy/Cô hiện tại đang là <strong id="noticeCurrentVersionText" style="color: #ea580c;">2.0</strong>).
+              </p>
+              <div style="font-size: 0.8rem; color: #7c2d12; line-height: 1.5; background: rgba(255,255,255,0.7); padding: 0.6rem 0.85rem; border-radius: 8px; border-left: 3px solid #ea580c;">
+                <strong>👉 Các bước cập nhật nhanh:</strong>
+                <ol style="margin: 0.25rem 0 0 1.1rem; padding: 0;">
+                  <li>Bấm nút <strong>"Sao Chép Mã Code (.gs)"</strong> màu xanh bên dưới.</li>
+                  <li>Mở Google Sheets của Thầy/Cô > vào <em>Tiện ích mở rộng -> Apps Script</em>.</li>
+                  <li>Nhấn Ctrl+A rồi Ctrl+V dán đè toàn bộ mã mới vào file <code>Code.gs</code>.</li>
+                  <li>Bấm <strong>Triển khai (Deploy) -> Quản lý bản triển khai (hoặc Triển khai mới)</strong> để kích hoạt phiên bản mới!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Hộp Copy Mã Nguồn Apps Script (Teacher_Code.gs) cho Server Riêng -->
         <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1.5px solid #86efac; border-radius: 12px; padding: 0.9rem 1.15rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 230px;">
@@ -1635,7 +1660,7 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   </div>
 
   <!-- Dữ liệu mã nguồn Teacher_Code.gs chuẩn 5 Sheet hỗ trợ sao chép 1 chạm -->
-  <script src="js/gas_code_content.js?v=3.1"></script>
+  <script src="js/gas_code_content.js?v=3.2"></script>
   <!-- Background Music (Love Story & Sealed With a Kiss 30%) -->
   <script src="js/bg_music.js?v=2.3"></script>
   <!-- Script đồng bộ thanh Bottom Navigation Tabs mượt mà trên mobile -->
@@ -1696,6 +1721,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   </div>
 
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=9.1"></script>
+  <script src="js/teacher.js?v=9.2"></script>
 </body>
 </html>

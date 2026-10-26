@@ -468,6 +468,10 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("userRole", savedRole);
       localStorage.setItem("loginTime", new Date().toISOString());
 
+      if (result.requiredBackendVersion || result.data?.requiredBackendVersion) {
+        localStorage.setItem("required_backend_version", String(result.requiredBackendVersion || result.data.requiredBackendVersion).trim());
+      }
+
       // Chuyển hướng theo phân quyền
       setTimeout(() => {
         if (savedRole === "GV" || savedRole === "ADMIN") {

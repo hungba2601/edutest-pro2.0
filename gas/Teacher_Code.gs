@@ -20,6 +20,9 @@
 // Dán link Google Sheets của bạn vào đây (nếu để trống, code sẽ tự dùng Sheet đang mở)
 const SPREADSHEET_URL = ""; 
 
+// PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN
+const TEACHER_BACKEND_VERSION = "2.0"; 
+
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
   HOCSINH: "DATA_HOCSINH",
@@ -193,6 +196,12 @@ function doGet(e) {
       const action = payload.action;
 
       switch (action) {
+        case "checkBackendVersion":
+          return createJsonResponse({
+            success: true,
+            version: TEACHER_BACKEND_VERSION,
+            message: "Phiên bản Teacher_Code.gs: " + TEACHER_BACKEND_VERSION
+          });
         case "getStudentsForTeacher":
           return handleGetStudentsForTeacher(payload);
         case "getTeacherExams":
@@ -230,6 +239,7 @@ function doGet(e) {
 
     const response = {
       status: "online",
+      version: TEACHER_BACKEND_VERSION,
       message: "Google Apps Script API - Hệ Thống Thi Trắc Nghiệm Trực Tuyến đang hoạt động tốt!",
       timestamp: new Date().toISOString()
     };

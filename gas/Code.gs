@@ -222,6 +222,26 @@ function formatHeaderRow(sheet, bgColor) {
 /**
  * Xử lý yêu cầu GET (vừa kiểm tra trạng thái, vừa hỗ trợ fallback truy vấn dữ liệu)
  */
+/**
+ * Đọc phiên bản Backend yêu cầu dành cho Giáo viên từ ô G1 của Sheet DATA_GIAOVIEN
+ * Mặc định là "2.0" nếu ô G1 chưa được nhập
+ */
+function getCentralBackendVersion(sheetGV) {
+  try {
+    if (!sheetGV) {
+      const ss = getSpreadsheet();
+      sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+    }
+    if (sheetGV) {
+      const val = sheetGV.getRange("G1").getValue();
+      if (val !== null && val !== undefined && String(val).trim() !== "") {
+        return String(val).trim();
+      }
+    }
+  } catch (e) {}
+  return "2.0";
+}
+
 function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.action) {
@@ -229,6 +249,11 @@ function doGet(e) {
       const action = payload.action;
 
       switch (action) {
+        case "checkCentralBackendVersion":
+          return createJsonResponse({
+            success: true,
+            requiredBackendVersion: getCentralBackendVersion()
+          });
         case "getStudentsForTeacher":
           return handleGetStudentsForTeacher(payload);
         case "getTeacherExams":
@@ -274,6 +299,7 @@ function doGet(e) {
 
     const response = {
       status: "online",
+      requiredBackendVersion: getCentralBackendVersion(),
       message: "Google Apps Script API - Hệ Thống Thi Trắc Nghiệm Trực Tuyến đang hoạt động tốt!",
       timestamp: new Date().toISOString()
     };
@@ -434,10 +460,13 @@ function handleLogin(payload) {
                            String(row[3] || "").toUpperCase().includes("ADMIN") ||
                            String(row[2] || "").toUpperCase().includes("ADMIN"));
 
+          const reqVer = getCentralBackendVersion(sheetGV);
+
           return createJsonResponse({
             success: true,
             message: isAdmin ? "Đăng nhập Quản trị viên (Admin) thành công!" : "Đăng nhập Giáo viên thành công!",
             role: isAdmin ? "ADMIN" : "GV",
+            requiredBackendVersion: reqVer,
             data: {
               username: gvUser,
               hoTenGV: String(row[2] || (isAdmin ? "Quản trị viên" : "")),
@@ -445,6 +474,7 @@ function handleLogin(payload) {
               truong: String(row[4] || ""),
               ngaySinh: row[5] ? formatBirthDateValue(row[5]) : "",
               serverUrl: personalServerUrl || "",
+              requiredBackendVersion: reqVer,
               isAdmin: isAdmin
             }
           });
@@ -575,11 +605,9 @@ function handleVerifyAdminPassword(payload) {
     
     // 1. Ô F2 (vị trí người dùng đang đặt 1234 cạnh chữ CẤU HÌNH BACKEND)
     try { candidates.push(String(sheet.getRange("F2").getValue() || "").trim()); } catch(e) {}
-    // 2. Ô G1
-    try { candidates.push(String(sheet.getRange("G1").getValue() || "").trim()); } catch(e) {}
-    // 3. Ô G2
+    // 2. Ô G2
     try { candidates.push(String(sheet.getRange("G2").getValue() || "").trim()); } catch(e) {}
-    // 4. Ô F1
+    // 3. Ô F1
     try { candidates.push(String(sheet.getRange("F1").getValue() || "").trim()); } catch(e) {}
 
     // 5. Quét tìm ô bên cạnh nhãn "CẤU HÌNH BACKEND"
@@ -896,8 +924,11 @@ function handleGetTeacherHubDirectory() {
       }
     }
 
+    const reqVer = getCentralBackendVersion(sheetGV);
+
     return createJsonResponse({
       success: true,
+      requiredBackendVersion: reqVer,
       teachers: teacherList
     });
   } catch (err) {

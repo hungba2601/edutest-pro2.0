@@ -8036,6 +8036,91 @@ function filterAndRenderStudents() {
 }
 
 // ============================================================================
+// TỰ ĐỘNG ĐỐI CHIẾU PHIÊN BẢN BACKEND VỚI Ô G1 TRÊN SHEET TRUNG TÂM
+// ============================================================================
+async function checkTeacherBackendVersionUpdate() {
+  if (isAdminRole()) return; // Tài khoản Quản trị viên BGH không cần cảnh báo
+
+  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm
+  let requiredVersion = (localStorage.getItem("required_backend_version") || "").trim();
+  if (!requiredVersion) {
+    try {
+      const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
+      if (hubRes.ok) {
+        const hubJson = await hubRes.json();
+        if (hubJson && hubJson.requiredBackendVersion) {
+          requiredVersion = String(hubJson.requiredBackendVersion).trim();
+          localStorage.setItem("required_backend_version", requiredVersion);
+        }
+      }
+    } catch (e) {}
+  }
+  if (!requiredVersion) requiredVersion = "2.0";
+
+  // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
+  const personalServerUrl = getTeacherPersonalServerUrl();
+  let currentServerVersion = "2.0"; // Mặc định là 2.0 nếu là code cũ chưa có phiên bản
+
+  if (personalServerUrl && personalServerUrl.startsWith("https://script.google.com/macros/s/") && personalServerUrl !== DEFAULT_GAS_API_URL) {
+    try {
+      const pingRes = await fetch(`${personalServerUrl}?action=checkBackendVersion&_t=${Date.now()}`);
+      if (pingRes.ok) {
+        const pingJson = await pingRes.json();
+        if (pingJson && pingJson.version) {
+          currentServerVersion = String(pingJson.version).trim();
+        }
+      }
+    } catch (ePing) {
+      // Trường hợp server riêng chạy code phiên bản cũ (chưa có action checkBackendVersion)
+      currentServerVersion = "2.0";
+    }
+  }
+
+  // 3. So sánh: Nếu phiên bản yêu cầu tại ô G1 khác phiên bản hiện tại của Giáo viên (VD: ô G1 đổi thành 2.1)
+  if (requiredVersion && currentServerVersion !== requiredVersion) {
+    console.warn(`[YÊU CẦU CẬP NHẬT BACKEND] Bản yêu cầu tại ô G1: ${requiredVersion}, Bản server riêng hiện tại: ${currentServerVersion}`);
+
+    // Tự động chuyển ngay sang tab Danh Sách Học Sinh (DSHS)
+    const tabBtnStudents = document.getElementById("tabBtnStudents");
+    if (tabBtnStudents) {
+      tabBtnStudents.click();
+    }
+
+    // Tự động mở ngay mục Trạm Trung Tâm (Hub Modal)
+    setTimeout(() => {
+      const btnOpenHubModal = document.getElementById("btnOpenHubModal");
+      const centralHubModal = document.getElementById("centralHubModal");
+      if (btnOpenHubModal) {
+        btnOpenHubModal.click();
+      } else if (centralHubModal) {
+        centralHubModal.style.display = "flex";
+      }
+
+      // Điền thông tin vào hộp cảnh báo cập nhật trong Modal
+      const noticeBox = document.getElementById("hubVersionUpdateNotice");
+      const noticeReqText = document.getElementById("noticeRequiredVersionText");
+      const noticeCurText = document.getElementById("noticeCurrentVersionText");
+      const badgeCompare = document.getElementById("badgeVersionCompare");
+
+      if (noticeBox) {
+        noticeBox.style.display = "block";
+        if (noticeReqText) noticeReqText.textContent = requiredVersion;
+        if (noticeCurText) noticeCurText.textContent = currentServerVersion;
+        if (badgeCompare) badgeCompare.textContent = `Bản mới: ${requiredVersion} (Hiện tại: ${currentServerVersion})`;
+        noticeBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      showToast(
+        "Yêu cầu cập nhật mã nguồn 📢",
+        `Hệ thống trung tâm đã nâng cấp lên bản ${requiredVersion}. Vui lòng sao chép mã mới và cập nhật lên Google Sheets của Thầy/Cô!`,
+        "warning",
+        9000
+      );
+    }, 500);
+  }
+}
+
+// ============================================================================
 // KHỞI TẠO TÍNH NĂNG ĐỒNG BỘ TRẠM TRUNG TÂM (CENTRAL HUB)
 // ============================================================================
 function initCentralHubModal() {
@@ -9089,6 +9174,11 @@ function initTeacherDashboard() {
 
     // Tự động kiểm tra và đồng bộ URL riêng từ Hub Server của Admin cho Giáo viên nếu có
     try { syncTeacherServerUrlFromHub(); } catch (e) { console.warn("Sync URL from Hub warning:", e); }
+
+    // Tự động kiểm tra phiên bản Backend (ô G1 Sheet trung tâm) và cảnh báo cập nhật nếu cần
+    setTimeout(() => {
+      try { checkTeacherBackendVersionUpdate(); } catch (e) { console.warn("Check backend version warning:", e); }
+    }, 600);
 
     // Tải danh sách đề thi của giáo viên
     try { loadTeacherExams(); } catch (e) { console.warn("Load exams warning:", e); }
