@@ -224,7 +224,7 @@ function formatHeaderRow(sheet, bgColor) {
  */
 /**
  * Đọc phiên bản Backend yêu cầu dành cho Giáo viên từ ô G1 của Sheet DATA_GIAOVIEN
- * Mặc định là "2.0" nếu ô G1 chưa được nhập
+ * Mặc định là "2.1" nếu ô G1 chưa được nhập
  */
 function getCentralBackendVersion(sheetGV) {
   try {
@@ -239,7 +239,83 @@ function getCentralBackendVersion(sheetGV) {
       }
     }
   } catch (e) {}
-  return "2.0";
+  return "2.1";
+}
+
+/**
+ * Đảm bảo Sheet DATA_GIAOVIEN có cột 'Phiên bản Backend GV' (Cột F) và ô G1 có phiên bản chuẩn hệ thống (2.1)
+ */
+function ensureGiaoVienSheetColumns(sheetGV) {
+  try {
+    if (!sheetGV) return 5;
+    const lastCol = Math.max(sheetGV.getLastColumn(), 5);
+    const headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 7)).getValues()[0];
+
+    let verColIdx = -1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || "").toLowerCase().trim();
+      if (h.includes("phiên bản") || h.includes("version")) {
+        verColIdx = c;
+        break;
+      }
+    }
+
+    if (verColIdx === -1) {
+      sheetGV.getRange(1, 6).setValue("Phiên bản Backend GV");
+      formatHeaderRow(sheetGV);
+      verColIdx = 5;
+    }
+
+    // Đảm bảo ô G1 có giá trị phiên bản mặc định là 2.1 nếu chưa có
+    const g1Val = String(sheetGV.getRange("G1").getValue() || "").trim();
+    if (!g1Val) {
+      sheetGV.getRange("G1").setValue("2.1");
+    }
+
+    return verColIdx;
+  } catch (err) {
+    Logger.log("Lỗi ensureGiaoVienSheetColumns: " + err.toString());
+    return 5;
+  }
+}
+
+/**
+ * Cập nhật phiên bản backend thực tế mà giáo viên đang sử dụng vào cột 'Phiên bản Backend GV' (Cột F)
+ */
+function handleUpdateTeacherBackendVersion(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+    if (!sheetGV) return createJsonResponse({ success: false, message: "Không tìm thấy sheet DATA_GIAOVIEN" });
+
+    const username = String(payload.username || "").trim();
+    const version = String(payload.version || "2.0").trim();
+    if (!username) return createJsonResponse({ success: false, message: "Thiếu tên tài khoản giáo viên" });
+
+    const verColIdx = ensureGiaoVienSheetColumns(sheetGV);
+    const data = sheetGV.getDataRange().getValues();
+    let updated = false;
+
+    for (let i = 1; i < data.length; i++) {
+      const gvUser = String(data[i][0] || "").trim();
+      if (isSameTeacherAccount(gvUser, username)) {
+        sheetGV.getRange(i + 1, verColIdx + 1).setValue(version);
+        updated = true;
+        break;
+      }
+    }
+
+    return createJsonResponse({
+      success: updated,
+      message: updated ? `Đã cập nhật phiên bản backend ${version} cho giáo viên ${username}` : "Không tìm thấy giáo viên",
+      version: version
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi cập nhật phiên bản GV: " + err.toString()
+    });
+  }
 }
 
 function doGet(e) {
@@ -254,6 +330,8 @@ function doGet(e) {
             success: true,
             requiredBackendVersion: getCentralBackendVersion()
           });
+        case "updateTeacherBackendVersion":
+          return handleUpdateTeacherBackendVersion(payload);
         case "getStudentsForTeacher":
           return handleGetStudentsForTeacher(payload);
         case "getTeacherExams":
@@ -347,6 +425,9 @@ function doPost(e) {
 
       case "getSheetDataByUrl":
         return handleGetSheetDataByUrl(payload);
+
+      case "updateTeacherBackendVersion":
+        return handleUpdateTeacherBackendVersion(payload);
 
       // --- MODULE 2: GIÁO VIÊN ---
       case "saveExam":
@@ -460,21 +541,25 @@ function handleLogin(payload) {
                            String(row[3] || "").toUpperCase().includes("ADMIN") ||
                            String(row[2] || "").toUpperCase().includes("ADMIN"));
 
+          const verColIdx = ensureGiaoVienSheetColumns(sheetGV);
           const reqVer = getCentralBackendVersion(sheetGV);
+          const teacherCurrentVer = String(row[verColIdx] || "").trim() || "2.0";
 
           return createJsonResponse({
             success: true,
             message: isAdmin ? "Đăng nhập Quản trị viên (Admin) thành công!" : "Đăng nhập Giáo viên thành công!",
             role: isAdmin ? "ADMIN" : "GV",
             requiredBackendVersion: reqVer,
+            teacherBackendVersion: teacherCurrentVer,
             data: {
               username: gvUser,
               hoTenGV: String(row[2] || (isAdmin ? "Quản trị viên" : "")),
               lopGiangDay: String(row[3] || (isAdmin ? "ADMIN" : "")),
               truong: String(row[4] || ""),
-              ngaySinh: row[5] ? formatBirthDateValue(row[5]) : "",
+              ngaySinh: "",
               serverUrl: personalServerUrl || "",
               requiredBackendVersion: reqVer,
+              teacherBackendVersion: teacherCurrentVer,
               isAdmin: isAdmin
             }
           });

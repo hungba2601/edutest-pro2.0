@@ -8055,11 +8055,11 @@ async function checkTeacherBackendVersionUpdate() {
       }
     } catch (e) {}
   }
-  if (!requiredVersion) requiredVersion = "2.0";
+  if (!requiredVersion) requiredVersion = "2.1";
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
-  let currentServerVersion = "2.0"; // Mặc định là 2.0 nếu là code cũ chưa có phiên bản
+  let currentServerVersion = "2.0"; // Mặc định là 2.0 nếu là code cũ chưa có phiên bản 2.1
 
   if (personalServerUrl && personalServerUrl.startsWith("https://script.google.com/macros/s/") && personalServerUrl !== DEFAULT_GAS_API_URL) {
     try {
@@ -8076,7 +8076,14 @@ async function checkTeacherBackendVersionUpdate() {
     }
   }
 
-  // 3. So sánh: Nếu phiên bản yêu cầu tại ô G1 khác phiên bản hiện tại của Giáo viên (VD: ô G1 đổi thành 2.1)
+  // Tự động báo cáo phiên bản hiện tại lên cột F của sheet DATA_GIAOVIEN trung tâm
+  if (currentTeacher && currentTeacher.username) {
+    try {
+      fetch(`${DEFAULT_GAS_API_URL}?action=updateTeacherBackendVersion&username=${encodeURIComponent(currentTeacher.username)}&version=${encodeURIComponent(currentServerVersion)}&_t=${Date.now()}`);
+    } catch (eRep) {}
+  }
+
+  // 3. So sánh: Nếu phiên bản yêu cầu tại ô G1 khác phiên bản hiện tại của Giáo viên (VD: ô G1 là 2.1 nhưng server GV đang là 2.0)
   if (requiredVersion && currentServerVersion !== requiredVersion) {
     console.warn(`[YÊU CẦU CẬP NHẬT BACKEND] Bản yêu cầu tại ô G1: ${requiredVersion}, Bản server riêng hiện tại: ${currentServerVersion}`);
 
@@ -8117,6 +8124,10 @@ async function checkTeacherBackendVersionUpdate() {
         9000
       );
     }, 500);
+  } else {
+    // Nếu phiên bản đã khớp (đều là 2.1), ẩn hộp thông báo nếu có
+    const noticeBox = document.getElementById("hubVersionUpdateNotice");
+    if (noticeBox) noticeBox.style.display = "none";
   }
 }
 
@@ -8395,13 +8406,35 @@ function initCentralHubModal() {
           }
         }
 
+        // Kiểm tra phiên bản backend của Sheet riêng
+        let detectedVersion = "2.0";
+        try {
+          const vResp = await fetch(`${testServerUrl}?action=checkBackendVersion&_t=${Date.now()}`);
+          if (vResp.ok) {
+            const vJson = await vResp.json();
+            if (vJson && vJson.version) detectedVersion = String(vJson.version).trim();
+          }
+        } catch (eV) {}
+
+        const requiredVersion = (localStorage.getItem("required_backend_version") || "2.1").trim();
+        if (currentTeacher?.username) {
+          try {
+            fetch(`${DEFAULT_GAS_API_URL}?action=updateTeacherBackendVersion&username=${encodeURIComponent(currentTeacher.username)}&version=${encodeURIComponent(detectedVersion)}&_t=${Date.now()}`);
+          } catch (eU) {}
+        }
+
+        if (detectedVersion === requiredVersion) {
+          const noticeBox = document.getElementById("hubVersionUpdateNotice");
+          if (noticeBox) noticeBox.style.display = "none";
+        }
+
         // Kiểm tra ping tới Trạm Trung Tâm
         const respHub = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory`, { method: "GET" });
         if (respHub.ok) {
-          setHubStatus("success", `✅ <strong>KẾT NỐI XUẤT SẮC! (HTTP 200 OK)</strong>${studentCountNotice}<br>Cả Google Sheet riêng của Thầy/Cô và Trạm Trung Tâm đều đang phản hồi rất tốt. Sẵn sàng bấm Đồng Bộ!`);
-          showToast("Kết nối thành công! 🎉", `Máy chủ riêng phản hồi tốt!${studentCountNotice ? " " + studentCountNotice.replace(/<[^>]+>/g, '') : ""}`, "success", 4000);
+          setHubStatus("success", `✅ <strong>KẾT NỐI XUẤT SẮC! (Phiên bản Backend: ${detectedVersion})</strong>${studentCountNotice}<br>Cả Google Sheet riêng của Thầy/Cô và Trạm Trung Tâm đều đang phản hồi rất tốt. Sẵn sàng bấm Đồng Bộ!`);
+          showToast("Kết nối thành công! 🎉", `Máy chủ riêng bản ${detectedVersion} phản hồi tốt!${studentCountNotice ? " " + studentCountNotice.replace(/<[^>]+>/g, '') : ""}`, "success", 4000);
         } else {
-          setHubStatus("success", `✅ <strong>Sheet riêng phản hồi tốt!</strong>${studentCountNotice} (Đang sẵn sàng đồng bộ)`);
+          setHubStatus("success", `✅ <strong>Sheet riêng bản ${detectedVersion} phản hồi tốt!</strong>${studentCountNotice} (Đang sẵn sàng đồng bộ)`);
         }
       } catch (err) {
         setHubStatus("error", `❌ <strong>Kết nối thất bại:</strong> ${err.message}<br><small>Gợi ý: Khi tạo New Deployment trên Google Sheet, mục <strong>Who has access (Ai có quyền truy cập)</strong> bắt buộc phải chọn là <strong>Anyone (Bất kỳ ai)</strong>.</small>`);

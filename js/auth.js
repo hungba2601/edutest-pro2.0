@@ -471,6 +471,9 @@ loginForm.addEventListener("submit", async (e) => {
       if (result.requiredBackendVersion || result.data?.requiredBackendVersion) {
         localStorage.setItem("required_backend_version", String(result.requiredBackendVersion || result.data.requiredBackendVersion).trim());
       }
+      if (result.teacherBackendVersion || result.data?.teacherBackendVersion) {
+        localStorage.setItem("teacher_backend_version", String(result.teacherBackendVersion || result.data.teacherBackendVersion).trim());
+      }
 
       // Chuyển hướng theo phân quyền
       setTimeout(() => {
