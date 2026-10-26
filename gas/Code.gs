@@ -349,7 +349,8 @@ function handleUpdateTeacherBackendVersion(payload) {
     for (let i = 1; i < data.length; i++) {
       const gvUser = String(data[i][0] || "").trim();
       if (isSameTeacherAccount(gvUser, username)) {
-        sheetGV.getRange(i + 1, verColIdx + 1).setValue(version);
+        const vToSave = isAdminAccount(username) ? getCentralBackendVersion(sheetGV) : version;
+        sheetGV.getRange(i + 1, verColIdx + 1).setValue(vToSave);
         updated = true;
         break;
       }

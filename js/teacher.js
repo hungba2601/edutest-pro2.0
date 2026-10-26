@@ -155,7 +155,20 @@ function isAdminRole() {
       if (u && u.username) username = String(u.username).trim().toLowerCase();
     } catch (e) {}
   }
-  return (username === "admin");
+  const cleanUser = username.replace(/^0+/, "");
+  return (username === "admin" || username === "0938750424" || cleanUser === "938750424" || username === "gv001");
+}
+
+function isCentralAccount(targetUser) {
+  let u = String(targetUser || currentTeacher?.username || "").trim().toLowerCase();
+  if (!u) {
+    try {
+      const cur = JSON.parse(localStorage.getItem("currentUser") || "{}");
+      if (cur && cur.username) u = String(cur.username).trim().toLowerCase();
+    } catch (e) {}
+  }
+  const cleanUser = u.replace(/^0+/, "");
+  return (u === "admin" || u === "0938750424" || cleanUser === "938750424" || u === "gv001");
 }
 
 let adminActiveApiUrl = null;
@@ -8083,7 +8096,12 @@ function isDateVersion(str) {
 // TỰ ĐỘNG ĐỐI CHIẾU PHIÊN BẢN BACKEND VỚI Ô G1 TRÊN SHEET TRUNG TÂM
 // ============================================================================
 async function checkTeacherBackendVersionUpdate() {
-  if (isAdminRole()) return; // Tài khoản Quản trị viên BGH không cần cảnh báo
+  // Tài khoản dùng Sheet trung tâm (admin, 0938750424...) chạy trực tiếp Code.gs trung tâm nên KHÔNG BAO GIỜ hiện thông báo cập nhật
+  if (isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
+    const noticeBox = document.getElementById("hubVersionUpdateNotice");
+    if (noticeBox) noticeBox.style.display = "none";
+    return;
+  }
 
   // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (định dạng ngày tháng)
   let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "").trim();
@@ -8228,6 +8246,12 @@ function initCentralHubModal() {
   }
 
   function openModal() {
+    // Ẩn cảnh báo cập nhật đối với tài khoản trung tâm (admin, 0938750424)
+    if (isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
+      const noticeBox = document.getElementById("hubVersionUpdateNotice");
+      if (noticeBox) noticeBox.style.display = "none";
+    }
+
     if (hubInfoGvName) hubInfoGvName.textContent = currentTeacher ? `${currentTeacher.hoTenGV || ""} (${currentTeacher.username})` : "--";
     if (hubInfoGvSchool) hubInfoGvSchool.textContent = (currentTeacher && currentTeacher.truong) ? currentTeacher.truong : "Chưa cấu hình trường";
     
@@ -8476,7 +8500,7 @@ function initCentralHubModal() {
           } catch (eU) {}
         }
 
-        if (isCurrentUpdated) {
+        if (isCurrentUpdated || isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
           const noticeBox = document.getElementById("hubVersionUpdateNotice");
           if (noticeBox) noticeBox.style.display = "none";
         }
