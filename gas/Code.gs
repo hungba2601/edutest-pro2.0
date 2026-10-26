@@ -223,8 +223,58 @@ function formatHeaderRow(sheet, bgColor) {
  * Xử lý yêu cầu GET (vừa kiểm tra trạng thái, vừa hỗ trợ fallback truy vấn dữ liệu)
  */
 /**
+ * Định dạng giá trị phiên bản backend thành chuỗi Ngày/Tháng/Năm (DD/MM/YYYY)
+ * Tránh hiển thị chuỗi Date thô của Google Sheets (như Fri Jan 02 2026...) hoặc số phiên bản 2.0, 2.1
+ */
+function formatBackendVersionDate(val) {
+  try {
+    if (val === null || val === undefined || String(val).trim() === "") {
+      return "26/10/2026";
+    }
+    // Nếu là đối tượng Date (khi người dùng gõ ngày hoặc số bị Google Sheet tự đổi thành Date)
+    if (Object.prototype.toString.call(val) === "[object Date]" || val instanceof Date) {
+      if (!isNaN(val.getTime())) {
+        const d = String(val.getDate()).padStart(2, "0");
+        const m = String(val.getMonth() + 1).padStart(2, "0");
+        const y = val.getFullYear();
+        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) {
+          return "26/10/2026";
+        }
+        return d + "/" + m + "/" + y;
+      }
+    }
+    const str = String(val).trim();
+    // Nếu chuỗi chứa GMT hoặc định dạng ngày tiếng Anh (Fri Jan 02 2026...)
+    if (str.indexOf("GMT") !== -1 || /^[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(str)) {
+      const parsedDate = new Date(str);
+      if (!isNaN(parsedDate.getTime())) {
+        const d = String(parsedDate.getDate()).padStart(2, "0");
+        const m = String(parsedDate.getMonth() + 1).padStart(2, "0");
+        const y = parsedDate.getFullYear();
+        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) {
+          return "26/10/2026";
+        }
+        return d + "/" + m + "/" + y;
+      }
+    }
+    // Nếu là dạng DD/MM/YYYY hoặc D/M/YYYY
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+      const parts = str.split("/");
+      return parts[0].padStart(2, "0") + "/" + parts[1].padStart(2, "0") + "/" + parts[2];
+    }
+    // Nếu người dùng nhập 2.0 hoặc 2.1 thì chuyển thành ngày phát hành chuẩn
+    if (str === "2.0" || str === "2.1") {
+      return "26/10/2026";
+    }
+    return str;
+  } catch (e) {
+    return "26/10/2026";
+  }
+}
+
+/**
  * Đọc phiên bản Backend yêu cầu dành cho Giáo viên từ ô G1 của Sheet DATA_GIAOVIEN
- * Mặc định là "2.1" nếu ô G1 chưa được nhập
+ * Chuẩn hóa thành dạng Ngày/Tháng/Năm (DD/MM/YYYY)
  */
 function getCentralBackendVersion(sheetGV) {
   try {
@@ -235,15 +285,15 @@ function getCentralBackendVersion(sheetGV) {
     if (sheetGV) {
       const val = sheetGV.getRange("G1").getValue();
       if (val !== null && val !== undefined && String(val).trim() !== "") {
-        return String(val).trim();
+        return formatBackendVersionDate(val);
       }
     }
   } catch (e) {}
-  return "2.1";
+  return "26/10/2026";
 }
 
 /**
- * Đảm bảo Sheet DATA_GIAOVIEN có cột 'Phiên bản Backend GV' (Cột F) và ô G1 có phiên bản chuẩn hệ thống (2.1)
+ * Đảm bảo Sheet DATA_GIAOVIEN có cột 'Phiên bản Backend GV' (Cột F) và ô G1 có phiên bản chuẩn hệ thống (dạng Ngày 26/10/2026)
  */
 function ensureGiaoVienSheetColumns(sheetGV) {
   try {
@@ -266,10 +316,10 @@ function ensureGiaoVienSheetColumns(sheetGV) {
       verColIdx = 5;
     }
 
-    // Đảm bảo ô G1 có giá trị phiên bản mặc định là 2.1 nếu chưa có
+    // Đảm bảo ô G1 có giá trị phiên bản mặc định dạng ngày (26/10/2026) nếu chưa có
     const g1Val = String(sheetGV.getRange("G1").getValue() || "").trim();
     if (!g1Val) {
-      sheetGV.getRange("G1").setValue("2.1");
+      sheetGV.getRange("G1").setValue("'26/10/2026");
     }
 
     return verColIdx;

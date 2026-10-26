@@ -8036,30 +8036,73 @@ function filterAndRenderStudents() {
 }
 
 // ============================================================================
+// CHUẨN HÓA ĐỊNH DẠNG PHIÊN BẢN BACKEND THÀNH NGÀY THÁNG (DD/MM/YYYY)
+// ============================================================================
+function formatBackendVersionDate(val) {
+  try {
+    if (!val || String(val).trim() === "") return "26/10/2026";
+    if (val instanceof Date || Object.prototype.toString.call(val) === "[object Date]") {
+      if (!isNaN(val.getTime())) {
+        const d = String(val.getDate()).padStart(2, "0");
+        const m = String(val.getMonth() + 1).padStart(2, "0");
+        const y = val.getFullYear();
+        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) return "26/10/2026";
+        return `${d}/${m}/${y}`;
+      }
+    }
+    const str = String(val).trim();
+    if (str.includes("GMT") || /^[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(str)) {
+      const parsedDate = new Date(str);
+      if (!isNaN(parsedDate.getTime())) {
+        const d = String(parsedDate.getDate()).padStart(2, "0");
+        const m = String(parsedDate.getMonth() + 1).padStart(2, "0");
+        const y = parsedDate.getFullYear();
+        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) return "26/10/2026";
+        return `${d}/${m}/${y}`;
+      }
+    }
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+      const parts = str.split("/");
+      return `${parts[0].padStart(2, "0")}/${parts[1].padStart(2, "0")}/${parts[2]}`;
+    }
+    if (str === "2.0" || str === "2.1") {
+      return "26/10/2026";
+    }
+    return str;
+  } catch (e) {
+    return "26/10/2026";
+  }
+}
+
+function isDateVersion(str) {
+  if (!str) return false;
+  return /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(String(str).trim());
+}
+
+// ============================================================================
 // TỰ ĐỘNG ĐỐI CHIẾU PHIÊN BẢN BACKEND VỚI Ô G1 TRÊN SHEET TRUNG TÂM
 // ============================================================================
 async function checkTeacherBackendVersionUpdate() {
   if (isAdminRole()) return; // Tài khoản Quản trị viên BGH không cần cảnh báo
 
-  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm
-  let requiredVersion = (localStorage.getItem("required_backend_version") || "").trim();
-  if (!requiredVersion) {
-    try {
-      const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
-      if (hubRes.ok) {
-        const hubJson = await hubRes.json();
-        if (hubJson && hubJson.requiredBackendVersion) {
-          requiredVersion = String(hubJson.requiredBackendVersion).trim();
-          localStorage.setItem("required_backend_version", requiredVersion);
-        }
+  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (định dạng ngày tháng)
+  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "").trim();
+  try {
+    const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
+    if (hubRes.ok) {
+      const hubJson = await hubRes.json();
+      if (hubJson && hubJson.requiredBackendVersion) {
+        rawRequiredVersion = String(hubJson.requiredBackendVersion).trim();
+        localStorage.setItem("required_backend_version", rawRequiredVersion);
       }
-    } catch (e) {}
-  }
-  if (!requiredVersion) requiredVersion = "2.1";
+    }
+  } catch (e) {}
+
+  const requiredVersionDate = formatBackendVersionDate(rawRequiredVersion);
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
-  let currentServerVersion = "2.0"; // Mặc định là 2.0 nếu là code cũ chưa có phiên bản 2.1
+  let currentServerVersion = "2.0"; // Mặc định là 2.0 nếu là code cũ
 
   if (personalServerUrl && personalServerUrl.startsWith("https://script.google.com/macros/s/") && personalServerUrl !== DEFAULT_GAS_API_URL) {
     try {
@@ -8083,9 +8126,15 @@ async function checkTeacherBackendVersionUpdate() {
     } catch (eRep) {}
   }
 
-  // 3. So sánh: Nếu phiên bản yêu cầu tại ô G1 khác phiên bản hiện tại của Giáo viên (VD: ô G1 là 2.1 nhưng server GV đang là 2.0)
-  if (requiredVersion && currentServerVersion !== requiredVersion) {
-    console.warn(`[YÊU CẦU CẬP NHẬT BACKEND] Bản yêu cầu tại ô G1: ${requiredVersion}, Bản server riêng hiện tại: ${currentServerVersion}`);
+  // 3. So sánh: Kiểm tra xem server cá nhân của GV đã cập nhật lên phiên bản ngày yêu cầu chưa
+  const isCurrentUpdated = isDateVersion(currentServerVersion) && (formatBackendVersionDate(currentServerVersion) === requiredVersionDate);
+
+  if (!isCurrentUpdated) {
+    const displayCurrentVer = isDateVersion(currentServerVersion)
+      ? `Bản ngày ${formatBackendVersionDate(currentServerVersion)}`
+      : "Bản cũ (Chưa cập nhật)";
+
+    console.warn(`[YÊU CẦU CẬP NHẬT BACKEND] Bản mới ngày: ${requiredVersionDate}, Bản server riêng hiện tại: ${displayCurrentVer}`);
 
     // Tự động chuyển ngay sang tab Danh Sách Học Sinh (DSHS)
     const tabBtnStudents = document.getElementById("tabBtnStudents");
@@ -8111,21 +8160,21 @@ async function checkTeacherBackendVersionUpdate() {
 
       if (noticeBox) {
         noticeBox.style.display = "block";
-        if (noticeReqText) noticeReqText.textContent = requiredVersion;
-        if (noticeCurText) noticeCurText.textContent = currentServerVersion;
-        if (badgeCompare) badgeCompare.textContent = `Bản mới: ${requiredVersion} (Hiện tại: ${currentServerVersion})`;
+        if (noticeReqText) noticeReqText.textContent = requiredVersionDate;
+        if (noticeCurText) noticeCurText.textContent = displayCurrentVer;
+        if (badgeCompare) badgeCompare.textContent = `Bản mới: ${requiredVersionDate} (${displayCurrentVer})`;
         noticeBox.scrollIntoView({ behavior: "smooth", block: "center" });
       }
 
       showToast(
         "Yêu cầu cập nhật mã nguồn 📢",
-        `Hệ thống trung tâm đã nâng cấp lên bản ${requiredVersion}. Vui lòng sao chép mã mới và cập nhật lên Google Sheets của Thầy/Cô!`,
+        `Hệ thống trung tâm đã phát hành bản mới ngày ${requiredVersionDate}. Vui lòng sao chép mã mới và cập nhật lên Google Sheets của Thầy/Cô!`,
         "warning",
         9000
       );
     }, 500);
   } else {
-    // Nếu phiên bản đã khớp (đều là 2.1), ẩn hộp thông báo nếu có
+    // Nếu phiên bản đã khớp (đã là bản ngày mới nhất), ẩn hộp thông báo nếu có
     const noticeBox = document.getElementById("hubVersionUpdateNotice");
     if (noticeBox) noticeBox.style.display = "none";
   }
@@ -8416,14 +8465,18 @@ function initCentralHubModal() {
           }
         } catch (eV) {}
 
-        const requiredVersion = (localStorage.getItem("required_backend_version") || "2.1").trim();
+        const rawReq = (localStorage.getItem("required_backend_version") || "26/10/2026").trim();
+        const requiredVersionDate = formatBackendVersionDate(rawReq);
+        const isCurrentUpdated = isDateVersion(detectedVersion) && (formatBackendVersionDate(detectedVersion) === requiredVersionDate);
+        const displayDetectedVer = isDateVersion(detectedVersion) ? `Bản ngày ${formatBackendVersionDate(detectedVersion)}` : "Bản cũ (Chưa cập nhật)";
+
         if (currentTeacher?.username) {
           try {
             fetch(`${DEFAULT_GAS_API_URL}?action=updateTeacherBackendVersion&username=${encodeURIComponent(currentTeacher.username)}&version=${encodeURIComponent(detectedVersion)}&_t=${Date.now()}`);
           } catch (eU) {}
         }
 
-        if (detectedVersion === requiredVersion) {
+        if (isCurrentUpdated) {
           const noticeBox = document.getElementById("hubVersionUpdateNotice");
           if (noticeBox) noticeBox.style.display = "none";
         }
@@ -8431,10 +8484,10 @@ function initCentralHubModal() {
         // Kiểm tra ping tới Trạm Trung Tâm
         const respHub = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory`, { method: "GET" });
         if (respHub.ok) {
-          setHubStatus("success", `✅ <strong>KẾT NỐI XUẤT SẮC! (Phiên bản Backend: ${detectedVersion})</strong>${studentCountNotice}<br>Cả Google Sheet riêng của Thầy/Cô và Trạm Trung Tâm đều đang phản hồi rất tốt. Sẵn sàng bấm Đồng Bộ!`);
-          showToast("Kết nối thành công! 🎉", `Máy chủ riêng bản ${detectedVersion} phản hồi tốt!${studentCountNotice ? " " + studentCountNotice.replace(/<[^>]+>/g, '') : ""}`, "success", 4000);
+          setHubStatus("success", `✅ <strong>KẾT NỐI XUẤT SẮC! (${displayDetectedVer})</strong>${studentCountNotice}<br>Cả Google Sheet riêng của Thầy/Cô và Trạm Trung Tâm đều đang phản hồi rất tốt. Sẵn sàng bấm Đồng Bộ!`);
+          showToast("Kết nối thành công! 🎉", `Máy chủ riêng (${displayDetectedVer}) phản hồi tốt!${studentCountNotice ? " " + studentCountNotice.replace(/<[^>]+>/g, '') : ""}`, "success", 4000);
         } else {
-          setHubStatus("success", `✅ <strong>Sheet riêng bản ${detectedVersion} phản hồi tốt!</strong>${studentCountNotice} (Đang sẵn sàng đồng bộ)`);
+          setHubStatus("success", `✅ <strong>Máy chủ riêng (${displayDetectedVer}) phản hồi tốt!</strong>${studentCountNotice} (Đang sẵn sàng đồng bộ)`);
         }
       } catch (err) {
         setHubStatus("error", `❌ <strong>Kết nối thất bại:</strong> ${err.message}<br><small>Gợi ý: Khi tạo New Deployment trên Google Sheet, mục <strong>Who has access (Ai có quyền truy cập)</strong> bắt buộc phải chọn là <strong>Anyone (Bất kỳ ai)</strong>.</small>`);
