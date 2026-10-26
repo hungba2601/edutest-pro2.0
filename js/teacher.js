@@ -155,8 +155,7 @@ function isAdminRole() {
       if (u && u.username) username = String(u.username).trim().toLowerCase();
     } catch (e) {}
   }
-  const cleanUser = username.replace(/^0+/, "");
-  return (username === "admin" || username === "0938750424" || cleanUser === "938750424" || username === "gv001");
+  return (username === "admin");
 }
 
 function isCentralAccount(targetUser) {
