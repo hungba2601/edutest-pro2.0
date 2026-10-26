@@ -144,6 +144,24 @@ function isCurrentUserAdmin() {
   return (username === "0938750424" || cleanUser === "938750424" || username === "gv001" || username === "admin");
 }
 
+function isAdminRole() {
+  const role = (localStorage.getItem("userRole") || "").toUpperCase();
+  if (role === "ADMIN") return true;
+  if (currentTeacher && (currentTeacher.isAdmin || currentTeacher.role === "ADMIN")) return true;
+  let username = String(currentTeacher?.username || "").trim().toLowerCase();
+  if (!username) {
+    try {
+      const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
+      if (u && u.username) username = String(u.username).trim().toLowerCase();
+    } catch (e) {}
+  }
+  return (username === "admin");
+}
+
+let adminActiveApiUrl = null;
+let adminActiveUsernameGV = "ALL";
+let adminTeacherDirectory = [];
+
 function isSameTeacherAccount(acc1, acc2) {
   let s1 = String(acc1 || "").trim().toLowerCase();
   let s2 = String(acc2 || "").trim().toLowerCase();
@@ -159,6 +177,10 @@ function isSameTeacherAccount(acc1, acc2) {
 
 function getTeacherPersonalServerUrl() {
   try {
+    if (isAdminRole()) {
+      if (adminActiveApiUrl) return adminActiveApiUrl;
+      return DEFAULT_GAS_API_URL;
+    }
     const isAdmin = isCurrentUserAdmin();
     const custom = (localStorage.getItem("custom_gas_api_url") || "").trim();
     if (custom && custom.startsWith("https://script.google.com/macros/s/")) {
@@ -3163,6 +3185,16 @@ if (btnDividePoints) {
 // QUẢN LÝ BỘ NHỚ TẠM (LOCALSTORAGE CACHE) ĐỀ THI CHO GIÁO VIÊN
 // ============================================================================
 function getTeacherUsernameVariants() {
+  if (isAdminRole()) {
+    if (!adminActiveUsernameGV || adminActiveUsernameGV === "ALL") {
+      return ["ALL"];
+    }
+    const rawA = String(adminActiveUsernameGV).trim();
+    const vList = [rawA];
+    if (rawA.startsWith("0")) vList.push(rawA.replace(/^0+/, ""));
+    else if (/^\d+$/.test(rawA)) vList.push("0" + rawA);
+    return [...new Set(vList.filter(Boolean))];
+  }
   const raw = String(currentTeacher?.username || "").trim();
   const variants = [raw];
   if (raw.startsWith("0")) {
@@ -4668,8 +4700,8 @@ async function loadTeacherExams(isManualRefresh = false) {
   }
 
   // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT (SHEET RIÊNG HOẶC SHEET TRUNG TÂM NẾU LÀ ADMIN)
-  const isAdmin = isCurrentUserAdmin();
-  let targetServerUrl = getTeacherPersonalServerUrl();
+  const isAdmin = isCurrentUserAdmin() || isAdminRole();
+  let targetServerUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : getTeacherPersonalServerUrl();
   if (!targetServerUrl && isAdmin) {
     targetServerUrl = DEFAULT_GAS_API_URL;
   }
@@ -5270,7 +5302,8 @@ async function loadTeacherResults(filterMaDe) {
 
     for (const uGV of usernameVariants) {
       try {
-        const res = await fetch(API_URL, {
+        const fetchUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+        const res = await fetch(fetchUrl, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
@@ -5289,7 +5322,26 @@ async function loadTeacherResults(filterMaDe) {
           }
         }
       } catch (errVar) {
-        console.warn(`Thử lấy kết quả với ${uGV} không thành công:`, errVar);
+        console.warn(`Thử lấy kết quả POST với ${uGV} không thành công:`, errVar);
+      }
+
+      // Tự động thử GET nếu POST chưa ra kết quả
+      if (!resultsFound || resultsFound.length === 0) {
+        try {
+          const fetchUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+          const getUrl = `${fetchUrl}?action=getTeacherResults&usernameGV=${encodeURIComponent(uGV)}&maDe=${encodeURIComponent(actualMaDe)}&_t=${Date.now()}`;
+          const getRes = await fetch(getUrl);
+          const getText = await getRes.text();
+          if (getText && !getText.trim().startsWith("<")) {
+            const data = JSON.parse(getText);
+            if (data && Array.isArray(data.results)) {
+              resultsFound = data.results;
+              if (resultsFound.length > 0) break;
+            }
+          }
+        } catch (getErr) {
+          console.warn(`Thử lấy kết quả GET với ${uGV} không thành công:`, getErr);
+        }
       }
     }
 
@@ -6387,7 +6439,8 @@ async function loadTeacherStudents(forceRefresh = false) {
     for (const uGV of usernameVariants) {
       // Thử gửi POST
       try {
-        const response = await fetch(API_URL, {
+        const fetchUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+        const response = await fetch(fetchUrl, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
@@ -6413,7 +6466,8 @@ async function loadTeacherStudents(forceRefresh = false) {
       // Tự động fallback sang GET nếu POST chưa ra học sinh
       if (!result || !result.students || result.students.length === 0) {
         try {
-          const getUrl = `${API_URL}?action=getStudentsForTeacher&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
+          const fetchUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+          const getUrl = `${fetchUrl}?action=getStudentsForTeacher&usernameGV=${encodeURIComponent(uGV)}&_t=${Date.now()}`;
           const getResponse = await fetch(getUrl);
           const getRawText = await getResponse.text();
 
@@ -8694,6 +8748,219 @@ if (document.readyState === "loading") {
   initShareExamModal();
 }
 
+/**
+ * ============================================================================
+ * QUẢN TRỊ VIÊN (ADMIN) - BỘ LỌC GIÁO VIÊN & ĐỌC SHEET URL TRỰC TIẾP
+ * ============================================================================
+ */
+async function initAdminTeacherSelector() {
+  const selectTeacher = document.getElementById("selectFilterTeacher");
+  const btnRefresh = document.getElementById("btnRefreshTeacherList");
+  const btnOpenSheetModal = document.getElementById("btnOpenSheetUrlModal");
+  const modalSheetUrl = document.getElementById("modalSheetUrlReader");
+  const btnCloseSheetUrl = document.getElementById("btnCloseSheetUrlModal");
+  const btnCancelSheetUrl = document.getElementById("btnCancelSheetUrl");
+  const btnSubmitSheetUrl = document.getElementById("btnSubmitDirectSheetUrl");
+  const inputSheetUrl = document.getElementById("inputDirectSheetUrl");
+
+  if (!selectTeacher) return;
+
+  function cleanTeacherDirectoryList(rawTeachers) {
+    if (!Array.isArray(rawTeachers)) return [];
+    const cleanKey = (s) => String(s || "").trim().toLowerCase().replace(/^0+/, "");
+    const mergedMap = new Map();
+
+    rawTeachers.forEach(t => {
+      const rawCode = String(t.maGV || "").trim();
+      if (!rawCode || rawCode.toLowerCase() === "admin") return;
+      const ck = cleanKey(rawCode);
+
+      if (!mergedMap.has(ck)) {
+        mergedMap.set(ck, {
+          maGV: rawCode,
+          hoTenGV: String(t.hoTenGV || "").trim(),
+          truong: String(t.truong || "").trim(),
+          serverUrl: String(t.serverUrl || "").trim(),
+          sheetUrl: String(t.sheetUrl || "").trim(),
+          trangThai: String(t.trangThai || "Hoạt động").trim()
+        });
+      } else {
+        const existing = mergedMap.get(ck);
+        if (rawCode.startsWith("0") && !existing.maGV.startsWith("0")) existing.maGV = rawCode;
+        if (t.hoTenGV && t.hoTenGV.length > existing.hoTenGV.length) existing.hoTenGV = String(t.hoTenGV).trim();
+        if (t.serverUrl && !existing.serverUrl) existing.serverUrl = String(t.serverUrl).trim();
+        if (t.sheetUrl && !existing.sheetUrl) existing.sheetUrl = String(t.sheetUrl).trim();
+        if (t.truong && !existing.truong) existing.truong = String(t.truong).trim();
+      }
+    });
+
+    // Ưu tiên thứ tự của các tài khoản theo đúng sheet DATA_GIAOVIEN (mã có số 0 ở đầu)
+    const zeroKeys = [];
+    rawTeachers.forEach(t => {
+      const rawCode = String(t.maGV || "").trim();
+      if (rawCode.startsWith("0")) {
+        const ck = cleanKey(rawCode);
+        if (!zeroKeys.includes(ck) && mergedMap.has(ck)) zeroKeys.push(ck);
+      }
+    });
+
+    const finalKeys = [...zeroKeys];
+    mergedMap.forEach((_, ck) => {
+      if (!finalKeys.includes(ck)) finalKeys.push(ck);
+    });
+
+    return finalKeys.map(ck => mergedMap.get(ck)).filter(Boolean);
+  }
+
+  async function fetchTeachers() {
+    selectTeacher.innerHTML = '<option value="ALL">-- Đang tải danh sách giáo viên... --</option>';
+    try {
+      let res = null;
+      try {
+        const response = await fetch(DEFAULT_GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ action: "getTeacherHubDirectory" })
+        });
+        const txt = await response.text();
+        if (txt && !txt.trim().startsWith("<")) res = JSON.parse(txt);
+      } catch (ePost) {}
+
+      if (!res || !res.success) {
+        const getRes = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory&_t=${Date.now()}`);
+        const getTxt = await getRes.text();
+        if (getTxt && !getTxt.trim().startsWith("<")) res = JSON.parse(getTxt);
+      }
+
+      if (res && Array.isArray(res.teachers)) {
+        adminTeacherDirectory = cleanTeacherDirectoryList(res.teachers);
+        renderTeacherOptions(adminTeacherDirectory);
+      } else {
+        selectTeacher.innerHTML = '<option value="ALL">-- Tất cả Giáo viên (Toàn trường) --</option>';
+      }
+    } catch (err) {
+      console.warn("Lỗi tải danh bạ giáo viên:", err);
+      selectTeacher.innerHTML = '<option value="ALL">-- Tất cả Giáo viên (Toàn trường) --</option>';
+    }
+  }
+
+  function renderTeacherOptions(teachers) {
+    selectTeacher.innerHTML = '<option value="ALL">-- Tất cả Giáo viên (Toàn trường) --</option>';
+    teachers.forEach(t => {
+      const opt = document.createElement("option");
+      opt.value = t.maGV;
+      opt.textContent = `${t.hoTenGV || t.maGV} (${t.maGV})${t.truong ? ` - ${t.truong}` : ""}`;
+      if (t.serverUrl) opt.dataset.server = t.serverUrl;
+      if (t.sheetUrl) opt.dataset.sheet = t.sheetUrl;
+      selectTeacher.appendChild(opt);
+    });
+  }
+
+  await fetchTeachers();
+
+  // Sự kiện khi Quản trị viên đổi giáo viên cần xem
+  selectTeacher.addEventListener("change", async () => {
+    const selectedMaGV = selectTeacher.value;
+    adminActiveUsernameGV = selectedMaGV;
+
+    if (selectedMaGV === "ALL") {
+      adminActiveApiUrl = DEFAULT_GAS_API_URL;
+      API_URL = DEFAULT_GAS_API_URL;
+      showToast("Đang tải dữ liệu", "Đang nạp toàn bộ bài kiểm tra và điểm số của tất cả giáo viên...", "info", 2000);
+    } else {
+      const opt = selectTeacher.selectedOptions[0];
+      const serverUrl = opt ? (opt.dataset.server || "") : "";
+      adminActiveApiUrl = (serverUrl && serverUrl.startsWith("https://script.google.com/macros/s/")) ? serverUrl : DEFAULT_GAS_API_URL;
+      API_URL = adminActiveApiUrl;
+      const teacherName = opt ? opt.textContent : selectedMaGV;
+      showToast("Chọn giáo viên", `Đang nạp dữ liệu thống kê của: ${teacherName}...`, "info", 2000);
+    }
+
+    // Nạp lại đề thi, học sinh và kết quả điểm theo giáo viên đang chọn
+    await loadTeacherExams(true);
+    await loadTeacherStudents(true);
+    await loadTeacherResults("ALL");
+  });
+
+  if (btnRefresh) {
+    btnRefresh.addEventListener("click", async () => {
+      await fetchTeachers();
+      selectTeacher.dispatchEvent(new Event("change"));
+    });
+  }
+
+  // Xử lý Modal URL Google Sheet trực tiếp
+  if (btnOpenSheetModal && modalSheetUrl) {
+    btnOpenSheetModal.addEventListener("click", () => {
+      modalSheetUrl.style.display = "flex";
+      if (inputSheetUrl) inputSheetUrl.focus();
+    });
+  }
+
+  function closeSheetModal() {
+    if (modalSheetUrl) modalSheetUrl.style.display = "none";
+  }
+  if (btnCloseSheetUrl) btnCloseSheetUrl.addEventListener("click", closeSheetModal);
+  if (btnCancelSheetUrl) btnCancelSheetUrl.addEventListener("click", closeSheetModal);
+
+  if (btnSubmitSheetUrl) {
+    btnSubmitSheetUrl.addEventListener("click", async () => {
+      const sUrl = (inputSheetUrl ? inputSheetUrl.value : "").trim();
+      if (!sUrl || !sUrl.includes("docs.google.com/spreadsheets/")) {
+        showToast("URL không hợp lệ", "Vui lòng nhập đúng đường link Google Sheets!", "warning");
+        return;
+      }
+
+      btnSubmitSheetUrl.disabled = true;
+      btnSubmitSheetUrl.textContent = "Đang tải dữ liệu từ Sheet...";
+
+      try {
+        const resp = await fetch(DEFAULT_GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "getSheetDataByUrl",
+            sheetUrl: sUrl
+          })
+        });
+        const raw = await resp.text();
+        const res = JSON.parse(raw);
+
+        if (res && res.success) {
+          closeSheetModal();
+          showToast("Thành công", `Đã nạp thành công dữ liệu từ "${res.sheetTitle || 'Google Sheet'}"!`, "success", 4000);
+
+          // Cập nhật danh sách đề thi
+          currentExamsList = res.exams || [];
+          updateFilterExamDropdown(currentExamsList);
+
+          // Cập nhật học sinh
+          currentTeacherStudents = res.students || [];
+
+          // Cập nhật kết quả bài làm
+          currentRawResultsList = (res.results || []).map(r => ({
+            ...r,
+            lop: normalizeClassName(r.lop)
+          }));
+          currentResultsList = currentRawResultsList;
+
+          populateResultClassDropdown("ALL");
+          applyResultsFiltersAndRender();
+
+        } else {
+          showToast("Lỗi nạp Sheet", res?.message || "Không thể đọc dữ liệu từ Google Sheet này!", "error", 5000);
+        }
+      } catch (errSheet) {
+        console.error("Lỗi đọc sheet:", errSheet);
+        showToast("Lỗi kết nối", errSheet.message || "Không thể kết nối đến Google Sheets!", "error", 5000);
+      } finally {
+        btnSubmitSheetUrl.disabled = false;
+        btnSubmitSheetUrl.innerHTML = "<span>🚀 Tải Dữ Liệu Từ Sheet</span>";
+      }
+    });
+  }
+}
+
 // ============================================================================
 // 1. KHỞI TẠO & PHÂN QUYỀN TRANG (Đặt ở cuối cùng để mọi hàm & hằng số đã sẵn sàng)
 // ============================================================================
@@ -8709,8 +8976,8 @@ function initTeacherDashboard() {
     const rawUser = localStorage.getItem("currentUser");
     const role = localStorage.getItem("userRole");
 
-    if (!rawUser || role !== "GV") {
-      alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Giáo viên.");
+    if (!rawUser || (role !== "GV" && role !== "ADMIN")) {
+      alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Giáo viên / Quản trị viên.");
       window.location.href = "index.html";
       return;
     }
@@ -8745,6 +9012,57 @@ function initTeacherDashboard() {
       API_URL = DEFAULT_GAS_API_URL;
     }
     updateServerStatusBadgeUI();
+
+    // KIỂM TRA PHÂN QUYỀN QUẢN TRỊ VIÊN (ADMIN PORTAL)
+    if (isAdminRole()) {
+      API_URL = DEFAULT_GAS_API_URL;
+      const brandRoleTag = document.getElementById("brandRoleTag");
+      if (brandRoleTag) brandRoleTag.textContent = "Cổng Quản Trị Viên (Admin)";
+      document.title = "EduTest Pro 2.0 - Cổng Quản Trị Viên";
+
+      const gvFullNameEl = document.getElementById("gvFullName");
+      if (gvFullNameEl) gvFullNameEl.textContent = currentTeacher.hoTenGV || "Ban Giám Hiệu (Admin)";
+      const gvNavAvatar = document.getElementById("gvNavAvatar");
+      if (gvNavAvatar) gvNavAvatar.textContent = "AD";
+      const dropdownGvName = document.getElementById("dropdownGvName");
+      if (dropdownGvName) dropdownGvName.textContent = currentTeacher.hoTenGV || "Ban Giám Hiệu (Admin)";
+      const dropdownBadge = document.querySelector(".dropdown-user-badge");
+      if (dropdownBadge) dropdownBadge.textContent = "Quản Trị Viên";
+
+      // Ẩn tab Tạo đề & tab Học sinh
+      const tabBtnCreate = document.getElementById("tabBtnCreate");
+      const tabBtnStudents = document.getElementById("tabBtnStudents");
+      const tabBtnResults = document.getElementById("tabBtnResults");
+      const tabCreate = document.getElementById("tabCreate");
+      const tabStudents = document.getElementById("tabStudents");
+      const tabResults = document.getElementById("tabResults");
+
+      if (tabBtnCreate) tabBtnCreate.style.display = "none";
+      if (tabBtnStudents) tabBtnStudents.style.display = "none";
+      if (tabCreate) tabCreate.style.display = "none";
+      if (tabStudents) tabStudents.style.display = "none";
+
+      if (tabBtnResults) {
+        tabBtnResults.classList.add("active");
+        const span = tabBtnResults.querySelector("span");
+        if (span) span.textContent = "Xem Thống Kê & Điểm Số";
+      }
+      if (tabResults) {
+        tabResults.style.display = "block";
+        tabResults.classList.add("active");
+      }
+
+      // Hiện thanh chọn giáo viên
+      const adminTeacherGrp = document.getElementById("adminTeacherFilterGroup");
+      if (adminTeacherGrp) adminTeacherGrp.style.display = "flex";
+
+      // Ẩn modal trạm trung tâm khỏi dropdown vì admin đang ở trạm trung tâm
+      const btnOpenHubModal = document.getElementById("btnOpenHubModal");
+      if (btnOpenHubModal) btnOpenHubModal.style.display = "none";
+
+      // Khởi tạo selector Giáo viên cho Admin
+      initAdminTeacherSelector();
+    }
 
     // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)
     const gvFullNameEl = document.getElementById("gvFullName");

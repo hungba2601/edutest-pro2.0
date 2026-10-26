@@ -70,9 +70,25 @@ function initDatabase() {
     sheetGV.appendRow(headers);
     formatHeaderRow(sheetGV);
 
-    // Thêm dữ liệu giáo viên mẫu
+    // Thêm dữ liệu giáo viên mẫu và tài khoản Quản trị viên (Admin)
+    sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "ADMIN", "THCS Chu Văn An"]);
     sheetGV.appendRow(["GV001", "123", "Thầy Lê Hoàng Nam", "9A1, 9A2", "THCS Chu Văn An"]);
     sheetGV.appendRow(["GV002", "123", "Cô Nguyễn Thùy Chi", "9A1, 9A3", "THCS Chu Văn An"]);
+  } else {
+    // Đảm bảo có tài khoản Admin nếu sheet đã tồn tại
+    try {
+      const gvRows = sheetGV.getDataRange().getValues();
+      let hasAdmin = false;
+      for (let r = 1; r < gvRows.length; r++) {
+        if (String(gvRows[r][0] || "").trim().toLowerCase() === "admin") {
+          hasAdmin = true;
+          break;
+        }
+      }
+      if (!hasAdmin) {
+        sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "ADMIN", "THCS Chu Văn An"]);
+      }
+    } catch (eAdmin) {}
   }
 
   // 3. Cấu trúc Sheet DATA_DETHI (Gồm 8 cột: thêm cột Chế độ xem bài)
@@ -251,6 +267,8 @@ function doGet(e) {
           return handleGetTeacherHubDirectory(payload);
         case "lookupStudentHub":
           return handleLookupStudentHub(payload);
+        case "getSheetDataByUrl":
+          return handleGetSheetDataByUrl(payload);
       }
     }
 
@@ -300,6 +318,9 @@ function doPost(e) {
 
       case "lookupStudentHub":
         return handleLookupStudentHub(payload);
+
+      case "getSheetDataByUrl":
+        return handleGetSheetDataByUrl(payload);
 
       // --- MODULE 2: GIÁO VIÊN ---
       case "saveExam":
@@ -408,17 +429,23 @@ function handleLogin(payload) {
             }
           } catch (eHub) {}
 
+          const isAdmin = (gvUser.toLowerCase() === "admin" ||
+                           username.toLowerCase() === "admin" ||
+                           String(row[3] || "").toUpperCase().includes("ADMIN") ||
+                           String(row[2] || "").toUpperCase().includes("ADMIN"));
+
           return createJsonResponse({
             success: true,
-            message: "Đăng nhập Giáo viên thành công!",
-            role: "GV",
+            message: isAdmin ? "Đăng nhập Quản trị viên (Admin) thành công!" : "Đăng nhập Giáo viên thành công!",
+            role: isAdmin ? "ADMIN" : "GV",
             data: {
               username: gvUser,
-              hoTenGV: String(row[2] || ""),
-              lopGiangDay: String(row[3] || ""),
+              hoTenGV: String(row[2] || (isAdmin ? "Quản trị viên" : "")),
+              lopGiangDay: String(row[3] || (isAdmin ? "ADMIN" : "")),
               truong: String(row[4] || ""),
               ngaySinh: row[5] ? formatBirthDateValue(row[5]) : "",
-              serverUrl: personalServerUrl || ""
+              serverUrl: personalServerUrl || "",
+              isAdmin: isAdmin
             }
           });
         } else {
@@ -763,32 +790,267 @@ function handleGetTeacherHubDirectory() {
   try {
     const ss = getSpreadsheet();
     const sheetHubServers = ss.getSheetByName(SHEETS.HUB_SERVERS);
-    if (!sheetHubServers) {
-      return createJsonResponse({ success: true, teachers: [] });
+    const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+
+    // Hàm chuẩn hóa mã GV (bỏ số 0 ở đầu và chữ hoa/thường để đối soát không bao giờ bị nhân đôi)
+    const cleanKey = function(str) {
+      return String(str || "").trim().toLowerCase().replace(/^0+/, "");
+    };
+
+    // 1. Quét danh sách máy chủ & liên kết từ HUB_SERVERS
+    const hubMap = {};
+    if (sheetHubServers) {
+      const data = sheetHubServers.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        const rawMaGV = String(data[i][0] || "").trim();
+        if (!rawMaGV || rawMaGV.toLowerCase() === "admin") continue;
+        const ck = cleanKey(rawMaGV);
+        const rk = rawMaGV.toLowerCase();
+
+        let sUrl = String(data[i][3] || "").trim();
+        let sheetUrl = "";
+        for (let col = 0; col < data[i].length; col++) {
+          const val = String(data[i][col] || "").trim();
+          if (val.includes("docs.google.com/spreadsheets/")) {
+            sheetUrl = val;
+            break;
+          }
+        }
+
+        const info = {
+          maGV: rawMaGV,
+          hoTenGV: String(data[i][1] || "").trim(),
+          truong: String(data[i][2] || "").trim(),
+          serverUrl: sUrl,
+          sheetUrl: sheetUrl,
+          trangThai: String(data[i][4] || "Hoạt động")
+        };
+
+        if (!hubMap[ck]) hubMap[ck] = info;
+        if (!hubMap[rk]) hubMap[rk] = info;
+      }
     }
 
-    const data = sheetHubServers.getDataRange().getValues();
-    const teachers = [];
-    for (let i = 1; i < data.length; i++) {
-      const maGV = String(data[i][0] || "").trim();
-      if (!maGV) continue;
-      teachers.push({
-        maGV: maGV,
-        hoTenGV: String(data[i][1] || ""),
-        truong: String(data[i][2] || ""),
-        serverUrl: String(data[i][3] || ""),
-        trangThai: String(data[i][4] || "Hoạt động")
-      });
+    const teacherList = [];
+    const seen = {};
+
+    // 2. DUYỆT THEO THỨ TỰ CHÍNH XÁC CỦA SHEET DATA_GIAOVIEN (Ưu tiên hàng đầu)
+    if (sheetGV) {
+      const gvData = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < gvData.length; i++) {
+        const rawMaGV = String(gvData[i][0] || "").trim();
+        const roleCol = String(gvData[i][3] || "").trim();
+        if (!rawMaGV || rawMaGV.toLowerCase() === "admin" || roleCol.toUpperCase() === "ADMIN") continue;
+
+        const ck = cleanKey(rawMaGV);
+        const rk = rawMaGV.toLowerCase();
+        if (seen[ck] || seen[rk]) continue; // Chống lặp tuyệt đối
+        seen[ck] = true;
+        seen[rk] = true;
+
+        const hubInfo = hubMap[ck] || hubMap[rk] || {};
+
+        let sheetUrl = hubInfo.sheetUrl || "";
+        if (!sheetUrl) {
+          for (let col = 0; col < gvData[i].length; col++) {
+            const val = String(gvData[i][col] || "").trim();
+            if (val.includes("docs.google.com/spreadsheets/")) {
+              sheetUrl = val;
+              break;
+            }
+          }
+        }
+
+        teacherList.push({
+          maGV: rawMaGV, // Giữ nguyên mã số có số 0 gốc trong DATA_GIAOVIEN (VD: 0938750424)
+          hoTenGV: String(gvData[i][2] || hubInfo.hoTenGV || rawMaGV).trim(),
+          truong: String(gvData[i][4] || hubInfo.truong || "").trim(),
+          serverUrl: hubInfo.serverUrl || "",
+          sheetUrl: sheetUrl,
+          trangThai: hubInfo.trangThai || "Hoạt động"
+        });
+      }
+    }
+
+    // 3. Nếu trong HUB_SERVERS có GV chưa nằm trong DATA_GIAOVIEN thì đưa tiếp vào cuối
+    if (sheetHubServers) {
+      const data = sheetHubServers.getDataRange().getValues();
+      for (let i = 1; i < data.length; i++) {
+        const rawMaGV = String(data[i][0] || "").trim();
+        if (!rawMaGV || rawMaGV.toLowerCase() === "admin") continue;
+        const ck = cleanKey(rawMaGV);
+        const rk = rawMaGV.toLowerCase();
+        if (seen[ck] || seen[rk]) continue;
+        seen[ck] = true;
+        seen[rk] = true;
+
+        const hubInfo = hubMap[ck] || hubMap[rk] || {};
+        teacherList.push({
+          maGV: rawMaGV,
+          hoTenGV: hubInfo.hoTenGV || rawMaGV,
+          truong: hubInfo.truong || "",
+          serverUrl: hubInfo.serverUrl || "",
+          sheetUrl: hubInfo.sheetUrl || "",
+          trangThai: hubInfo.trangThai || "Hoạt động"
+        });
+      }
     }
 
     return createJsonResponse({
       success: true,
-      teachers: teachers
+      teachers: teacherList
     });
   } catch (err) {
     return createJsonResponse({
       success: false,
       message: "Lỗi lấy danh bạ giáo viên: " + err.toString()
+    });
+  }
+}
+
+/**
+ * ĐỌC DỮ LIỆU ĐỀ THI VÀ KẾT QUẢ TRỰC TIẾP TỪ URL GOOGLE SHEET CỦA GIÁO VIÊN
+ * Hỗ trợ tài khoản Quản trị viên (Admin) xem thống kê qua link Google Sheets
+ */
+function handleGetSheetDataByUrl(payload) {
+  try {
+    const sheetUrl = String(payload.sheetUrl || "").trim();
+    if (!sheetUrl) {
+      return createJsonResponse({
+        success: false,
+        message: "Vui lòng cung cấp đường dẫn URL Google Sheet của Giáo viên!"
+      });
+    }
+
+    let targetSS;
+    try {
+      targetSS = SpreadsheetApp.openByUrl(sheetUrl);
+    } catch (eOpen) {
+      return createJsonResponse({
+        success: false,
+        message: "Không thể mở Google Sheet này! Vui lòng đảm bảo Sheet đã được bấm 'Chia sẻ' (Share) với quyền 'Người xem' (Viewer) hoặc 'Bất kỳ ai có liên kết'. Chi tiết: " + eOpen.toString()
+      });
+    }
+
+    // 1. Đọc danh sách đề thi từ DATA_DETHI
+    const sheetDeThi = targetSS.getSheetByName(SHEETS.DETHI || "DATA_DETHI");
+    const exams = [];
+    if (sheetDeThi) {
+      ensureDeThiSheetColumns(sheetDeThi);
+      const cols = getDeThiColumnIndexes(sheetDeThi);
+      const dataDe = sheetDeThi.getDataRange().getValues();
+      for (let i = 1; i < dataDe.length; i++) {
+        const row = dataDe[i];
+        if (!row[0]) continue;
+        const cheDoXemText = String(row[cols.reviewCol] || "").trim();
+        const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
+        const jsonRaw = row[cols.jsonCol];
+        let duLieuDeParsed = {};
+        try {
+          duLieuDeParsed = typeof jsonRaw === "string" ? JSON.parse(jsonRaw) : (jsonRaw || {});
+        } catch (e) { duLieuDeParsed = {}; }
+
+        const essayList = (duLieuDeParsed.tuLuan && Array.isArray(duLieuDeParsed.tuLuan.danhSachCauHoi)) ? duLieuDeParsed.tuLuan.danhSachCauHoi : [];
+        const soCauTuLuan = essayList.length > 0 ? essayList.length : (duLieuDeParsed.tuLuan && duLieuDeParsed.tuLuan.noiDung ? 1 : 0);
+        const hasTuLuan = !!(duLieuDeParsed.tuLuan && (duLieuDeParsed.tuLuan.noiDung || duLieuDeParsed.tuLuan.linkForm || essayList.length > 0));
+
+        exams.push({
+          maDe: String(row[0]),
+          tenKyThi: String(row[1]),
+          usernameGV: String(row[2]),
+          lopChoPhep: String(row[3]),
+          thoiGian: Number(row[4]) || 45,
+          trangThai: String(row[5] || "Mở"),
+          choXemLaiBai: cheDoXemText.indexOf("Khóa") === -1,
+          choXemDiem: cheDoXemDiemText.indexOf("Khóa") === -1,
+          soCauHoi: (duLieuDeParsed.cauHoi || []).length,
+          soCauTuLuan: soCauTuLuan,
+          hasTuLuan: hasTuLuan,
+          duLieuDe: duLieuDeParsed
+        });
+      }
+    }
+
+    // 2. Đọc danh sách kết quả bài làm từ DATA_KETQUA
+    const sheetKetQua = targetSS.getSheetByName(SHEETS.KETQUA || "DATA_KETQUA");
+    const results = [];
+    if (sheetKetQua) {
+      const dataKQ = sheetKetQua.getDataRange().getValues();
+      const maDeFilter = String(payload.maDe || "").trim();
+      for (let i = 1; i < dataKQ.length; i++) {
+        const row = dataKQ[i];
+        const rowMaDe = String(row[7]).trim();
+        if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
+          let chiTietParsed = [];
+          let baiLamTuLuan = [];
+          try {
+            const rawDetail = JSON.parse(row[12] || "[]");
+            if (rawDetail && typeof rawDetail === "object" && !Array.isArray(rawDetail)) {
+              chiTietParsed = rawDetail.tracNghiem || [];
+              baiLamTuLuan = rawDetail.tuLuan || [];
+            } else {
+              chiTietParsed = rawDetail;
+            }
+          } catch (e) {
+            chiTietParsed = [];
+            baiLamTuLuan = [];
+          }
+
+          results.push({
+            usernameHS: String(row[0]),
+            lop: formatClassValue(row[1]),
+            hoTen: String(row[2]),
+            ngaySinh: formatBirthDateValue(row[3]),
+            gioiTinh: String(row[4]),
+            truong: String(row[5]),
+            thoiGianDangNhap: formatDateValue(row[6]),
+            maDe: rowMaDe,
+            usernameGV: String(row[8]),
+            diemTong: Number(row[9]) || 0,
+            soCauDungSai: String(row[10] || ""),
+            thoiGianNop: formatDateValue(row[11]),
+            chiTietTraLoi: JSON.stringify(chiTietParsed),
+            baiLamTuLuan: baiLamTuLuan
+          });
+        }
+      }
+    }
+
+    // 3. Đọc danh sách học sinh từ DATA_HOCSINH
+    const sheetHS = targetSS.getSheetByName(SHEETS.HOCSINH || "DATA_HOCSINH");
+    const students = [];
+    const classSet = new Set();
+    if (sheetHS) {
+      const dataHS = sheetHS.getDataRange().getValues();
+      for (let i = 1; i < dataHS.length; i++) {
+        const row = dataHS[i];
+        const c = formatClassValue(row[2]);
+        if (c) classSet.add(c);
+        students.push({
+          username: String(row[0] || "").trim(),
+          password: String(row[1] || "").trim(),
+          lop: c,
+          hoTen: String(row[3] || "").trim(),
+          ngaySinh: formatBirthDateValue(row[4]),
+          gioiTinh: String(row[5] || "").trim(),
+          truong: String(row[6] || "").trim()
+        });
+      }
+    }
+
+    return createJsonResponse({
+      success: true,
+      sheetTitle: targetSS.getName(),
+      exams: exams,
+      results: results,
+      students: students,
+      classes: Array.from(classSet)
+    });
+
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi đọc Google Sheet: " + err.toString()
     });
   }
 }
@@ -1164,7 +1426,7 @@ function handleGetTeacherExams(payload) {
     const row = data[i];
     if (!row[0]) continue;
 
-    if (isSameTeacherAccount(row[2], usernameGV)) {
+    if (!usernameGV || usernameGV === "all" || usernameGV === "admin" || isSameTeacherAccount(row[2], usernameGV)) {
       const cheDoXemText = String(row[cols.reviewCol] || "").trim();
       const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
       const jsonRaw = row[cols.jsonCol];
@@ -1332,7 +1594,7 @@ function handleGetTeacherResults(payload) {
     const rowGV = String(row[8]).trim().toLowerCase();
     const rowMaDe = String(row[7]).trim();
 
-    if (isSameTeacherAccount(rowGV, usernameGV)) {
+    if (!usernameGV || usernameGV === "all" || usernameGV === "admin" || isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -1402,7 +1664,7 @@ function handleGetStudentsForTeacher(payload) {
   }
 
   // Chuẩn hóa danh sách lớp được phép
-  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ");
+  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all" || usernameGV === "admin";
   const allowedClasses = allowedClassesStr.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
 
   const dataHS = sheetHS.getDataRange().getValues();

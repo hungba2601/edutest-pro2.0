@@ -3316,6 +3316,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   .filter-left > div {
     width: 100% !important;
   }
+  #selectFilterTeacher,
   #selectFilterExam,
   #selectFilterResultClass {
     width: 100% !important;

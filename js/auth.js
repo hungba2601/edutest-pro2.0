@@ -276,9 +276,11 @@ loginForm.addEventListener("submit", async (e) => {
   const role = getSelectedRole();
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
+  const isAdminLogin = (username.toLowerCase() === "admin");
+  const effectiveRole = isAdminLogin ? "GV" : role;
 
   // Validate bắt buộc chọn Thầy/Cô đối với Học sinh để bảo đảm không bị mất bài làm
-  if (role === "HS") {
+  if (effectiveRole === "HS") {
     const selectTeacher = document.getElementById("selectTeacherServer");
     const chosenTeacher = selectTeacher ? (selectTeacher.value || "").trim() : "";
     if (!chosenTeacher) {
@@ -320,30 +322,65 @@ loginForm.addEventListener("submit", async (e) => {
     action: "login",
     username: username,
     password: password,
-    role: role
+    role: effectiveRole
   };
 
   try {
-    let result;
-
     // GỌI API THỰC TẾ LÊN GOOGLE APPS SCRIPT
     // Sử dụng text/plain để vượt qua cơ chế CORS của Google Apps Script
-    let activeUrl = getActiveApiUrl(role);
+    let activeUrl = isAdminLogin ? DEFAULT_GAS_API_URL : getActiveApiUrl(effectiveRole);
     let targetServerUsed = activeUrl;
 
-    const response = await fetch(activeUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify(payload)
-    });
+    let result = null;
+    let postSuccess = false;
 
-    if (!response.ok) {
-      throw new Error(`Máy chủ Google phản hồi mã lỗi HTTP ${response.status}`);
+    // 1. Thử gửi POST lên Google Apps Script
+    try {
+      const response = await fetch(activeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const rawText = await response.text();
+        if (rawText && !rawText.trim().startsWith("<")) {
+          result = JSON.parse(rawText);
+          postSuccess = true;
+        }
+      }
+    } catch (postErr) {
+      console.warn("POST xác thực thất bại (có thể do CORS file:///), đang chuyển sang GET fallback...", postErr);
     }
 
-    result = await response.json();
+    // 2. TỰ ĐỘNG DỰ PHÒNG SANG GET (Vượt qua 100% giới hạn CORS khi chạy từ file:/// trên trình duyệt)
+    if (!postSuccess || !result) {
+      try {
+        const queryParams = new URLSearchParams({
+          action: "login",
+          username: username,
+          password: password,
+          role: effectiveRole,
+          _t: Date.now()
+        });
+        const getUrl = `${activeUrl}${activeUrl.includes("?") ? "&" : "?"}${queryParams.toString()}`;
+        const getResponse = await fetch(getUrl);
+        if (!getResponse.ok) {
+          throw new Error(`Máy chủ Google phản hồi HTTP ${getResponse.status}`);
+        }
+        const getText = await getResponse.text();
+        if (getText && !getText.trim().startsWith("<")) {
+          result = JSON.parse(getText);
+        } else {
+          throw new Error("Phản hồi từ Google Apps Script không hợp lệ.");
+        }
+      } catch (getErr) {
+        console.error("GET fallback cũng thất bại:", getErr);
+        throw getErr;
+      }
+    }
 
     // ========================================================================
     // TỰ ĐỘNG CHUYỂN TIẾP TRẠM TRUNG TÂM (HUB REDIRECT CHO HỌC SINH)
@@ -353,20 +390,40 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("student_gas_api_url", targetServerUsed);
       showToast("Chuyển tiếp lớp học 🌐", result.message || "Tài khoản thuộc lớp của Thầy/Cô. Đang tự động kết nối...", "info", 3500);
 
-      // Gọi lần 2 sang máy chủ riêng của GV đó để hoàn tất xác thực
-      const redirectResp = await fetch(targetServerUsed, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!redirectResp.ok) {
-        throw new Error(`Không thể kết nối đến máy chủ lớp học của Thầy/Cô (HTTP ${redirectResp.status})`);
+      // Gọi lần 2 sang máy chủ riêng của GV đó để hoàn tất xác thực (có hỗ trợ GET fallback)
+      let redirectDone = false;
+      try {
+        const redirectResp = await fetch(targetServerUsed, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(payload)
+        });
+        if (redirectResp.ok) {
+          const rText = await redirectResp.text();
+          if (rText && !rText.trim().startsWith("<")) {
+            result = JSON.parse(rText);
+            redirectDone = true;
+          }
+        }
+      } catch (eRedir) {
+        console.warn("Redirect POST thất bại, thử GET:", eRedir);
       }
 
-      result = await redirectResp.json();
+      if (!redirectDone) {
+        const qp = new URLSearchParams({
+          action: "login",
+          username: username,
+          password: password,
+          role: effectiveRole,
+          _t: Date.now()
+        });
+        const getRedirUrl = `${targetServerUsed}${targetServerUsed.includes("?") ? "&" : "?"}${qp.toString()}`;
+        const redirGetResp = await fetch(getRedirUrl);
+        const rGetText = await redirGetResp.text();
+        result = JSON.parse(rGetText);
+      }
     }
 
     // ========================================================================
@@ -405,13 +462,15 @@ loginForm.addEventListener("submit", async (e) => {
         if (result.data.ngaySinh) result.data.ngaySinh = formatDob(result.data.ngaySinh);
         if (result.data.lop) result.data.lop = normalizeClassName(result.data.lop);
       }
+      const isUserAdmin = (result.role === "ADMIN") || (result.data && result.data.isAdmin) || (username.toLowerCase() === "admin");
+      const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole);
       localStorage.setItem("currentUser", JSON.stringify(result.data));
-      localStorage.setItem("userRole", result.role || role);
+      localStorage.setItem("userRole", savedRole);
       localStorage.setItem("loginTime", new Date().toISOString());
 
       // Chuyển hướng theo phân quyền
       setTimeout(() => {
-        if (role === "GV") {
+        if (savedRole === "GV" || savedRole === "ADMIN") {
           const gvUser = (result.data?.username || "").trim();
           if (result.data && result.data.serverUrl && result.data.serverUrl !== DEFAULT_GAS_API_URL) {
             localStorage.setItem("custom_gas_api_url", result.data.serverUrl);
@@ -461,9 +520,10 @@ loginForm.addEventListener("submit", async (e) => {
 
   } catch (error) {
     console.error("Lỗi khi kết nối API xác thực:", error);
-    const connErrMsg = "Không thể kết nối đến máy chủ Google Sheets. Vui lòng kiểm tra đường truyền mạng hoặc kiểm tra lại Web App URL cấu hình.";
+    const detailMsg = (error && error.message) ? error.message : "Không thể kết nối đến máy chủ Google Sheets. Vui lòng kiểm tra đường truyền mạng hoặc Web App URL.";
+    const connErrMsg = `Không thể kết nối đến máy chủ Google Sheets (${detailMsg}). Vui lòng kiểm tra lại.`;
     showLoginAlert(connErrMsg);
-    showToast("Lỗi kết nối", connErrMsg, "error", 5000);
+    showToast("Lỗi kết nối", connErrMsg, "error", 6000);
   } finally {
     setLoading(false);
   }
@@ -604,7 +664,54 @@ function initTeacherDirectoryDropdown() {
   const badgeTeacherAutoDetect = document.getElementById("badgeTeacherAutoDetect");
   if (!selectTeacherServer) return;
 
-  function renderTeacherList(teachers) {
+  function cleanTeacherDirectoryList(rawTeachers) {
+    if (!Array.isArray(rawTeachers)) return [];
+    const cleanKey = (s) => String(s || "").trim().toLowerCase().replace(/^0+/, "");
+    const mergedMap = new Map();
+
+    rawTeachers.forEach(t => {
+      const rawCode = String(t.maGV || "").trim();
+      if (!rawCode || rawCode.toLowerCase() === "admin") return;
+      const ck = cleanKey(rawCode);
+
+      if (!mergedMap.has(ck)) {
+        mergedMap.set(ck, {
+          maGV: rawCode,
+          hoTenGV: String(t.hoTenGV || "").trim(),
+          truong: String(t.truong || "").trim(),
+          serverUrl: String(t.serverUrl || "").trim(),
+          sheetUrl: String(t.sheetUrl || "").trim(),
+          trangThai: String(t.trangThai || "Hoạt động").trim()
+        });
+      } else {
+        const existing = mergedMap.get(ck);
+        if (rawCode.startsWith("0") && !existing.maGV.startsWith("0")) existing.maGV = rawCode;
+        if (t.hoTenGV && t.hoTenGV.length > existing.hoTenGV.length) existing.hoTenGV = String(t.hoTenGV).trim();
+        if (t.serverUrl && !existing.serverUrl) existing.serverUrl = String(t.serverUrl).trim();
+        if (t.sheetUrl && !existing.sheetUrl) existing.sheetUrl = String(t.sheetUrl).trim();
+        if (t.truong && !existing.truong) existing.truong = String(t.truong).trim();
+      }
+    });
+
+    const zeroKeys = [];
+    rawTeachers.forEach(t => {
+      const rawCode = String(t.maGV || "").trim();
+      if (rawCode.startsWith("0")) {
+        const ck = cleanKey(rawCode);
+        if (!zeroKeys.includes(ck) && mergedMap.has(ck)) zeroKeys.push(ck);
+      }
+    });
+
+    const finalKeys = [...zeroKeys];
+    mergedMap.forEach((_, ck) => {
+      if (!finalKeys.includes(ck)) finalKeys.push(ck);
+    });
+
+    return finalKeys.map(ck => mergedMap.get(ck)).filter(Boolean);
+  }
+
+  function renderTeacherList(rawTeachers) {
+    const teachers = cleanTeacherDirectoryList(rawTeachers);
     const urlParams = new URLSearchParams(window.location.search);
     const serverFromUrl = (urlParams.get("server") || "").trim();
     const currentVal = selectTeacherServer.value || serverFromUrl;
@@ -646,7 +753,7 @@ function initTeacherDirectoryDropdown() {
   }
 
   // 2. Tải ngầm danh bạ mới nhất từ Trạm Trung Tâm
-  fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory`, { method: "GET" })
+  fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory&_t=${Date.now()}`, { method: "GET" })
     .then(res => res.ok ? res.json() : null)
     .then(res => {
       if (res && res.success && Array.isArray(res.teachers) && res.teachers.length > 0) {

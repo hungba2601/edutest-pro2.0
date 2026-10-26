@@ -987,7 +987,7 @@ function handleGetTeacherResults(payload) {
     const rowGV = String(row[8]).trim().toLowerCase();
     const rowMaDe = String(row[7]).trim();
 
-    if (rowGV === usernameGV) {
+    if (!usernameGV || usernameGV === "all" || isSameTeacherAccount(rowGV, usernameGV) || !rowGV) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -1057,7 +1057,7 @@ function handleGetStudentsForTeacher(payload) {
   }
 
   // Chuẩn hóa danh sách lớp được phép
-  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ");
+  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all";
   const allowedClasses = allowedClassesStr.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
 
   const dataHS = sheetHS.getDataRange().getValues();
