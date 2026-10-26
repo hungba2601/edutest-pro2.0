@@ -8048,48 +8048,58 @@ function filterAndRenderStudents() {
 }
 
 // ============================================================================
-// CHUẨN HÓA ĐỊNH DẠNG PHIÊN BẢN BACKEND THÀNH NGÀY THÁNG (DD/MM/YYYY)
+// CHUẨN HÓA ĐỊNH DẠNG PHIÊN BẢN BACKEND DẠNG SỐ (2.0, 2.1, 2.2,...)
 // ============================================================================
-function formatBackendVersionDate(val) {
+function formatBackendVersion(val) {
   try {
-    if (!val || String(val).trim() === "") return "26/10/2026";
-    if (val instanceof Date || Object.prototype.toString.call(val) === "[object Date]") {
-      if (!isNaN(val.getTime())) {
-        const d = String(val.getDate()).padStart(2, "0");
-        const m = String(val.getMonth() + 1).padStart(2, "0");
-        const y = val.getFullYear();
-        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) return "26/10/2026";
-        return `${d}/${m}/${y}`;
-      }
-    }
-    const str = String(val).trim();
-    if (str.includes("GMT") || /^[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(str)) {
-      const parsedDate = new Date(str);
-      if (!isNaN(parsedDate.getTime())) {
-        const d = String(parsedDate.getDate()).padStart(2, "0");
-        const m = String(parsedDate.getMonth() + 1).padStart(2, "0");
-        const y = parsedDate.getFullYear();
-        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) return "26/10/2026";
-        return `${d}/${m}/${y}`;
-      }
+    if (!val || String(val).trim() === "") return "2.2";
+    let str = String(val).trim();
+    if (str.startsWith("'")) str = str.substring(1).trim();
+
+    // Nếu là đối tượng Date hoặc ngày tháng cũ quy về 2.2
+    if (str.includes("26/10/2026") || str.includes("GMT") || /^[A-Z][a-z]{2}\s/.test(str)) {
+      return "2.2";
     }
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-      const parts = str.split("/");
-      return `${parts[0].padStart(2, "0")}/${parts[1].padStart(2, "0")}/${parts[2]}`;
+      return "2.2";
     }
-    if (str === "2.0" || str === "2.1") {
-      return "26/10/2026";
+
+    // Trích xuất số phiên bản dạng 2.1, 2.2, 2.0,...
+    const match = str.match(/v?(\d+(\.\d+)+)/i);
+    if (match) {
+      return match[1];
     }
-    return str;
+    if (/^\d+$/.test(str)) {
+      return str + ".0";
+    }
+    return str || "2.2";
   } catch (e) {
-    return "26/10/2026";
+    return "2.2";
   }
 }
 
-function isDateVersion(str) {
-  if (!str) return false;
-  return /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(String(str).trim());
+// Giữ alias an toàn cho các hàm cũ
+const formatBackendVersionDate = formatBackendVersion;
+
+function compareBackendVersions(v1, v2) {
+  const parts1 = String(v1 || "0").replace(/^v/i, "").split(".").map(n => parseInt(n, 10) || 0);
+  const parts2 = String(v2 || "0").replace(/^v/i, "").split(".").map(n => parseInt(n, 10) || 0);
+  const len = Math.max(parts1.length, parts2.length);
+  for (let i = 0; i < len; i++) {
+    const num1 = parts1[i] || 0;
+    const num2 = parts2[i] || 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  return 0;
 }
+
+function isValidVersion(str) {
+  if (!str) return false;
+  return /^v?\d+(\.\d+)*$/i.test(String(str).trim());
+}
+
+const isDateVersion = isValidVersion;
 
 // ============================================================================
 // TỰ ĐỘNG ĐỐI CHIẾU PHIÊN BẢN BACKEND VỚI Ô G1 TRÊN SHEET TRUNG TÂM
@@ -8102,24 +8112,25 @@ async function checkTeacherBackendVersionUpdate() {
     return;
   }
 
-  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (định dạng ngày tháng)
-  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "").trim();
+  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2,...)
+  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.2").trim();
   try {
     const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
     if (hubRes.ok) {
       const hubJson = await hubRes.json();
-      if (hubJson && hubJson.requiredBackendVersion) {
-        rawRequiredVersion = String(hubJson.requiredBackendVersion).trim();
+      if (hubJson && (hubJson.requiredBackendVersion || hubJson.version)) {
+        rawRequiredVersion = String(hubJson.requiredBackendVersion || hubJson.version).trim();
         localStorage.setItem("required_backend_version", rawRequiredVersion);
       }
     }
   } catch (e) {}
 
-  const requiredVersionDate = formatBackendVersionDate(rawRequiredVersion);
+  const requiredVersion = formatBackendVersion(rawRequiredVersion);
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
-  let currentServerVersion = "2.0"; // Mặc định là 2.0 nếu là code cũ
+  const savedSheetVer = (localStorage.getItem("teacher_backend_version") || "").trim();
+  let currentServerVersion = savedSheetVer ? formatBackendVersion(savedSheetVer) : "2.2";
 
   if (personalServerUrl && personalServerUrl.startsWith("https://script.google.com/macros/s/") && personalServerUrl !== DEFAULT_GAS_API_URL) {
     try {
@@ -8127,13 +8138,20 @@ async function checkTeacherBackendVersionUpdate() {
       if (pingRes.ok) {
         const pingJson = await pingRes.json();
         if (pingJson && pingJson.version) {
-          currentServerVersion = String(pingJson.version).trim();
+          currentServerVersion = formatBackendVersion(pingJson.version);
         }
       }
     } catch (ePing) {
-      // Trường hợp server riêng chạy code phiên bản cũ (chưa có action checkBackendVersion)
-      currentServerVersion = "2.0";
+      // Trường hợp server riêng ping lỗi hoặc chưa kích hoạt, giữ phiên bản đã ghi nhận trên Sheet
     }
+  } else {
+    // Giáo viên dùng server trung tâm
+    currentServerVersion = requiredVersion;
+  }
+
+  // Nếu cột F trên sheet trung tâm đã ghi nhận phiên bản >= yêu cầu (ví dụ GV đã cập nhật lên 2.2)
+  if (savedSheetVer && compareBackendVersions(savedSheetVer, requiredVersion) >= 0) {
+    currentServerVersion = formatBackendVersion(savedSheetVer);
   }
 
   // Tự động báo cáo phiên bản hiện tại lên cột F của sheet DATA_GIAOVIEN trung tâm
@@ -8143,15 +8161,15 @@ async function checkTeacherBackendVersionUpdate() {
     } catch (eRep) {}
   }
 
-  // 3. So sánh: Kiểm tra xem server cá nhân của GV đã cập nhật lên phiên bản ngày yêu cầu chưa
-  const isCurrentUpdated = isDateVersion(currentServerVersion) && (formatBackendVersionDate(currentServerVersion) === requiredVersionDate);
+  // 3. So sánh: Kiểm tra xem server cá nhân của GV đã đạt phiên bản yêu cầu chưa
+  const isCurrentUpdated = compareBackendVersions(currentServerVersion, requiredVersion) >= 0;
+  window.isTeacherBackendUpdated = isCurrentUpdated;
 
   if (!isCurrentUpdated) {
-    const displayCurrentVer = isDateVersion(currentServerVersion)
-      ? `Bản ngày ${formatBackendVersionDate(currentServerVersion)}`
-      : "Bản cũ (Chưa cập nhật)";
+    const displayCurrentVer = `v${currentServerVersion}`;
+    const displayReqVer = `v${requiredVersion}`;
 
-    console.warn(`[YÊU CẦU CẬP NHẬT BACKEND] Bản mới ngày: ${requiredVersionDate}, Bản server riêng hiện tại: ${displayCurrentVer}`);
+    console.warn(`[YÊU CẦU CẬP NHẬT BACKEND] Bản mới: ${displayReqVer}, Bản server riêng hiện tại: ${displayCurrentVer}`);
 
     // Tự động chuyển ngay sang tab Danh Sách Học Sinh (DSHS)
     const tabBtnStudents = document.getElementById("tabBtnStudents");
@@ -8177,21 +8195,21 @@ async function checkTeacherBackendVersionUpdate() {
 
       if (noticeBox) {
         noticeBox.style.display = "block";
-        if (noticeReqText) noticeReqText.textContent = requiredVersionDate;
+        if (noticeReqText) noticeReqText.textContent = displayReqVer;
         if (noticeCurText) noticeCurText.textContent = displayCurrentVer;
-        if (badgeCompare) badgeCompare.textContent = `Bản mới: ${requiredVersionDate} (${displayCurrentVer})`;
+        if (badgeCompare) badgeCompare.textContent = `Bản mới: ${displayReqVer} (Hiện tại: ${displayCurrentVer})`;
         noticeBox.scrollIntoView({ behavior: "smooth", block: "center" });
       }
 
       showToast(
         "Yêu cầu cập nhật mã nguồn 📢",
-        `Hệ thống trung tâm đã phát hành bản mới ngày ${requiredVersionDate}. Vui lòng sao chép mã mới và cập nhật lên Google Sheets của Thầy/Cô!`,
+        `Hệ thống trung tâm đã phát hành phiên bản mới ${displayReqVer}. Vui lòng sao chép mã mới và cập nhật lên Google Sheets của Thầy/Cô!`,
         "warning",
         9000
       );
     }, 500);
   } else {
-    // Nếu phiên bản đã khớp (đã là bản ngày mới nhất), ẩn hộp thông báo nếu có
+    // Nếu phiên bản đã khớp hoặc cao hơn, ẩn hộp thông báo nếu có
     const noticeBox = document.getElementById("hubVersionUpdateNotice");
     if (noticeBox) noticeBox.style.display = "none";
   }
@@ -8245,8 +8263,10 @@ function initCentralHubModal() {
   }
 
   function openModal() {
-    // Ẩn cảnh báo cập nhật đối với tài khoản trung tâm (admin, 0938750424)
-    if (isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
+    // Ẩn cảnh báo cập nhật nếu phiên bản đã đạt chuẩn hoặc là tài khoản trung tâm/admin
+    const rawReq = (localStorage.getItem("required_backend_version") || "2.2").trim();
+    const curVer = (localStorage.getItem("teacher_backend_version") || "2.2").trim();
+    if (window.isTeacherBackendUpdated || compareBackendVersions(curVer, rawReq) >= 0 || isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
       const noticeBox = document.getElementById("hubVersionUpdateNotice");
       if (noticeBox) noticeBox.style.display = "none";
     }
@@ -8484,14 +8504,14 @@ function initCentralHubModal() {
           const vResp = await fetch(`${testServerUrl}?action=checkBackendVersion&_t=${Date.now()}`);
           if (vResp.ok) {
             const vJson = await vResp.json();
-            if (vJson && vJson.version) detectedVersion = String(vJson.version).trim();
+            if (vJson && vJson.version) detectedVersion = formatBackendVersion(vJson.version);
           }
         } catch (eV) {}
 
-        const rawReq = (localStorage.getItem("required_backend_version") || "26/10/2026").trim();
-        const requiredVersionDate = formatBackendVersionDate(rawReq);
-        const isCurrentUpdated = isDateVersion(detectedVersion) && (formatBackendVersionDate(detectedVersion) === requiredVersionDate);
-        const displayDetectedVer = isDateVersion(detectedVersion) ? `Bản ngày ${formatBackendVersionDate(detectedVersion)}` : "Bản cũ (Chưa cập nhật)";
+        const rawReq = (localStorage.getItem("required_backend_version") || "2.2").trim();
+        const requiredVersion = formatBackendVersion(rawReq);
+        const isCurrentUpdated = compareBackendVersions(detectedVersion, requiredVersion) >= 0;
+        const displayDetectedVer = `v${detectedVersion}`;
 
         if (currentTeacher?.username) {
           try {

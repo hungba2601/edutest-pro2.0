@@ -20,6 +20,9 @@
 // Dán link Google Sheets của bạn vào đây (nếu để trống, code sẽ tự dùng Sheet đang mở)
 const SPREADSHEET_URL = ""; 
 
+// PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2,...)
+const CURRENT_BACKEND_VERSION = "2.2";
+
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
   HOCSINH: "DATA_HOCSINH",
@@ -223,58 +226,56 @@ function formatHeaderRow(sheet, bgColor) {
  * Xử lý yêu cầu GET (vừa kiểm tra trạng thái, vừa hỗ trợ fallback truy vấn dữ liệu)
  */
 /**
- * Định dạng giá trị phiên bản backend thành chuỗi Ngày/Tháng/Năm (DD/MM/YYYY)
- * Tránh hiển thị chuỗi Date thô của Google Sheets (như Fri Jan 02 2026...) hoặc số phiên bản 2.0, 2.1
+ * Chuẩn hóa giá trị phiên bản backend thành chuỗi phiên bản dạng số (ví dụ: 2.0, 2.1, 2.2,...)
+ * Tuyệt đối không hiển thị dạng ngày tháng (DD/MM/YYYY)
  */
-function formatBackendVersionDate(val) {
+function formatBackendVersion(val) {
   try {
     if (val === null || val === undefined || String(val).trim() === "") {
-      return "26/10/2026";
+      return CURRENT_BACKEND_VERSION || "2.1";
     }
-    // Nếu là đối tượng Date (khi người dùng gõ ngày hoặc số bị Google Sheet tự đổi thành Date)
+    // Nếu là đối tượng Date (do Google Sheets tự ép kiểu số 2.1 thành ngày)
     if (Object.prototype.toString.call(val) === "[object Date]" || val instanceof Date) {
       if (!isNaN(val.getTime())) {
-        const d = String(val.getDate()).padStart(2, "0");
-        const m = String(val.getMonth() + 1).padStart(2, "0");
-        const y = val.getFullYear();
-        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) {
-          return "26/10/2026";
-        }
-        return d + "/" + m + "/" + y;
+        const d = val.getDate();
+        const m = val.getMonth() + 1;
+        // Nếu là ngày 2/1 hoặc 1/2 -> do gõ 2.1 hoặc 1.2
+        if (d === 2 && m === 1) return "2.1";
+        if (d === 26 && m === 10) return "2.1"; // Giá trị ngày cũ quy về 2.1
+        return d + "." + m;
       }
     }
-    const str = String(val).trim();
-    // Nếu chuỗi chứa GMT hoặc định dạng ngày tiếng Anh (Fri Jan 02 2026...)
-    if (str.indexOf("GMT") !== -1 || /^[A-Z][a-z]{2}\s[A-Z][a-z]{2}\s\d{2}/.test(str)) {
-      const parsedDate = new Date(str);
-      if (!isNaN(parsedDate.getTime())) {
-        const d = String(parsedDate.getDate()).padStart(2, "0");
-        const m = String(parsedDate.getMonth() + 1).padStart(2, "0");
-        const y = parsedDate.getFullYear();
-        if (d === "02" && m === "01" && (y === 2026 || y === 2025)) {
-          return "26/10/2026";
-        }
-        return d + "/" + m + "/" + y;
-      }
+    let str = String(val).trim();
+    if (str.startsWith("'")) str = str.substring(1).trim();
+
+    // Nếu là chuỗi ngày tháng cũ (ví dụ 26/10/2026 hoặc GMT) quy về phiên bản chuẩn 2.1
+    if (str.indexOf("26/10/2026") !== -1 || str.indexOf("GMT") !== -1 || /^[A-Z][a-z]{2}\s/.test(str)) {
+      return CURRENT_BACKEND_VERSION || "2.1";
     }
-    // Nếu là dạng DD/MM/YYYY hoặc D/M/YYYY
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-      const parts = str.split("/");
-      return parts[0].padStart(2, "0") + "/" + parts[1].padStart(2, "0") + "/" + parts[2];
+      return CURRENT_BACKEND_VERSION || "2.1";
     }
-    // Nếu người dùng nhập 2.0 hoặc 2.1 thì chuyển thành ngày phát hành chuẩn
-    if (str === "2.0" || str === "2.1") {
-      return "26/10/2026";
+
+    // Trích xuất số phiên bản như 2.0, 2.1, 2.2, 3.0,...
+    const match = str.match(/v?(\d+(\.\d+)+)/i);
+    if (match) {
+      return match[1];
     }
-    return str;
+    if (/^\d+$/.test(str)) {
+      return str + ".0";
+    }
+    return str || CURRENT_BACKEND_VERSION || "2.1";
   } catch (e) {
-    return "26/10/2026";
+    return CURRENT_BACKEND_VERSION || "2.1";
   }
 }
 
+// Giữ alias an toàn cho tương thích ngược
+const formatBackendVersionDate = formatBackendVersion;
+
 /**
- * Đọc phiên bản Backend yêu cầu dành cho Giáo viên từ ô G1 của Sheet DATA_GIAOVIEN
- * Chuẩn hóa thành dạng Ngày/Tháng/Năm (DD/MM/YYYY)
+ * Đọc phiên bản Backend yêu cầu từ ô G1 của Sheet DATA_GIAOVIEN
+ * Trả về dạng số phiên bản như 2.1, 2.2,...
  */
 function getCentralBackendVersion(sheetGV) {
   try {
@@ -283,17 +284,22 @@ function getCentralBackendVersion(sheetGV) {
       sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
     }
     if (sheetGV) {
-      const val = sheetGV.getRange("G1").getValue();
+      const g1Range = sheetGV.getRange("G1");
+      const displayVal = g1Range.getDisplayValue();
+      if (displayVal && displayVal.trim() !== "") {
+        return formatBackendVersion(displayVal);
+      }
+      const val = g1Range.getValue();
       if (val !== null && val !== undefined && String(val).trim() !== "") {
-        return formatBackendVersionDate(val);
+        return formatBackendVersion(val);
       }
     }
   } catch (e) {}
-  return "26/10/2026";
+  return CURRENT_BACKEND_VERSION || "2.1";
 }
 
 /**
- * Đảm bảo Sheet DATA_GIAOVIEN có cột 'Phiên bản Backend GV' (Cột F) và ô G1 có phiên bản chuẩn hệ thống (dạng Ngày 26/10/2026)
+ * Đảm bảo Sheet DATA_GIAOVIEN có cột 'Phiên bản Backend GV' (Cột F) và ô G1 có phiên bản chuẩn hệ thống (dạng số 2.1, 2.2)
  */
 function ensureGiaoVienSheetColumns(sheetGV) {
   try {
@@ -316,10 +322,16 @@ function ensureGiaoVienSheetColumns(sheetGV) {
       verColIdx = 5;
     }
 
-    // Đảm bảo ô G1 có giá trị phiên bản mặc định dạng ngày (26/10/2026) nếu chưa có
-    const g1Val = String(sheetGV.getRange("G1").getValue() || "").trim();
+    // Đảm bảo ô G1 có giá trị phiên bản mặc định dạng số nếu chưa có
+    const g1Range = sheetGV.getRange("G1");
+    const g1Val = String(g1Range.getValue() || "").trim();
     if (!g1Val) {
-      sheetGV.getRange("G1").setValue("'26/10/2026");
+      g1Range.setNumberFormat("@");
+      g1Range.setValue(CURRENT_BACKEND_VERSION || "2.2");
+    } else if (g1Val.includes("26/10/2026") || g1Val.includes("/")) {
+      // Nếu ô G1 đang lưu ngày tháng cũ, đổi về phiên bản chuẩn dạng Text
+      g1Range.setNumberFormat("@");
+      g1Range.setValue(CURRENT_BACKEND_VERSION || "2.2");
     }
 
     return verColIdx;
@@ -339,7 +351,7 @@ function handleUpdateTeacherBackendVersion(payload) {
     if (!sheetGV) return createJsonResponse({ success: false, message: "Không tìm thấy sheet DATA_GIAOVIEN" });
 
     const username = String(payload.username || "").trim();
-    const version = String(payload.version || "2.0").trim();
+    const version = formatBackendVersion(payload.version || "2.0");
     if (!username) return createJsonResponse({ success: false, message: "Thiếu tên tài khoản giáo viên" });
 
     const verColIdx = ensureGiaoVienSheetColumns(sheetGV);
@@ -349,8 +361,12 @@ function handleUpdateTeacherBackendVersion(payload) {
     for (let i = 1; i < data.length; i++) {
       const gvUser = String(data[i][0] || "").trim();
       if (isSameTeacherAccount(gvUser, username)) {
-        const vToSave = isAdminAccount(username) ? getCentralBackendVersion(sheetGV) : version;
-        sheetGV.getRange(i + 1, verColIdx + 1).setValue(vToSave);
+        const vToSave = (isAdminAccount(username) || isCentralAccountBackend(username, gvUser)) 
+          ? getCentralBackendVersion(sheetGV) 
+          : version;
+        const cell = sheetGV.getRange(i + 1, verColIdx + 1);
+        cell.setNumberFormat("@"); // Định dạng Plain Text để Google Sheets không tự động biến thành ngày tháng
+        cell.setValue(String(vToSave));
         updated = true;
         break;
       }
@@ -369,6 +385,16 @@ function handleUpdateTeacherBackendVersion(payload) {
   }
 }
 
+/**
+ * Kiểm tra tài khoản có phải tài khoản dùng chung backend trung tâm hay không
+ */
+function isCentralAccountBackend(user1, user2) {
+  var u1 = String(user1 || "").toLowerCase().trim();
+  var u2 = String(user2 || "").toLowerCase().trim();
+  var list = ["admin", "0938750424", "938750424", "gv001", "hung2601"];
+  return list.indexOf(u1) !== -1 || list.indexOf(u2) !== -1;
+}
+
 function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.action) {
@@ -376,10 +402,17 @@ function doGet(e) {
       const action = payload.action;
 
       switch (action) {
+        case "checkBackendVersion":
+          return createJsonResponse({
+            success: true,
+            version: CURRENT_BACKEND_VERSION,
+            message: "Phiên bản Code.gs: " + CURRENT_BACKEND_VERSION
+          });
         case "checkCentralBackendVersion":
           return createJsonResponse({
             success: true,
-            requiredBackendVersion: getCentralBackendVersion()
+            requiredBackendVersion: getCentralBackendVersion(),
+            version: CURRENT_BACKEND_VERSION
           });
         case "updateTeacherBackendVersion":
           return handleUpdateTeacherBackendVersion(payload);
@@ -428,6 +461,7 @@ function doGet(e) {
 
     const response = {
       status: "online",
+      version: CURRENT_BACKEND_VERSION,
       requiredBackendVersion: getCentralBackendVersion(),
       message: "Google Apps Script API - Hệ Thống Thi Trắc Nghiệm Trực Tuyến đang hoạt động tốt!",
       timestamp: new Date().toISOString()
