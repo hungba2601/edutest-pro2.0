@@ -210,8 +210,19 @@ window.addEventListener("DOMContentLoaded", () => {
     window.location.href = "index.html";
   });
 
-  // Nút làm mới danh sách
-  document.getElementById("btnRefreshStudentExams").addEventListener("click", loadAvailableExams);
+  // Nút làm mới danh sách (Xóa sạch mọi cache cũ và đồng bộ lại từ Google Sheets)
+  const btnRefresh = document.getElementById("btnRefreshStudentExams");
+  if (btnRefresh) {
+    btnRefresh.addEventListener("click", () => {
+      btnRefresh.style.opacity = "0.6";
+      btnRefresh.style.pointerEvents = "none";
+      showToast("Đang đồng bộ...", "Đang kiểm tra kết quả và đề thi mới nhất từ Google Sheets...", "info", 1800);
+      loadAvailableExams().finally(() => {
+        btnRefresh.style.opacity = "";
+        btnRefresh.style.pointerEvents = "";
+      });
+    });
+  }
 
   // Nút quay về danh sách sau khi xem kết quả
   const btnHome = document.getElementById("btnBackToHome");
@@ -354,6 +365,17 @@ function saveLocalSubmittedExam(usernameHS, maDe, extraData) {
   } catch (e) {}
 }
 
+function removeLocalSubmittedExam(usernameHS, maDe) {
+  try {
+    const key = "EduTest_SubmittedExams_" + (usernameHS || "").trim().toUpperCase();
+    const map = getLocalSubmittedExams(usernameHS);
+    if (map && map[maDe]) {
+      delete map[maDe];
+      localStorage.setItem(key, JSON.stringify(map));
+    }
+  } catch (e) {}
+}
+
 // ============================================================================
 // 2. TẢI DANH SÁCH BÀI KIỂM TRA ĐANG MỞ
 // ============================================================================
@@ -383,8 +405,8 @@ async function loadAvailableExams() {
       .catch(() => {});
   }
 
+  let serverData = null;
   try {
-    let data = null;
     // 1. Thử gửi POST lên Google Sheet của giáo viên phụ trách phòng thi
     try {
       const res = await fetch(API_URL, {
@@ -398,49 +420,63 @@ async function loadAvailableExams() {
       });
       const text = await res.text();
       if (text && !text.trim().startsWith("<")) {
-        data = JSON.parse(text);
+        serverData = JSON.parse(text);
       }
     } catch (postErr) {
       console.warn("POST getStudentExams thất bại, thử GET fallback:", postErr);
     }
 
     // 2. Tự động fallback sang GET nếu POST bị redirect hoặc lỗi CORS
-    if (!data || !data.success) {
+    if (!serverData || !serverData.success) {
       const getUrl = `${API_URL}?action=getStudentExams&lop=${encodeURIComponent(currentStudent.lop)}&usernameHS=${encodeURIComponent(currentStudent.username)}&_t=${Date.now()}`;
       const getRes = await fetch(getUrl);
       const getText = await getRes.text();
       if (getText && !getText.trim().startsWith("<")) {
-        data = JSON.parse(getText);
+        serverData = JSON.parse(getText);
       }
     }
 
-    if (data && Array.isArray(data.exams)) {
-      exams = data.exams;
+    if (serverData && Array.isArray(serverData.exams)) {
+      exams = serverData.exams;
     }
   } catch (err) {
     console.warn("Không thể tải danh sách bài kiểm tra từ máy chủ:", err);
   }
 
-  // Kết hợp trạng thái đã làm từ Server và LocalStorage của thiết bị
+  // NGUYÊN TẮC: DỮ LIỆU TỪ MÁY CHỦ GOOGLE SHEETS LÀ NGUỒN CHUẨN XÁC NHẤT (SOURCE OF TRUTH)
+  // Nếu máy chủ báo học sinh CHƯA làm (hoặc Thầy/Cô vừa xóa điểm trên Sheets để cho học sinh làm lại):
+  // -> BẮT BUỘC phải xóa sạch cache cũ trên trình duyệt để mở khóa cho học sinh làm bài ngay lập tức!
   const localSubmitted = getLocalSubmittedExams(currentStudent.username);
   exams = exams.map(exam => {
-    const localInfo = localSubmitted[exam.maDe];
-    const isDone = !!(exam.daLam || localInfo);
-
-    // Đồng bộ ngược lại vào local nếu server báo đã làm
-    if (exam.daLam && !localInfo) {
-      saveLocalSubmittedExam(currentStudent.username, exam.maDe, {
-        diemCu: exam.diemCu,
-        thoiGianNopCu: exam.thoiGianNopCu
-      });
+    if (serverData && serverData.success) {
+      if (exam.daLam) {
+        // Server xác nhận đã nộp bài
+        saveLocalSubmittedExam(currentStudent.username, exam.maDe, {
+          diemCu: exam.diemCu,
+          thoiGianNopCu: exam.thoiGianNopCu
+        });
+        return exam;
+      } else {
+        // Server xác nhận CHƯA làm (hoặc Thầy/Cô đã xóa điểm để cho làm lại):
+        // Xóa sạch cache cục bộ để mở khóa đề thi ngay lập tức!
+        removeLocalSubmittedExam(currentStudent.username, exam.maDe);
+        return {
+          ...exam,
+          daLam: false,
+          diemCu: null,
+          thoiGianNopCu: null
+        };
+      }
+    } else {
+      // Chỉ khi mất mạng hoàn toàn (offline) mới dùng tạm dữ liệu cache
+      const localInfo = localSubmitted[exam.maDe];
+      return {
+        ...exam,
+        daLam: !!(exam.daLam || localInfo),
+        diemCu: (exam.diemCu !== undefined && exam.diemCu !== null) ? exam.diemCu : (localInfo ? localInfo.diemCu : null),
+        thoiGianNopCu: exam.thoiGianNopCu || (localInfo ? localInfo.thoiGianNopCu || localInfo.time : null)
+      };
     }
-
-    return {
-      ...exam,
-      daLam: isDone,
-      diemCu: (exam.diemCu !== undefined && exam.diemCu !== null) ? exam.diemCu : (localInfo ? localInfo.diemCu : null),
-      thoiGianNopCu: exam.thoiGianNopCu || (localInfo ? localInfo.thoiGianNopCu || localInfo.time : null)
-    };
   });
 
   // Danh sách đề thi CHỈ lấy từ đúng máy chủ Google Sheets của giáo viên phụ trách phòng thi!
