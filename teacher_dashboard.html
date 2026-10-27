@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=8.2">
+  <link rel="stylesheet" href="css/teacher.css?v=8.3">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -620,73 +620,79 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     <section class="tab-content" id="tabResults" role="tabpanel" style="display: none;">
       
       <!-- Filter Bar & Export Actions -->
-      <div class="results-filter-card">
-        <div class="filter-left" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+      <div class="results-filter-card" style="display: flex; flex-direction: column; gap: 0.85rem; padding: 1rem 1.35rem;">
+        <!-- HÀNG 1: TẤT CẢ CÁC BỘ LỌC (CỐ ĐỊNH HOÀN TOÀN TRÊN HÀNG ĐẦU TIÊN) -->
+        <div class="filter-left" style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; width: 100%;">
           <!-- MỤC CHỌN GIÁO VIÊN (DÀNH CHO QUẢN TRỊ VIÊN ADMIN) -->
-          <div id="adminTeacherFilterGroup" style="display: none; align-items: center; gap: 0.45rem; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); padding: 0.4rem 0.8rem; border-radius: 10px; border: 1.5px solid #818cf8; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12);">
-            <label for="selectFilterTeacher" class="filter-label" style="margin: 0; white-space: nowrap; font-weight: 800; color: #3730a3; display: flex; align-items: center; gap: 5px;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <div id="adminTeacherFilterGroup" style="display: none; align-items: center; gap: 0.35rem; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); padding: 0.35rem 0.65rem; border-radius: 9px; border: 1.5px solid #818cf8; box-shadow: 0 2px 6px rgba(99, 102, 241, 0.1);">
+            <label for="selectFilterTeacher" class="filter-label" style="margin: 0; white-space: nowrap; font-weight: 800; color: #3730a3; display: flex; align-items: center; gap: 4px; font-size: 0.82rem;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               <span>Giáo viên:</span>
             </label>
-            <select id="selectFilterTeacher" class="form-select" style="min-width: 220px; font-weight: 700; color: #1e1b4b; border-color: #6366f1; background-color: #ffffff; cursor: pointer;">
+            <select id="selectFilterTeacher" class="form-select" style="width: 250px; max-width: 280px; font-weight: 700; color: #1e1b4b; border-color: #6366f1; background-color: #ffffff; cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 0.82rem; padding: 0.35rem 0.5rem;">
               <option value="ALL">-- Tất cả Giáo viên (Toàn trường) --</option>
             </select>
-            <button type="button" id="btnOpenSheetUrlModal" class="btn-secondary-sm" title="Nhập URL Google Sheet để đọc điểm trực tiếp" style="padding: 0.35rem 0.65rem; background: #ffffff; border-color: #a5b4fc; color: #4338ca; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; border-radius: 7px; cursor: pointer;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <button type="button" id="btnOpenSheetUrlModal" class="btn-secondary-sm" title="Nhập URL Google Sheet để đọc điểm trực tiếp" style="padding: 0.32rem 0.55rem; background: #ffffff; border-color: #a5b4fc; color: #4338ca; font-size: 0.75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; border-radius: 6px; cursor: pointer;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
               <span>Link Sheet</span>
             </button>
-            <button type="button" id="btnRefreshTeacherList" class="btn-secondary-sm" title="Tải lại danh sách Giáo viên" style="padding: 0.35rem 0.55rem; background: #ffffff; border-color: #a5b4fc; color: #4338ca; border-radius: 7px; cursor: pointer;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            <button type="button" id="btnRefreshTeacherList" class="btn-secondary-sm" title="Tải lại danh sách Giáo viên" style="padding: 0.32rem 0.5rem; background: #ffffff; border-color: #a5b4fc; color: #4338ca; border-radius: 6px; cursor: pointer;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
             </button>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <label for="selectFilterExam" class="filter-label" style="margin: 0; white-space: nowrap;">Bài kiểm tra:</label>
-            <select id="selectFilterExam" class="form-select" style="min-width: 200px;">
+          <div style="display: flex; align-items: center; gap: 0.35rem;">
+            <label for="selectFilterExam" class="filter-label" style="margin: 0; white-space: nowrap; font-size: 0.82rem;">Bài kiểm tra:</label>
+            <select id="selectFilterExam" class="form-select" style="width: 215px; max-width: 245px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 0.82rem; padding: 0.35rem 0.5rem;">
               <option value="ALL">-- Tất cả bài kiểm tra --</option>
             </select>
           </div>
 
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <label for="selectFilterResultClass" class="filter-label" style="margin: 0; white-space: nowrap;">Lớp học:</label>
-            <select id="selectFilterResultClass" class="form-select" style="min-width: 140px;">
+          <!-- MỤC LỚP HỌC (LUÔN CỐ ĐỊNH TRÊN HÀNG 1) -->
+          <div style="display: flex; align-items: center; gap: 0.35rem;">
+            <label for="selectFilterResultClass" class="filter-label" style="margin: 0; white-space: nowrap; font-size: 0.82rem;">Lớp học:</label>
+            <select id="selectFilterResultClass" class="form-select" style="width: 150px; max-width: 170px; font-size: 0.82rem; padding: 0.35rem 0.5rem;">
               <option value="ALL">-- Tất cả các lớp --</option>
             </select>
           </div>
 
-          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #1e3a8a; cursor: pointer; background: #eff6ff; padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid #bfdbfe; user-select: none;">
-            <input type="checkbox" id="chkIncludeNotSubmitted" checked style="width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb;">
-            <span>Hiện đủ danh sách lớp (theo CSDL gốc)</span>
+          <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; font-weight: 600; color: #1e3a8a; cursor: pointer; background: #eff6ff; padding: 0.35rem 0.65rem; border-radius: 7px; border: 1px solid #bfdbfe; user-select: none; white-space: nowrap;">
+            <input type="checkbox" id="chkIncludeNotSubmitted" checked style="width: 14px; height: 14px; cursor: pointer; accent-color: #2563eb;">
+            <span>Hiện đủ danh sách lớp</span>
           </label>
 
-          <button type="button" id="btnFilterResults" class="btn-secondary-sm" style="padding: 0.45rem 1rem;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <button type="button" id="btnFilterResults" class="btn-secondary-sm" style="padding: 0.35rem 0.85rem; font-size: 0.8rem; font-weight: 700; background: #f8fafc; border-color: #cbd5e1; display: inline-flex; align-items: center; gap: 4px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <span>Lọc kết quả</span>
           </button>
         </div>
-        <div class="filter-right" style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
-          <button type="button" id="btnExportExcel" class="btn-export-excel" title="Xuất bảng điểm trắc nghiệm của thí sinh (.xlsx)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" x2="8" y1="13" y2="13"/>
-              <line x1="16" x2="8" y1="17" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span>Xuất Excel Trắc Nghiệm (.xlsx)</span>
-          </button>
 
-          <button type="button" id="btnExportEssayExcel" class="btn-export-excel btn-export-essay" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); border-color: #059669; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);" title="Xuất danh sách bài làm tự luận của thí sinh theo các cột câu hỏi để giáo viên chấm nhanh">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <path d="M12 18h6"/>
-              <path d="M12 14h6"/>
-              <path d="M6 18h2"/>
-              <path d="M6 14h2"/>
-            </svg>
-            <span>Xuất Excel Tự Luận (.xlsx)</span>
-          </button>
+        <!-- HÀNG 2: THAO TÁC XUẤT FILE & BỘ LỌC ĐÃ LÀM / CHƯA LÀM -->
+        <div class="filter-right" style="display: flex; justify-content: space-between; align-items: center; gap: 0.65rem; flex-wrap: wrap; width: 100%; padding-top: 0.65rem; border-top: 1px dashed #e2e8f0;">
+          <div style="display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" id="btnExportExcel" class="btn-export-excel" title="Xuất bảng điểm trắc nghiệm của thí sinh (.xlsx)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" x2="8" y1="13" y2="13"/>
+                <line x1="16" x2="8" y1="17" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span>Xuất Excel Trắc Nghiệm (.xlsx)</span>
+            </button>
+
+            <button type="button" id="btnExportEssayExcel" class="btn-export-excel btn-export-essay" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); border-color: #059669; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);" title="Xuất danh sách bài làm tự luận của thí sinh theo các cột câu hỏi để giáo viên chấm nhanh">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <path d="M12 18h6"/>
+                <path d="M12 14h6"/>
+                <path d="M6 18h2"/>
+                <path d="M6 14h2"/>
+              </svg>
+              <span>Xuất Excel Tự Luận (.xlsx)</span>
+            </button>
+          </div>
 
           <!-- BỘ LỌC TRẠNG THÁI LÀM BÀI (TẤT CẢ / ĐÃ LÀM / CHƯA LÀM) -->
           <div class="submission-filter-group" id="submissionFilterGroup" title="Lọc danh sách học sinh theo trạng thái nộp bài">
