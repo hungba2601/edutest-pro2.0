@@ -1193,6 +1193,7 @@ function initTabSwitching() {
   if (tabBtnResults) {
     tabBtnResults.addEventListener("click", () => {
       switchTab(tabBtnResults, tabResults);
+      if (typeof forceClearSearchStudentInput === "function") forceClearSearchStudentInput();
       const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
       populateResultClassDropdown(selectedMaDe);
       loadTeacherResults(selectedMaDe);
@@ -5975,6 +5976,27 @@ if (btnClearSearchStudentElem) {
     handleSearchStudentInput();
   });
 }
+
+// CHỐNG TRÌNH DUYỆT TỰ ĐỘNG ĐIỀN (CHROME AUTOFILL) VÀO Ô TÌM KIẾM
+function forceClearSearchStudentInput() {
+  const el = document.getElementById("searchStudentInput");
+  if (!el) return;
+  // Nếu ô đang có chữ mà người dùng không hề focus chuột vào gõ -> chắc chắn do Chrome tự động điền!
+  if (document.activeElement !== el && el.value) {
+    el.value = "";
+    const btn = document.getElementById("btnClearSearchStudent");
+    if (btn) btn.style.display = "none";
+    if (currentDisplayedResultsList) {
+      renderResultsTable(currentDisplayedResultsList);
+    }
+  }
+}
+
+// Chạy xóa định kỳ ngay sau khi mở trang hoặc khi chuyển tab/đăng nhập
+[0, 50, 100, 200, 400, 700, 1000, 1500, 2500, 4000].forEach(delay => {
+  setTimeout(forceClearSearchStudentInput, delay);
+});
+
 
 // ============================================================================
 // 9. XUẤT FILE EXCEL (.XLSX) VỚI SHEETJS - THEO ĐÚNG THỨ TỰ SỔ ĐIỂM GỐC!
