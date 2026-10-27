@@ -5537,7 +5537,7 @@ function applyResultsFiltersAndRender() {
             gioiTinh: st.gioiTinh,
             truong: st.truong,
             maDe: "--",
-            tenKyThi: "Chưa tham gia kỳ thi nào",
+            tenKyThi: "",
             diemTong: "",
             soCauDungSai: "",
             thoiGianNop: "",
@@ -5808,17 +5808,12 @@ function renderResultsTable(results) {
       tr.style.background = "#fcfdfd";
     }
 
-    const examBadgeHtml = (selectedMaDe === "ALL" && row.tenKyThi && row.tenKyThi !== "--")
-      ? `<div style="margin-top: 3px; font-size: 0.73rem; color: #4338ca; font-weight: 700; background: #eef2ff; padding: 2px 6px; border-radius: 4px; display: inline-block; border: 1px solid #c7d2fe;">📝 [${row.maDe}] ${row.tenKyThi}</div>`
-      : "";
-
     tr.innerHTML = `
       <td>${row.stt || idx + 1}</td>
       <td><strong>${row.lop}</strong></td>
       <td>
         <strong style="color: #0f172a;">${row.hoTen}</strong>
         <div style="font-size: 0.72rem; color: #94a3b8; font-family: monospace;">${row.usernameHS}</div>
-        ${examBadgeHtml}
       </td>
       <td>${formatDob(row.ngaySinh)}</td>
       <td>${row.gioiTinh}</td>
