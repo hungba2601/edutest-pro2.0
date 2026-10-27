@@ -131,7 +131,7 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
 
-// 1. Kiểm tra tài khoản Admin hệ thống (CHỈ DUY NHẤT 0938750424 LÀ ADMIN DÙNG URL TRUNG TÂM)
+// 1. Kiểm tra tài khoản Admin hệ thống (CHỈ DUY NHẤT TÀI KHOẢN "admin" MỚI LÀ ADMIN BGH XEM ĐIỂM TẤT CẢ GV)
 function isCurrentUserAdmin() {
   let username = String(currentTeacher?.username || "").trim().toLowerCase();
   if (!username) {
@@ -140,14 +140,10 @@ function isCurrentUserAdmin() {
       if (u && u.username) username = String(u.username).trim().toLowerCase();
     } catch (e) {}
   }
-  const cleanUser = username.replace(/^0+/, "");
-  return (username === "0938750424" || cleanUser === "938750424" || username === "admin");
+  return username === "admin";
 }
 
 function isAdminRole() {
-  const role = (localStorage.getItem("userRole") || "").toUpperCase();
-  if (role === "ADMIN") return true;
-  if (currentTeacher && (currentTeacher.isAdmin || currentTeacher.role === "ADMIN")) return true;
   let username = String(currentTeacher?.username || "").trim().toLowerCase();
   if (!username) {
     try {
@@ -155,9 +151,13 @@ function isAdminRole() {
       if (u && u.username) username = String(u.username).trim().toLowerCase();
     } catch (e) {}
   }
-  return (username === "admin" || username === "0938750424" || username.replace(/^0+/, "") === "938750424");
+  if (username === "admin") return true;
+  const role = (localStorage.getItem("userRole") || "").toUpperCase();
+  if (role === "ADMIN" && username === "admin") return true;
+  return false;
 }
 
+// Kiểm tra tài khoản dùng chung Sheet Trung Tâm (0938750424 và admin)
 function isCentralAccount(targetUser) {
   let u = String(targetUser || currentTeacher?.username || "").trim().toLowerCase();
   if (!u) {
@@ -193,17 +193,21 @@ function getTeacherPersonalServerUrl() {
       if (adminActiveApiUrl) return adminActiveApiUrl;
       return DEFAULT_GAS_API_URL;
     }
-    const isAdmin = isCurrentUserAdmin();
+    // Tài khoản sử dụng Sheet trung tâm (như 0938750424)
+    if (isCentralAccount()) {
+      return DEFAULT_GAS_API_URL;
+    }
+    const isCentral = isCentralAccount();
     const custom = (localStorage.getItem("custom_gas_api_url") || "").trim();
     if (custom && custom.startsWith("https://script.google.com/macros/s/")) {
-      if (!isAdmin && custom === DEFAULT_GAS_API_URL) {
+      if (!isCentral && custom === DEFAULT_GAS_API_URL) {
         return "";
       }
       return custom;
     }
 
     if (currentTeacher && currentTeacher.serverUrl && currentTeacher.serverUrl.startsWith("https://script.google.com/macros/s/")) {
-      if (!isAdmin && currentTeacher.serverUrl === DEFAULT_GAS_API_URL) {
+      if (!isCentral && currentTeacher.serverUrl === DEFAULT_GAS_API_URL) {
         return "";
       }
       return currentTeacher.serverUrl.trim();
@@ -215,15 +219,15 @@ function getTeacherPersonalServerUrl() {
                   localStorage.getItem("teacher_server_url_" + u.replace(/^0+/, "")) ||
                   localStorage.getItem("teacher_server_url_0" + u);
       if (rem && rem.startsWith("https://script.google.com/macros/s/")) {
-        if (!isAdmin && rem === DEFAULT_GAS_API_URL) {
+        if (!isCentral && rem === DEFAULT_GAS_API_URL) {
           return "";
         }
         return rem.trim();
       }
     }
 
-    // Nếu là Admin hệ thống thì mặc định sử dụng luôn Sheet trung tâm nếu chưa cấu hình Sheet riêng
-    if (isAdmin) {
+    // Nếu là Admin hệ thống hoặc dùng sheet trung tâm thì mặc định sử dụng luôn Sheet trung tâm
+    if (isCentral) {
       return DEFAULT_GAS_API_URL;
     }
   } catch (eStorage) {}
@@ -233,7 +237,7 @@ function getTeacherPersonalServerUrl() {
 // Tự động đồng bộ URL cá nhân từ Hub Server của Admin cho Giáo viên nếu có
 async function syncTeacherServerUrlFromHub() {
   if (!currentTeacher || !currentTeacher.username) return;
-  if (isCurrentUserAdmin()) return;
+  if (isCurrentUserAdmin() || isCentralAccount()) return;
 
   try {
     const resp = await fetch(`${DEFAULT_GAS_API_URL}?action=getTeacherHubDirectory&_t=${Date.now()}`, { method: "GET" });
@@ -296,6 +300,23 @@ function updateServerStatusBadgeUI() {
     }
     if (saveNoticeText) {
       saveNoticeText.innerHTML = "🛡️ <strong>Tài khoản Admin:</strong> Đề thi được kết nối và lưu trực tiếp vào Google Sheet Admin trung tâm.";
+    }
+  } else if (isCentralAccount()) {
+    if (btnStatus) {
+      btnStatus.className = "btn-server-status-pill";
+      btnStatus.style.background = "#eff6ff";
+      btnStatus.style.borderColor = "#93c5fd";
+      btnStatus.style.color = "#1e40af";
+      btnStatus.title = "Đang kết nối Google Sheet Trung Tâm hệ thống.";
+    }
+    if (txtStatus) txtStatus.textContent = "Google Sheet Trung Tâm";
+    if (saveNotice) {
+      saveNotice.style.background = "#eff6ff";
+      saveNotice.style.borderColor = "#bfdbfe";
+      saveNotice.style.color = "#1d4ed8";
+    }
+    if (saveNoticeText) {
+      saveNoticeText.innerHTML = "🛡️ <strong>Tài khoản dùng Sheet Trung Tâm:</strong> Đề thi được kết nối và lưu trực tiếp vào Google Sheet trung tâm.";
     }
   } else if (personalUrl) {
     if (btnStatus) {
@@ -4711,16 +4732,17 @@ async function loadTeacherExams(isManualRefresh = false) {
     btnRefresh.classList.add("is-loading");
   }
 
-  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT (SHEET RIÊNG HOẶC SHEET TRUNG TÂM NẾU LÀ ADMIN)
+  // 2. GỬI YÊU CẦU ĐỒNG BỘ NGẦM LÊN GOOGLE APPS SCRIPT (SHEET RIÊNG HOẶC SHEET TRUNG TÂM NẾU LÀ ADMIN / SHEET TRUNG TÂM)
   const isAdmin = isCurrentUserAdmin() || isAdminRole();
+  const isAllowedCentral = isCentralAccount() || isAdmin;
   let targetServerUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : getTeacherPersonalServerUrl();
-  if (!targetServerUrl && isAdmin) {
+  if (!targetServerUrl && isAllowedCentral) {
     targetServerUrl = DEFAULT_GAS_API_URL;
   }
 
   // Giáo viên bộ môn bắt buộc phải kết nối Sheet riêng (không được dùng Sheet Admin trung tâm)
-  // Tài khoản Admin được phép dùng thẳng Sheet trung tâm (DEFAULT_GAS_API_URL)
-  if (!targetServerUrl || (!isAdmin && targetServerUrl === DEFAULT_GAS_API_URL)) {
+  // Tài khoản Admin và tài khoản dùng chung Sheet trung tâm (0938750424) được phép dùng thẳng Sheet trung tâm (DEFAULT_GAS_API_URL)
+  if (!targetServerUrl || (!isAllowedCentral && targetServerUrl === DEFAULT_GAS_API_URL)) {
     if (btnRefresh) btnRefresh.classList.remove("is-loading");
     if (!currentExamsList || currentExamsList.length === 0) {
       tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
@@ -9439,7 +9461,16 @@ function initTeacherDashboard() {
     }
     updateServerStatusBadgeUI();
 
-    // KIỂM TRA PHÂN QUYỀN QUẢN TRỊ VIÊN (ADMIN PORTAL)
+    // KIỂM TRA PHÂN QUYỀN QUẢN TRỊ VIÊN (CHỈ DUY NHẤT TÀI KHOẢN "admin" MỚI LÀ CỔNG QUẢN TRỊ VIÊN BGH)
+    const tabBtnCreate = document.getElementById("tabBtnCreate");
+    const tabBtnStudents = document.getElementById("tabBtnStudents");
+    const tabBtnResults = document.getElementById("tabBtnResults");
+    const tabCreate = document.getElementById("tabCreate");
+    const tabStudents = document.getElementById("tabStudents");
+    const tabResults = document.getElementById("tabResults");
+    const adminTeacherGrp = document.getElementById("adminTeacherFilterGroup");
+    const btnOpenHubModal = document.getElementById("btnOpenHubModal");
+
     if (isAdminRole()) {
       API_URL = DEFAULT_GAS_API_URL;
       const brandRoleTag = document.getElementById("brandRoleTag");
@@ -9455,18 +9486,17 @@ function initTeacherDashboard() {
       const dropdownBadge = document.querySelector(".dropdown-user-badge");
       if (dropdownBadge) dropdownBadge.textContent = "Quản Trị Viên";
 
-      // Ẩn tab Tạo đề & tab Học sinh
-      const tabBtnCreate = document.getElementById("tabBtnCreate");
-      const tabBtnStudents = document.getElementById("tabBtnStudents");
-      const tabBtnResults = document.getElementById("tabBtnResults");
-      const tabCreate = document.getElementById("tabCreate");
-      const tabStudents = document.getElementById("tabStudents");
-      const tabResults = document.getElementById("tabResults");
-
+      // Ẩn tab Tạo đề & tab Học sinh, chỉ giữ lại tab Thống kê kết quả
       if (tabBtnCreate) tabBtnCreate.style.display = "none";
       if (tabBtnStudents) tabBtnStudents.style.display = "none";
-      if (tabCreate) tabCreate.style.display = "none";
-      if (tabStudents) tabStudents.style.display = "none";
+      if (tabCreate) {
+        tabCreate.style.display = "none";
+        tabCreate.classList.remove("active");
+      }
+      if (tabStudents) {
+        tabStudents.style.display = "none";
+        tabStudents.classList.remove("active");
+      }
 
       if (tabBtnResults) {
         tabBtnResults.classList.add("active");
@@ -9478,16 +9508,47 @@ function initTeacherDashboard() {
         tabResults.classList.add("active");
       }
 
-      // Hiện thanh chọn giáo viên
-      const adminTeacherGrp = document.getElementById("adminTeacherFilterGroup");
+      // Hiện thanh chọn giáo viên để Admin kiểm tra kết quả của toàn bộ GV
       if (adminTeacherGrp) adminTeacherGrp.style.display = "flex";
 
       // Ẩn modal trạm trung tâm khỏi dropdown vì admin đang ở trạm trung tâm
-      const btnOpenHubModal = document.getElementById("btnOpenHubModal");
       if (btnOpenHubModal) btnOpenHubModal.style.display = "none";
 
       // Khởi tạo selector Giáo viên cho Admin
       initAdminTeacherSelector();
+    } else {
+      // TẤT CẢ GIÁO VIÊN (bao gồm tài khoản 0938750424 dùng chung sheet trung tâm & GV dùng sheet riêng):
+      // ĐẢM BẢO HIỆN ĐẦY ĐỦ TẤT CẢ CÁC TAB
+      if (tabBtnCreate) tabBtnCreate.style.display = "";
+      if (tabBtnStudents) tabBtnStudents.style.display = "";
+      if (tabBtnResults) {
+        const span = tabBtnResults.querySelector("span");
+        if (span) span.textContent = "Xem Kết Quả & Thống Kê";
+      }
+
+      // Ẩn thanh chọn giáo viên (chỉ dành riêng cho Admin BGH)
+      if (adminTeacherGrp) adminTeacherGrp.style.display = "none";
+
+      // Mở nút Trạm Trung Tâm cho GV
+      if (btnOpenHubModal) btnOpenHubModal.style.display = "";
+
+      const brandRoleTag = document.getElementById("brandRoleTag");
+      if (brandRoleTag) brandRoleTag.textContent = "Cổng Giáo Viên";
+      document.title = "EduTest Pro 2.0 - Cổng Giáo Viên";
+
+      const dropdownBadge = document.querySelector(".dropdown-user-badge");
+      if (dropdownBadge) dropdownBadge.textContent = "Giáo Viên";
+
+      const gvNavAvatar = document.getElementById("gvNavAvatar");
+      if (gvNavAvatar) {
+        const initials = (currentTeacher.hoTenGV || currentTeacher.username || "GV")
+          .split(" ")
+          .filter(Boolean)
+          .slice(-2)
+          .map(w => w[0].toUpperCase())
+          .join("");
+        gvNavAvatar.textContent = initials || "GV";
+      }
     }
 
     // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)

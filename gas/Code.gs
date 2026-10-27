@@ -1514,8 +1514,7 @@ function isSameStudentAccount(acc1, acc2) {
 
 function isAdminAccount(username) {
   var s = String(username || "").trim().toLowerCase();
-  var clean = s.replace(/^0+/, "");
-  return (s === "0938750424" || clean === "938750424" || s === "admin");
+  return (s === "admin");
 }
 
 function handleSaveExam(payload) {
