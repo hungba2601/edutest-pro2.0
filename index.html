@@ -71,8 +71,8 @@
         </div>
       </div>
 
-      <!-- Login Form -->
-      <form id="loginForm" autocomplete="on" novalidate>
+      <!-- Login Form (Không ghi nhớ tài khoản / mật khẩu trên trình duyệt) -->
+      <form id="loginForm" autocomplete="off" novalidate>
         
         <!-- Teacher Selection Field (Dành riêng cho Học sinh - CẢNH BÁO BẮT BUỘC) -->
         <div class="form-group urgent-teacher-box" id="teacherSelectGroup">
@@ -144,11 +144,14 @@
             <input 
               type="text" 
               id="usernameInput" 
-              name="username" 
+              name="user_account_no_save" 
               class="form-input" 
               placeholder="Nhập mã học sinh (VD: HS001)" 
               required
-              autocomplete="username"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
             >
           </div>
         </div>
@@ -168,11 +171,14 @@
             <input 
               type="password" 
               id="passwordInput" 
-              name="password" 
+              name="user_password_no_save" 
               class="form-input" 
               placeholder="Nhập mật khẩu" 
               required
-              autocomplete="current-password"
+              autocomplete="new-password"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
             >
             <button 
               type="button" 
@@ -243,6 +249,6 @@
   </footer>
 
   <!-- Login Logic Script -->
-  <script src="js/auth.js?v=3.3"></script>
+  <script src="js/auth.js?v=3.4"></script>
 </body>
 </html>

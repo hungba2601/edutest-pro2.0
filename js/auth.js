@@ -457,16 +457,22 @@ loginForm.addEventListener("submit", async (e) => {
       hideLoginAlert();
       showToast("Thành công", result.message || "Đăng nhập thành công! Đang chuyển hướng...", "success", 2000);
 
-      // Lưu thông tin người dùng vào Session / Local Storage
+      // Lưu thông tin người dùng vào Session / Local Storage (Xóa sạch mật khẩu khỏi cache)
       if (result.data) {
         if (result.data.ngaySinh) result.data.ngaySinh = formatDob(result.data.ngaySinh);
         if (result.data.lop) result.data.lop = normalizeClassName(result.data.lop);
+        if (result.data.password) delete result.data.password;
       }
       const isUserAdmin = (result.role === "ADMIN") || (result.data && result.data.isAdmin) || (username.toLowerCase() === "admin");
       const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole);
       localStorage.setItem("currentUser", JSON.stringify(result.data));
       localStorage.setItem("userRole", savedRole);
       localStorage.setItem("loginTime", new Date().toISOString());
+
+      // Xóa trắng mật khẩu và reset form ngay lập tức để trình duyệt không hỏi "Lưu mật khẩu"
+      if (passwordInput) passwordInput.value = "";
+      if (usernameInput) usernameInput.value = "";
+      if (loginForm) loginForm.reset();
 
       if (result.requiredBackendVersion || result.data?.requiredBackendVersion) {
         localStorage.setItem("required_backend_version", String(result.requiredBackendVersion || result.data.requiredBackendVersion).trim());
@@ -788,8 +794,20 @@ function initTeacherDirectoryDropdown() {
   updateTeacherSelectionVisual();
 }
 
+// Ngăn trình duyệt tự động điền và KHÔNG ghi nhớ tài khoản / mật khẩu
+function clearLoginFormInputs() {
+  const u = document.getElementById("usernameInput");
+  const p = document.getElementById("passwordInput");
+  if (u && document.activeElement !== u) u.value = "";
+  if (p && document.activeElement !== p) p.value = "";
+}
+
+window.addEventListener("pageshow", clearLoginFormInputs);
+[50, 150, 300, 600, 1200].forEach(delay => setTimeout(clearLoginFormInputs, delay));
+
 // Khi tải trang đăng nhập: Xóa sạch phiên đăng nhập cũ và cập nhật thông tin máy chủ
 window.addEventListener("DOMContentLoaded", () => {
+  clearLoginFormInputs();
   localStorage.removeItem("currentUser");
   localStorage.removeItem("userRole");
 
