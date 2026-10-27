@@ -141,7 +141,7 @@ function isCurrentUserAdmin() {
     } catch (e) {}
   }
   const cleanUser = username.replace(/^0+/, "");
-  return (username === "0938750424" || cleanUser === "938750424" || username === "gv001" || username === "admin");
+  return (username === "0938750424" || cleanUser === "938750424" || username === "admin");
 }
 
 function isAdminRole() {
@@ -155,7 +155,7 @@ function isAdminRole() {
       if (u && u.username) username = String(u.username).trim().toLowerCase();
     } catch (e) {}
   }
-  return (username === "admin");
+  return (username === "admin" || username === "0938750424" || username.replace(/^0+/, "") === "938750424");
 }
 
 function isCentralAccount(targetUser) {
@@ -167,7 +167,7 @@ function isCentralAccount(targetUser) {
     } catch (e) {}
   }
   const cleanUser = u.replace(/^0+/, "");
-  return (u === "admin" || u === "0938750424" || cleanUser === "938750424" || u === "gv001");
+  return (u === "admin" || u === "0938750424" || cleanUser === "938750424");
 }
 
 let adminActiveApiUrl = null;
@@ -8113,18 +8113,18 @@ function filterAndRenderStudents() {
 // ============================================================================
 // CHUẨN HÓA ĐỊNH DẠNG PHIÊN BẢN BACKEND DẠNG SỐ (2.0, 2.1, 2.2,...)
 // ============================================================================
-function formatBackendVersion(val) {
+function formatBackendVersion(val, fallback = "2.0") {
   try {
-    if (!val || String(val).trim() === "") return "2.3";
+    if (!val || String(val).trim() === "") return fallback;
     let str = String(val).trim();
     if (str.startsWith("'")) str = str.substring(1).trim();
 
-    // Nếu là đối tượng Date hoặc ngày tháng cũ quy về 2.3
+    // Nếu là đối tượng Date hoặc ngày tháng cũ quy về bản cũ 2.0 (EduTest Pro 2.0)
     if (str.includes("26/10/2026") || str.includes("GMT") || /^[A-Z][a-z]{2}\s/.test(str)) {
-      return "2.3";
+      return "2.0";
     }
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-      return "2.3";
+      return "2.0";
     }
 
     // Trích xuất số phiên bản dạng 2.1, 2.2, 2.3, 2.0,...
@@ -8135,9 +8135,9 @@ function formatBackendVersion(val) {
     if (/^\d+$/.test(str)) {
       return str + ".0";
     }
-    return str || "2.3";
+    return fallback;
   } catch (e) {
-    return "2.3";
+    return fallback;
   }
 }
 
@@ -8188,12 +8188,13 @@ async function checkTeacherBackendVersionUpdate() {
     }
   } catch (e) {}
 
-  const requiredVersion = formatBackendVersion(rawRequiredVersion);
+  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.3");
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
   const savedSheetVer = (localStorage.getItem("teacher_backend_version") || "").trim();
-  let currentServerVersion = savedSheetVer ? formatBackendVersion(savedSheetVer) : "2.2";
+  let currentServerVersion = savedSheetVer ? formatBackendVersion(savedSheetVer, "2.0") : "2.0";
+  let hasPingedLiveServer = false;
 
   if (personalServerUrl && personalServerUrl.startsWith("https://script.google.com/macros/s/") && personalServerUrl !== DEFAULT_GAS_API_URL) {
     try {
@@ -8201,24 +8202,23 @@ async function checkTeacherBackendVersionUpdate() {
       if (pingRes.ok) {
         const pingJson = await pingRes.json();
         if (pingJson && pingJson.version) {
-          currentServerVersion = formatBackendVersion(pingJson.version);
+          currentServerVersion = formatBackendVersion(pingJson.version, "2.0");
+          hasPingedLiveServer = true;
+          localStorage.setItem("teacher_backend_version", currentServerVersion);
         }
       }
     } catch (ePing) {
       // Trường hợp server riêng ping lỗi hoặc chưa kích hoạt, giữ phiên bản đã ghi nhận trên Sheet
     }
-  } else {
-    // Giáo viên dùng server trung tâm
-    currentServerVersion = requiredVersion;
   }
 
-  // Nếu cột F trên sheet trung tâm đã ghi nhận phiên bản >= yêu cầu (ví dụ GV đã cập nhật lên 2.2)
-  if (savedSheetVer && compareBackendVersions(savedSheetVer, requiredVersion) >= 0) {
-    currentServerVersion = formatBackendVersion(savedSheetVer);
+  // Nếu không ping được trực tiếp server riêng và cột F trên sheet trung tâm đã ghi nhận phiên bản >= yêu cầu
+  if (!hasPingedLiveServer && savedSheetVer && compareBackendVersions(savedSheetVer, requiredVersion) >= 0) {
+    currentServerVersion = formatBackendVersion(savedSheetVer, "2.0");
   }
 
-  // Tự động báo cáo phiên bản hiện tại lên cột F của sheet DATA_GIAOVIEN trung tâm
-  if (currentTeacher && currentTeacher.username) {
+  // Tự động báo cáo phiên bản hiện tại lên cột F của sheet DATA_GIAOVIEN trung tâm khi ping server thành công
+  if (currentTeacher && currentTeacher.username && hasPingedLiveServer) {
     try {
       fetch(`${DEFAULT_GAS_API_URL}?action=updateTeacherBackendVersion&username=${encodeURIComponent(currentTeacher.username)}&version=${encodeURIComponent(currentServerVersion)}&_t=${Date.now()}`);
     } catch (eRep) {}
@@ -8328,7 +8328,7 @@ function initCentralHubModal() {
   function openModal() {
     // Ẩn cảnh báo cập nhật nếu phiên bản đã đạt chuẩn hoặc là tài khoản trung tâm/admin
     const rawReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
-    const curVer = (localStorage.getItem("teacher_backend_version") || "2.3").trim();
+    const curVer = (localStorage.getItem("teacher_backend_version") || "2.0").trim();
     if (window.isTeacherBackendUpdated || compareBackendVersions(curVer, rawReq) >= 0 || isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
       const noticeBox = document.getElementById("hubVersionUpdateNotice");
       if (noticeBox) noticeBox.style.display = "none";
@@ -8567,12 +8567,12 @@ function initCentralHubModal() {
           const vResp = await fetch(`${testServerUrl}?action=checkBackendVersion&_t=${Date.now()}`);
           if (vResp.ok) {
             const vJson = await vResp.json();
-            if (vJson && vJson.version) detectedVersion = formatBackendVersion(vJson.version);
+            if (vJson && vJson.version) detectedVersion = formatBackendVersion(vJson.version, "2.0");
           }
         } catch (eV) {}
 
         const rawReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
-        const requiredVersion = formatBackendVersion(rawReq);
+        const requiredVersion = formatBackendVersion(rawReq, "2.3");
         const isCurrentUpdated = compareBackendVersions(detectedVersion, requiredVersion) >= 0;
         const displayDetectedVer = `v${detectedVersion}`;
 
@@ -8982,7 +8982,7 @@ async function loadHubTeachersForShare() {
       });
 
       // Nếu người gửi là Giáo viên bộ môn (không phải Admin), thêm Admin vào danh sách để GV có thể chia sẻ đề cho Admin!
-      const hasAdminInHub = eligible.some(t => t.serverUrl === DEFAULT_GAS_API_URL || t.maGV.toLowerCase() === "admin" || t.maGV === "0938750424" || t.maGV === "GV001");
+      const hasAdminInHub = eligible.some(t => t.serverUrl === DEFAULT_GAS_API_URL || t.maGV.toLowerCase() === "admin" || t.maGV === "0938750424" || t.maGV.replace(/^0+/, "") === "938750424");
       if (!currentIsAdmin && !hasAdminInHub) {
         eligible.unshift({
           maGV: "ADMIN",

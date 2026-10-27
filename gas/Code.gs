@@ -229,10 +229,10 @@ function formatHeaderRow(sheet, bgColor) {
  * Chuẩn hóa giá trị phiên bản backend thành chuỗi phiên bản dạng số (ví dụ: 2.0, 2.1, 2.2,...)
  * Tuyệt đối không hiển thị dạng ngày tháng (DD/MM/YYYY)
  */
-function formatBackendVersion(val) {
+function formatBackendVersion(val, fallback = "2.0") {
   try {
     if (val === null || val === undefined || String(val).trim() === "") {
-      return CURRENT_BACKEND_VERSION || "2.1";
+      return fallback;
     }
     // Nếu là đối tượng Date (do Google Sheets tự ép kiểu số 2.1 thành ngày)
     if (Object.prototype.toString.call(val) === "[object Date]" || val instanceof Date) {
@@ -241,22 +241,22 @@ function formatBackendVersion(val) {
         const m = val.getMonth() + 1;
         // Nếu là ngày 2/1 hoặc 1/2 -> do gõ 2.1 hoặc 1.2
         if (d === 2 && m === 1) return "2.1";
-        if (d === 26 && m === 10) return "2.1"; // Giá trị ngày cũ quy về 2.1
+        if (d === 26 && m === 10) return "2.0"; // Giá trị ngày cũ quy về bản cũ 2.0
         return d + "." + m;
       }
     }
     let str = String(val).trim();
     if (str.startsWith("'")) str = str.substring(1).trim();
 
-    // Nếu là chuỗi ngày tháng cũ (ví dụ 26/10/2026 hoặc GMT) quy về phiên bản chuẩn 2.1
+    // Nếu là chuỗi ngày tháng cũ (ví dụ 26/10/2026 hoặc GMT) quy về phiên bản cũ 2.0
     if (str.indexOf("26/10/2026") !== -1 || str.indexOf("GMT") !== -1 || /^[A-Z][a-z]{2}\s/.test(str)) {
-      return CURRENT_BACKEND_VERSION || "2.1";
+      return "2.0";
     }
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-      return CURRENT_BACKEND_VERSION || "2.1";
+      return "2.0";
     }
 
-    // Trích xuất số phiên bản như 2.0, 2.1, 2.2, 3.0,...
+    // Trích xuất số phiên bản như 2.0, 2.1, 2.2, 2.3, 3.0,...
     const match = str.match(/v?(\d+(\.\d+)+)/i);
     if (match) {
       return match[1];
@@ -264,9 +264,9 @@ function formatBackendVersion(val) {
     if (/^\d+$/.test(str)) {
       return str + ".0";
     }
-    return str || CURRENT_BACKEND_VERSION || "2.1";
+    return fallback;
   } catch (e) {
-    return CURRENT_BACKEND_VERSION || "2.1";
+    return fallback;
   }
 }
 
@@ -275,7 +275,7 @@ const formatBackendVersionDate = formatBackendVersion;
 
 /**
  * Đọc phiên bản Backend yêu cầu từ ô G1 của Sheet DATA_GIAOVIEN
- * Trả về dạng số phiên bản như 2.1, 2.2,...
+ * Trả về dạng số phiên bản như 2.1, 2.2, 2.3,...
  */
 function getCentralBackendVersion(sheetGV) {
   try {
@@ -287,15 +287,15 @@ function getCentralBackendVersion(sheetGV) {
       const g1Range = sheetGV.getRange("G1");
       const displayVal = g1Range.getDisplayValue();
       if (displayVal && displayVal.trim() !== "") {
-        return formatBackendVersion(displayVal);
+        return formatBackendVersion(displayVal, CURRENT_BACKEND_VERSION || "2.3");
       }
       const val = g1Range.getValue();
       if (val !== null && val !== undefined && String(val).trim() !== "") {
-        return formatBackendVersion(val);
+        return formatBackendVersion(val, CURRENT_BACKEND_VERSION || "2.3");
       }
     }
   } catch (e) {}
-  return CURRENT_BACKEND_VERSION || "2.1";
+  return CURRENT_BACKEND_VERSION || "2.3";
 }
 
 /**
@@ -391,8 +391,9 @@ function handleUpdateTeacherBackendVersion(payload) {
 function isCentralAccountBackend(user1, user2) {
   var u1 = String(user1 || "").toLowerCase().trim();
   var u2 = String(user2 || "").toLowerCase().trim();
-  var list = ["admin", "0938750424", "938750424", "gv001", "hung2601"];
-  return list.indexOf(u1) !== -1 || list.indexOf(u2) !== -1;
+  var c1 = u1.replace(/^0+/, "");
+  var c2 = u2.replace(/^0+/, "");
+  return (u1 === "admin" || u2 === "admin" || u1 === "0938750424" || u2 === "0938750424" || c1 === "938750424" || c2 === "938750424");
 }
 
 function doGet(e) {
@@ -642,7 +643,7 @@ function handleLogin(payload) {
 
           const verColIdx = ensureGiaoVienSheetColumns(sheetGV);
           const reqVer = getCentralBackendVersion(sheetGV);
-          const teacherCurrentVer = String(row[verColIdx] || "").trim() || "2.0";
+          const teacherCurrentVer = formatBackendVersion(row[verColIdx], "2.0");
 
           return createJsonResponse({
             success: true,
@@ -1514,7 +1515,7 @@ function isSameStudentAccount(acc1, acc2) {
 function isAdminAccount(username) {
   var s = String(username || "").trim().toLowerCase();
   var clean = s.replace(/^0+/, "");
-  return (s === "0938750424" || clean === "938750424" || s === "gv001" || s === "admin");
+  return (s === "0938750424" || clean === "938750424" || s === "admin");
 }
 
 function handleSaveExam(payload) {
