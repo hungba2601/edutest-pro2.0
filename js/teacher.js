@@ -8115,19 +8115,19 @@ function filterAndRenderStudents() {
 // ============================================================================
 function formatBackendVersion(val) {
   try {
-    if (!val || String(val).trim() === "") return "2.2";
+    if (!val || String(val).trim() === "") return "2.3";
     let str = String(val).trim();
     if (str.startsWith("'")) str = str.substring(1).trim();
 
-    // Nếu là đối tượng Date hoặc ngày tháng cũ quy về 2.2
+    // Nếu là đối tượng Date hoặc ngày tháng cũ quy về 2.3
     if (str.includes("26/10/2026") || str.includes("GMT") || /^[A-Z][a-z]{2}\s/.test(str)) {
-      return "2.2";
+      return "2.3";
     }
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-      return "2.2";
+      return "2.3";
     }
 
-    // Trích xuất số phiên bản dạng 2.1, 2.2, 2.0,...
+    // Trích xuất số phiên bản dạng 2.1, 2.2, 2.3, 2.0,...
     const match = str.match(/v?(\d+(\.\d+)+)/i);
     if (match) {
       return match[1];
@@ -8135,9 +8135,9 @@ function formatBackendVersion(val) {
     if (/^\d+$/.test(str)) {
       return str + ".0";
     }
-    return str || "2.2";
+    return str || "2.3";
   } catch (e) {
-    return "2.2";
+    return "2.3";
   }
 }
 
@@ -8175,8 +8175,8 @@ async function checkTeacherBackendVersionUpdate() {
     return;
   }
 
-  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2,...)
-  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.2").trim();
+  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2, 2.3,...)
+  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.3").trim();
   try {
     const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
     if (hubRes.ok) {
@@ -8327,8 +8327,8 @@ function initCentralHubModal() {
 
   function openModal() {
     // Ẩn cảnh báo cập nhật nếu phiên bản đã đạt chuẩn hoặc là tài khoản trung tâm/admin
-    const rawReq = (localStorage.getItem("required_backend_version") || "2.2").trim();
-    const curVer = (localStorage.getItem("teacher_backend_version") || "2.2").trim();
+    const rawReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
+    const curVer = (localStorage.getItem("teacher_backend_version") || "2.3").trim();
     if (window.isTeacherBackendUpdated || compareBackendVersions(curVer, rawReq) >= 0 || isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
       const noticeBox = document.getElementById("hubVersionUpdateNotice");
       if (noticeBox) noticeBox.style.display = "none";
@@ -8571,7 +8571,7 @@ function initCentralHubModal() {
           }
         } catch (eV) {}
 
-        const rawReq = (localStorage.getItem("required_backend_version") || "2.2").trim();
+        const rawReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
         const requiredVersion = formatBackendVersion(rawReq);
         const isCurrentUpdated = compareBackendVersions(detectedVersion, requiredVersion) >= 0;
         const displayDetectedVer = `v${detectedVersion}`;

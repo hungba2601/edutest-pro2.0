@@ -20,8 +20,8 @@
 // Dán link Google Sheets của bạn vào đây (nếu để trống, code sẽ tự dùng Sheet đang mở)
 const SPREADSHEET_URL = ""; 
 
-// PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2,...)
-const CURRENT_BACKEND_VERSION = "2.2";
+// PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2, 2.3,...)
+const CURRENT_BACKEND_VERSION = "2.3";
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -327,11 +327,11 @@ function ensureGiaoVienSheetColumns(sheetGV) {
     const g1Val = String(g1Range.getValue() || "").trim();
     if (!g1Val) {
       g1Range.setNumberFormat("@");
-      g1Range.setValue(CURRENT_BACKEND_VERSION || "2.2");
+      g1Range.setValue(CURRENT_BACKEND_VERSION || "2.3");
     } else if (g1Val.includes("26/10/2026") || g1Val.includes("/")) {
       // Nếu ô G1 đang lưu ngày tháng cũ, đổi về phiên bản chuẩn dạng Text
       g1Range.setNumberFormat("@");
-      g1Range.setValue(CURRENT_BACKEND_VERSION || "2.2");
+      g1Range.setValue(CURRENT_BACKEND_VERSION || "2.3");
     }
 
     return verColIdx;

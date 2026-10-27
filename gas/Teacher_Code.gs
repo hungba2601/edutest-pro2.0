@@ -20,8 +20,8 @@
 // Dán link Google Sheets của bạn vào đây (nếu để trống, code sẽ tự dùng Sheet đang mở)
 const SPREADSHEET_URL = ""; 
 
-// PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2,...)
-const TEACHER_BACKEND_VERSION = "2.2"; 
+// PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2, 2.3,...)
+const TEACHER_BACKEND_VERSION = "2.3"; 
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
