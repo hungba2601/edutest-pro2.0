@@ -5245,6 +5245,10 @@ function populateResultClassDropdown(specificMaDe) {
 const btnFilterResults = document.getElementById("btnFilterResults");
 if (btnFilterResults) {
   btnFilterResults.addEventListener("click", () => {
+    const sInput = document.getElementById("searchStudentInput");
+    const bClear = document.getElementById("btnClearSearchStudent");
+    if (sInput) sInput.value = "";
+    if (bClear) bClear.style.display = "none";
     const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
     populateResultClassDropdown(selectedMaDe);
     loadTeacherResults(selectedMaDe);
@@ -5254,6 +5258,10 @@ if (btnFilterResults) {
 const selectFilterExamElem = document.getElementById("selectFilterExam");
 if (selectFilterExamElem) {
   selectFilterExamElem.addEventListener("change", () => {
+    const sInput = document.getElementById("searchStudentInput");
+    const bClear = document.getElementById("btnClearSearchStudent");
+    if (sInput) sInput.value = "";
+    if (bClear) bClear.style.display = "none";
     const selectedMaDe = selectFilterExamElem.value || "ALL";
     populateResultClassDropdown(selectedMaDe);
     loadTeacherResults(selectedMaDe);
@@ -5282,6 +5290,12 @@ async function loadTeacherResults(filterMaDe) {
   if (tbody) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Đang tải bảng điểm kết quả...</td></tr>`;
   }
+
+  // Tự động xóa ô tìm kiếm khi tải mới kết quả để tránh trình duyệt tự động điền từ khóa làm ẩn bảng điểm
+  const sInput = document.getElementById("searchStudentInput");
+  const bClear = document.getElementById("btnClearSearchStudent");
+  if (sInput) sInput.value = "";
+  if (bClear) bClear.style.display = "none";
 
   const selectExamElem = document.getElementById("selectFilterExam");
   const actualMaDe = (filterMaDe !== undefined && filterMaDe !== null && filterMaDe !== "") 
@@ -5447,84 +5461,159 @@ function applyResultsFiltersAndRender() {
     }
   }
 
-  // Ghép từng học sinh gốc với bài làm trong DATA_KETQUA
+  // Ghép bài làm vào danh sách hiển thị
   let mergedList = [];
-  if (targetStudents && targetStudents.length > 0) {
-    mergedList = targetStudents.map((st, idx) => {
-      const stUser = String(st.username || "").trim().toLowerCase();
-      const stName = String(st.hoTen || "").trim().toLowerCase();
-      const stClass = normalizeClassName(st.lop);
+  const examMap = new Map();
+  (currentExamsList || []).forEach(e => {
+    if (e.maDe) examMap.set(String(e.maDe).trim(), e.tenKyThi || e.maDe);
+  });
 
-      // Tìm bài nộp khớp với học sinh (lấy bài nộp mới nhất)
-      const sub = [...filteredSubmissions].reverse().find(r => {
-        const rUser = String(r.usernameHS || "").trim().toLowerCase();
-        if (rUser && stUser && rUser === stUser) return true;
-        const rName = String(r.hoTen || "").trim().toLowerCase();
-        const rClass = normalizeClassName(r.lop);
-        return rName === stName && rClass === stClass;
-      });
-
-      if (sub) {
-        return {
-          stt: idx + 1,
-          usernameHS: st.username,
-          hoTen: st.hoTen,
-          lop: stClass,
-          ngaySinh: st.ngaySinh,
-          gioiTinh: st.gioiTinh,
-          truong: st.truong,
-          maDe: sub.maDe || selectedMaDe,
-          diemTong: sub.diemTong !== undefined ? Number(sub.diemTong) : 0,
-          soCauDungSai: sub.soCauDungSai || "--",
-          thoiGianNop: sub.thoiGianNop || "--",
-          chiTietTraLoi: sub.chiTietTraLoi || "[]",
-          baiLamTuLuan: sub.baiLamTuLuan || [],
-          isSubmitted: true,
-          subRecord: sub
-        };
-      } else {
-        return {
-          stt: idx + 1,
-          usernameHS: st.username,
-          hoTen: st.hoTen,
-          lop: stClass,
-          ngaySinh: st.ngaySinh,
-          gioiTinh: st.gioiTinh,
-          truong: st.truong,
-          maDe: selectedMaDe !== "ALL" ? selectedMaDe : "--",
-          diemTong: "", // ĐỂ TRỐNG Ô ĐIỂM ĐỂ COPY-PASTE THẲNG VÀO SỔ ĐIỂM!
-          soCauDungSai: "",
-          thoiGianNop: "",
-          chiTietTraLoi: "[]",
-          baiLamTuLuan: [],
-          isSubmitted: false,
-          subRecord: null
-        };
-      }
-    });
-  } else {
-    // Nếu chưa có CSDL gốc học sinh, lấy từ danh sách bài nộp
-    let subs = filteredSubmissions;
+  if (selectedMaDe === "ALL") {
+    // ------------------------------------------------------------------------
+    // KHI CHỌN "TẤT CẢ BÀI KIỂM TRA": Hiển thị toàn bộ các bài thi đã nộp của tất cả các đề!
+    // ------------------------------------------------------------------------
+    let subs = filteredSubmissions || [];
     if (selectedClass && selectedClass !== "ALL") {
       subs = subs.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
     }
-    mergedList = subs.map((r, idx) => ({
-      stt: idx + 1,
-      usernameHS: r.usernameHS,
-      hoTen: r.hoTen,
-      lop: normalizeClassName(r.lop),
-      ngaySinh: r.ngaySinh,
-      gioiTinh: r.gioiTinh,
-      truong: r.truong,
-      maDe: r.maDe,
-      diemTong: Number(r.diemTong) || 0,
-      soCauDungSai: r.soCauDungSai || "--",
-      thoiGianNop: r.thoiGianNop || "--",
-      chiTietTraLoi: r.chiTietTraLoi || "[]",
-      baiLamTuLuan: r.baiLamTuLuan || [],
-      isSubmitted: true,
-      subRecord: r
-    }));
+
+    const submittedItems = subs.map((r, idx) => {
+      const examName = examMap.get(String(r.maDe).trim()) || r.tenKyThi || r.maDe;
+      return {
+        stt: idx + 1,
+        usernameHS: r.usernameHS,
+        hoTen: r.hoTen,
+        lop: normalizeClassName(r.lop),
+        ngaySinh: r.ngaySinh,
+        gioiTinh: r.gioiTinh,
+        truong: r.truong,
+        maDe: r.maDe,
+        tenKyThi: examName,
+        diemTong: Number(r.diemTong) || 0,
+        soCauDungSai: r.soCauDungSai || "--",
+        thoiGianNop: r.thoiGianNop || "--",
+        chiTietTraLoi: r.chiTietTraLoi || "[]",
+        baiLamTuLuan: r.baiLamTuLuan || [],
+        isSubmitted: true,
+        subRecord: r
+      };
+    });
+
+    // Nếu người dùng tick chọn "Hiện đủ danh sách lớp", bổ sung học sinh chưa làm bài nào
+    if (includeNotSubmitted && targetStudents && targetStudents.length > 0) {
+      const submittedUserSet = new Set(submittedItems.map(s => String(s.usernameHS || "").trim().toLowerCase()));
+      const unsubmittedItems = [];
+      targetStudents.forEach(st => {
+        const u = String(st.username || "").trim().toLowerCase();
+        if (!submittedUserSet.has(u)) {
+          unsubmittedItems.push({
+            stt: 0,
+            usernameHS: st.username,
+            hoTen: st.hoTen,
+            lop: normalizeClassName(st.lop),
+            ngaySinh: st.ngaySinh,
+            gioiTinh: st.gioiTinh,
+            truong: st.truong,
+            maDe: "--",
+            tenKyThi: "Chưa tham gia kỳ thi nào",
+            diemTong: "",
+            soCauDungSai: "",
+            thoiGianNop: "",
+            chiTietTraLoi: "[]",
+            baiLamTuLuan: [],
+            isSubmitted: false,
+            subRecord: null
+          });
+        }
+      });
+      mergedList = [...submittedItems, ...unsubmittedItems];
+    } else {
+      mergedList = submittedItems;
+    }
+  } else {
+    // ------------------------------------------------------------------------
+    // KHI CHỌN 1 ĐỀ CỤ THỂ: Ghép theo sổ điểm gốc của lớp (đúng thứ tự STT)
+    // ------------------------------------------------------------------------
+    const currentExamName = examMap.get(String(selectedMaDe).trim()) || selectedMaDe;
+    if (targetStudents && targetStudents.length > 0) {
+      mergedList = targetStudents.map((st, idx) => {
+        const stUser = String(st.username || "").trim().toLowerCase();
+        const stName = String(st.hoTen || "").trim().toLowerCase();
+        const stClass = normalizeClassName(st.lop);
+
+        // Tìm bài nộp khớp với học sinh (lấy bài nộp mới nhất của đề này)
+        const sub = [...filteredSubmissions].reverse().find(r => {
+          const rUser = String(r.usernameHS || "").trim().toLowerCase();
+          if (rUser && stUser && rUser === stUser) return true;
+          const rName = String(r.hoTen || "").trim().toLowerCase();
+          const rClass = normalizeClassName(r.lop);
+          return rName === stName && rClass === stClass;
+        });
+
+        if (sub) {
+          return {
+            stt: idx + 1,
+            usernameHS: st.username,
+            hoTen: st.hoTen,
+            lop: stClass,
+            ngaySinh: st.ngaySinh,
+            gioiTinh: st.gioiTinh,
+            truong: st.truong,
+            maDe: sub.maDe || selectedMaDe,
+            tenKyThi: currentExamName,
+            diemTong: sub.diemTong !== undefined ? Number(sub.diemTong) : 0,
+            soCauDungSai: sub.soCauDungSai || "--",
+            thoiGianNop: sub.thoiGianNop || "--",
+            chiTietTraLoi: sub.chiTietTraLoi || "[]",
+            baiLamTuLuan: sub.baiLamTuLuan || [],
+            isSubmitted: true,
+            subRecord: sub
+          };
+        } else {
+          return {
+            stt: idx + 1,
+            usernameHS: st.username,
+            hoTen: st.hoTen,
+            lop: stClass,
+            ngaySinh: st.ngaySinh,
+            gioiTinh: st.gioiTinh,
+            truong: st.truong,
+            maDe: selectedMaDe,
+            tenKyThi: currentExamName,
+            diemTong: "", // ĐỂ TRỐNG Ô ĐIỂM ĐỂ COPY-PASTE THẲNG VÀO SỔ ĐIỂM!
+            soCauDungSai: "",
+            thoiGianNop: "",
+            chiTietTraLoi: "[]",
+            baiLamTuLuan: [],
+            isSubmitted: false,
+            subRecord: null
+          };
+        }
+      });
+    } else {
+      let subs = filteredSubmissions;
+      if (selectedClass && selectedClass !== "ALL") {
+        subs = subs.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
+      }
+      mergedList = subs.map((r, idx) => ({
+        stt: idx + 1,
+        usernameHS: r.usernameHS,
+        hoTen: r.hoTen,
+        lop: normalizeClassName(r.lop),
+        ngaySinh: r.ngaySinh,
+        gioiTinh: r.gioiTinh,
+        truong: r.truong,
+        maDe: r.maDe,
+        tenKyThi: currentExamName,
+        diemTong: Number(r.diemTong) || 0,
+        soCauDungSai: r.soCauDungSai || "--",
+        thoiGianNop: r.thoiGianNop || "--",
+        chiTietTraLoi: r.chiTietTraLoi || "[]",
+        baiLamTuLuan: r.baiLamTuLuan || [],
+        isSubmitted: true,
+        subRecord: r
+      }));
+    }
   }
 
   // 3. Cập nhật số lượng đếm trên 3 nút bộ lọc
@@ -5568,7 +5657,9 @@ function applyResultsFiltersAndRender() {
     const searchFiltered = finalList.filter(r => 
       (r.hoTen && r.hoTen.toLowerCase().includes(query)) ||
       (r.lop && r.lop.toLowerCase().includes(query)) ||
-      (r.usernameHS && r.usernameHS.toLowerCase().includes(query))
+      (r.usernameHS && r.usernameHS.toLowerCase().includes(query)) ||
+      (r.maDe && r.maDe.toLowerCase().includes(query)) ||
+      (r.tenKyThi && r.tenKyThi.toLowerCase().includes(query))
     );
     renderResultsTable(searchFiltered);
   } else {
@@ -5621,16 +5712,38 @@ function computeAndRenderMetrics(results) {
   document.getElementById("metricPassRate").textContent = `${passRate}%`;
 }
 
+function clearSearchFilter() {
+  const searchInput = document.getElementById("searchStudentInput");
+  const btnClear = document.getElementById("btnClearSearchStudent");
+  if (searchInput) searchInput.value = "";
+  if (btnClear) btnClear.style.display = "none";
+  renderResultsTable(currentDisplayedResultsList || []);
+}
+
 function renderResultsTable(results) {
   const tbody = document.getElementById("resultsTableBody");
   if (!tbody) return;
 
   if (!results || results.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Chưa có học sinh nào phù hợp với bộ lọc này.</td></tr>`;
+    const searchInput = document.getElementById("searchStudentInput");
+    const query = searchInput ? searchInput.value.trim() : "";
+    if (query) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #64748b;">
+        <div style="font-size: 1.05rem; font-weight: 700; color: #334155; margin-bottom: 0.5rem;">🔍 Không tìm thấy học sinh phù hợp với từ khóa: "<span style="color: #ef4444;">${escapeHtml(query)}</span>"</div>
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 1rem;">(Nếu trình duyệt tự động điền từ khóa vào ô tìm kiếm, vui lòng bấm nút bên dưới)</p>
+        <button type="button" class="btn-primary-sm" onclick="clearSearchFilter()" style="padding: 0.45rem 1.2rem; background: #6366f1; color: #ffffff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">
+          ✕ Xóa từ khóa tìm kiếm & Hiện tất cả học sinh (${currentDisplayedResultsList?.length || 0})
+        </button>
+      </td></tr>`;
+    } else {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Chưa có học sinh nào phù hợp với bộ lọc này.</td></tr>`;
+    }
     return;
   }
 
   tbody.innerHTML = "";
+  const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+
   results.forEach((row, idx) => {
     const isSubmitted = row.isSubmitted;
     let scoreBadgeHtml = "";
@@ -5673,12 +5786,17 @@ function renderResultsTable(results) {
       tr.style.background = "#fcfdfd";
     }
 
+    const examBadgeHtml = (selectedMaDe === "ALL" && row.tenKyThi && row.tenKyThi !== "--")
+      ? `<div style="margin-top: 3px; font-size: 0.73rem; color: #4338ca; font-weight: 700; background: #eef2ff; padding: 2px 6px; border-radius: 4px; display: inline-block; border: 1px solid #c7d2fe;">📝 [${row.maDe}] ${row.tenKyThi}</div>`
+      : "";
+
     tr.innerHTML = `
       <td>${row.stt || idx + 1}</td>
       <td><strong>${row.lop}</strong></td>
       <td>
         <strong style="color: #0f172a;">${row.hoTen}</strong>
         <div style="font-size: 0.72rem; color: #94a3b8; font-family: monospace;">${row.usernameHS}</div>
+        ${examBadgeHtml}
       </td>
       <td>${formatDob(row.ngaySinh)}</td>
       <td>${row.gioiTinh}</td>
@@ -5803,15 +5921,41 @@ function renderResultsTable(results) {
 
 // Tìm kiếm nhanh học sinh
 const searchStudentInputElem = document.getElementById("searchStudentInput");
-if (searchStudentInputElem) {
-  searchStudentInputElem.addEventListener("input", (e) => {
-    const query = e.target.value.toLowerCase().trim();
+const btnClearSearchStudentElem = document.getElementById("btnClearSearchStudent");
+
+function handleSearchStudentInput() {
+  const query = searchStudentInputElem ? searchStudentInputElem.value.toLowerCase().trim() : "";
+  if (btnClearSearchStudentElem) {
+    btnClearSearchStudentElem.style.display = query ? "inline-flex" : "none";
+  }
+  if (!currentDisplayedResultsList) return;
+  if (query) {
     const filtered = currentDisplayedResultsList.filter(r => 
       (r.hoTen && r.hoTen.toLowerCase().includes(query)) ||
       (r.lop && r.lop.toLowerCase().includes(query)) ||
-      (r.usernameHS && r.usernameHS.toLowerCase().includes(query))
+      (r.usernameHS && r.usernameHS.toLowerCase().includes(query)) ||
+      (r.maDe && r.maDe.toLowerCase().includes(query)) ||
+      (r.tenKyThi && r.tenKyThi.toLowerCase().includes(query))
     );
     renderResultsTable(filtered);
+  } else {
+    renderResultsTable(currentDisplayedResultsList);
+  }
+}
+
+if (searchStudentInputElem) {
+  searchStudentInputElem.addEventListener("input", handleSearchStudentInput);
+  searchStudentInputElem.addEventListener("change", handleSearchStudentInput);
+  searchStudentInputElem.addEventListener("search", handleSearchStudentInput);
+}
+
+if (btnClearSearchStudentElem) {
+  btnClearSearchStudentElem.addEventListener("click", () => {
+    if (searchStudentInputElem) {
+      searchStudentInputElem.value = "";
+      searchStudentInputElem.focus();
+    }
+    handleSearchStudentInput();
   });
 }
 
@@ -9137,6 +9281,11 @@ async function initAdminTeacherSelector() {
 
   // Sự kiện khi Quản trị viên đổi giáo viên cần xem
   selectTeacher.addEventListener("change", async () => {
+    const sInput = document.getElementById("searchStudentInput");
+    const bClear = document.getElementById("btnClearSearchStudent");
+    if (sInput) sInput.value = "";
+    if (bClear) bClear.style.display = "none";
+
     const selectedMaGV = selectTeacher.value;
     adminActiveUsernameGV = selectedMaGV;
 

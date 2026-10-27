@@ -734,9 +734,12 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
 
       <!-- Kết quả bảng chi tiết -->
       <div class="panel-card">
-        <div class="section-header-flex">
+        <div class="section-header-flex" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
           <h3 class="panel-title" style="margin: 0;">Bảng Điểm Chi Tiết Thí Sinh</h3>
-          <input type="text" id="searchStudentInput" class="form-input search-box" placeholder="Tìm theo tên học sinh, lớp...">
+          <div style="position: relative; display: flex; align-items: center; min-width: 260px; max-width: 380px; flex: 1;">
+            <input type="search" id="searchStudentInput" class="form-input search-box" placeholder="Tìm theo tên học sinh, lớp, mã đề..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="student_search_filter_box" style="width: 100%; padding-right: 2.2rem;">
+            <button type="button" id="btnClearSearchStudent" title="Xóa tìm kiếm" style="display: none; position: absolute; right: 8px; background: #e2e8f0; border: none; color: #475569; width: 22px; height: 22px; border-radius: 50%; font-size: 13px; font-weight: bold; cursor: pointer; align-items: center; justify-content: center; line-height: 1;">✕</button>
+          </div>
         </div>
 
         <div class="mobile-table-hint">
@@ -1721,6 +1724,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   </div>
 
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=9.9"></script>
+  <script src="js/teacher.js?v=10.0"></script>
 </body>
 </html>
