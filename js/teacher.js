@@ -5847,22 +5847,50 @@ function renderResultsTable(results) {
       }
 
       btn.disabled = true;
+      btn.style.opacity = "0.5";
+      const originalBtnHtml = btn.innerHTML;
+      btn.innerHTML = `⏳`;
+
+      // 1. Sao lưu danh sách cũ và Cập nhật tức thì (Optimistic UI Update) ngay trên giao diện
+      const prevRawList = [...(currentRawResultsList || [])];
+      currentRawResultsList = (currentRawResultsList || []).filter(r => {
+        const matchHS = String(r.usernameHS || "").trim().toUpperCase() === String(item.usernameHS || "").trim().toUpperCase();
+        const matchMaDe = !item.maDe || item.maDe === "--" || String(r.maDe || "").trim() === String(item.maDe || "").trim();
+        const matchTime = !item.thoiGianNop || item.thoiGianNop === "--" || String(r.thoiGianNop || "").trim() === String(item.thoiGianNop || "").trim();
+        if (matchHS && matchMaDe && matchTime) return false;
+        return true;
+      });
+      currentResultsList = currentRawResultsList;
+      // Cập nhật bảng và các thẻ số liệu KPI tức thì trong 0.01s!
+      applyResultsFiltersAndRender();
+
       try {
         let res = null;
         let lastErrorMsg = "";
 
-        // 1. Thử gửi POST lên máy chủ Google Sheets
+        // Xác định chính xác máy chủ chứa đề/bài thi của giáo viên này
+        const targetUrl = (isAdminRole() && adminActiveApiUrl) 
+          ? adminActiveApiUrl 
+          : (getTeacherPersonalServerUrl() || API_URL || DEFAULT_GAS_API_URL);
+
+        const targetGvUser = (isAdminRole() && adminActiveUsernameGV && adminActiveUsernameGV !== "ALL")
+          ? String(adminActiveUsernameGV).trim()
+          : String(currentTeacher?.username || "").trim();
+
+        const delPayload = {
+          action: "deleteStudentResult",
+          usernameGV: targetGvUser,
+          usernameHS: item.usernameHS,
+          maDe: item.maDe,
+          thoiGianNop: item.thoiGianNop || ""
+        };
+
+        // Gửi POST lên đúng máy chủ
         try {
-          const resp = await fetch(API_URL, {
+          const resp = await fetch(targetUrl, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({
-              action: "deleteStudentResult",
-              usernameGV: currentTeacher?.username || "",
-              usernameHS: item.usernameHS,
-              maDe: item.maDe,
-              thoiGianNop: item.thoiGianNop || ""
-            })
+            body: JSON.stringify(delPayload)
           });
           const text = await resp.text();
           if (text && !text.trim().startsWith("<")) {
@@ -5872,12 +5900,9 @@ function renderResultsTable(results) {
           console.warn("POST deleteStudentResult lỗi kết nối, chuyển sang GET fallback:", postErr);
         }
 
-        // 2. Tự động fallback sang GET nếu POST báo chưa hỗ trợ hoặc thất bại
+        // Fallback sang GET nếu POST thất bại
         if (!res || !res.success) {
           if (res?.message) lastErrorMsg = res.message;
-          const cleanUserGv = (currentTeacher?.username || "").trim();
-
-          // Thử 2a: GET có usernameGV
           const qp = new URLSearchParams({
             action: "deleteStudentResult",
             usernameHS: item.usernameHS,
@@ -5885,11 +5910,11 @@ function renderResultsTable(results) {
             thoiGianNop: item.thoiGianNop || "",
             _t: Date.now()
           });
-          if (cleanUserGv) {
-            qp.append("usernameGV", cleanUserGv);
+          if (targetGvUser) {
+            qp.append("usernameGV", targetGvUser);
           }
 
-          const getUrl = `${API_URL}${API_URL.includes("?") ? "&" : "?"}${qp.toString()}`;
+          const getUrl = `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}${qp.toString()}`;
           try {
             const getResp = await fetch(getUrl);
             const getText = await getResp.text();
@@ -5897,41 +5922,24 @@ function renderResultsTable(results) {
               res = JSON.parse(getText);
             }
           } catch (eGet) {
-            console.warn("GET 1 deleteStudentResult lỗi:", eGet);
-          }
-
-          // Thử 2b: Nếu báo "Không tìm thấy" (do Google Sheets làm mất số 0 đầu ở mã GV), thử bỏ usernameGV hoặc đổi đầu 0
-          if (!res || (!res.success && res.message && res.message.includes("Không tìm thấy"))) {
-            const qpNoGv = new URLSearchParams({
-              action: "deleteStudentResult",
-              usernameHS: item.usernameHS,
-              maDe: item.maDe,
-              thoiGianNop: item.thoiGianNop || "",
-              _t: Date.now()
-            });
-            const getUrlNoGv = `${API_URL}${API_URL.includes("?") ? "&" : "?"}${qpNoGv.toString()}`;
-            try {
-              const getRespNoGv = await fetch(getUrlNoGv);
-              const getTextNoGv = await getRespNoGv.text();
-              if (getTextNoGv && !getTextNoGv.trim().startsWith("<")) {
-                res = JSON.parse(getTextNoGv);
-              }
-            } catch (eGet2) {
-              console.warn("GET 2 deleteStudentResult lỗi:", eGet2);
-            }
+            console.warn("GET deleteStudentResult lỗi:", eGet);
           }
         }
 
         if (res && res.success) {
-          showToast("Đã xóa bài làm", `Đã xóa kết quả thi của học sinh ${item.hoTen}!`, "success", 3000);
-          const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
-          loadTeacherResults(selectedMaDe);
+          showToast("Đã xóa bài làm", `Đã xóa kết quả thi của học sinh ${item.hoTen}!`, "success", 2500);
         } else {
+          // Khôi phục lại nếu máy chủ báo lỗi
+          currentRawResultsList = prevRawList;
+          currentResultsList = prevRawList;
+          applyResultsFiltersAndRender();
           throw new Error(res?.message || lastErrorMsg || "Không thể xóa bài làm khỏi máy chủ!");
         }
       } catch (delErr) {
         alert("Lỗi khi xóa bài làm: " + delErr.message);
         btn.disabled = false;
+        btn.style.opacity = "";
+        btn.innerHTML = originalBtnHtml;
       }
     });
   });
