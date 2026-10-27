@@ -5822,6 +5822,7 @@ function renderPaginationBarHtml(containerId, currentPage, totalPages, totalItem
     { val: "60", label: "60 hs / trang" },
     { val: "100", label: "100 hs / trang" },
     { val: "200", label: "200 hs / trang" },
+    { val: "500", label: "500 hs / trang" },
     { val: "ALL", label: "Tất cả" }
   ].map(opt => `<option value="${opt.val}" ${strPageSize === opt.val ? "selected" : ""}>${opt.label}</option>`).join("");
 
