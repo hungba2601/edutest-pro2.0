@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=8.5">
+  <link rel="stylesheet" href="css/teacher.css?v=8.6">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -748,10 +748,14 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
       </div>
 
       <!-- Kết quả bảng chi tiết -->
-      <div class="panel-card">
+      <div class="panel-card" id="resultsTableCard">
         <div class="section-header-flex" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
-          <h3 class="panel-title" style="margin: 0;">Bảng Điểm Chi Tiết Thí Sinh</h3>
-          <div style="position: relative; display: flex; align-items: center; min-width: 260px; max-width: 380px; flex: 1;">
+          <h3 class="panel-title" style="margin: 0; white-space: nowrap;">Bảng Điểm Chi Tiết Thí Sinh</h3>
+          
+          <!-- CẤU HÌNH XEM TRANG & PHÂN TRANG (VỊ TRÍ KHUNG ĐỎ) -->
+          <div id="resultsPaginationTop" class="header-pagination-box" style="display: none;"></div>
+
+          <div style="position: relative; display: flex; align-items: center; min-width: 240px; max-width: 340px; flex: 1;">
             <input type="search" id="searchStudentInput" class="form-input search-box" placeholder="Tìm theo tên học sinh, lớp, mã đề..." autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" name="query_search_students_only" readonly onfocus="this.removeAttribute('readonly');" onblur="this.setAttribute('readonly', 'readonly');" style="width: 100%; padding-right: 2.2rem;">
             <button type="button" id="btnClearSearchStudent" title="Xóa tìm kiếm" style="display: none; position: absolute; right: 8px; background: #e2e8f0; border: none; color: #475569; width: 22px; height: 22px; border-radius: 50%; font-size: 13px; font-weight: bold; cursor: pointer; align-items: center; justify-content: center; line-height: 1;">✕</button>
           </div>
@@ -866,7 +870,11 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
       <!-- Bảng danh sách học sinh -->
       <div class="panel-card" style="margin-top: 1.25rem;">
         <div class="section-header-flex" style="flex-wrap: wrap; gap: 0.85rem; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
-          <h3 class="panel-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a;">Danh Sách Học Sinh Của Các Lớp Đang Chọn</h3>
+          <h3 class="panel-title" style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; white-space: nowrap;">Danh Sách Học Sinh Của Các Lớp Đang Chọn</h3>
+          
+          <!-- CẤU HÌNH XEM TRANG HỌC SINH -->
+          <div id="studentsPaginationTop" class="header-pagination-box" style="display: none;"></div>
+
           <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
             <button type="button" id="btnOpenBatchChangePwdModal" class="btn-batch-pwd" title="Đổi mật khẩu đồng loạt cho học sinh theo khối / lớp">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
@@ -1746,6 +1754,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   </div>
 
   <!-- JavaScript logic Teacher Dashboard -->
-  <script src="js/teacher.js?v=10.5"></script>
+  <script src="js/teacher.js?v=10.6"></script>
 </body>
 </html>

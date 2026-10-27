@@ -5768,7 +5768,7 @@ function renderPaginationBarHtml(containerId, currentPage, totalPages, totalItem
     return;
   }
 
-  container.style.display = "flex";
+  container.style.display = containerId.toLowerCase().includes("top") ? "inline-flex" : "flex";
 
   // Tạo các nút số trang (1, 2, ..., N)
   let pagesHtml = "";
@@ -5849,7 +5849,7 @@ function changeResultsPage(newPage) {
   const card = document.getElementById("resultsTableCard");
   if (card) {
     const rect = card.getBoundingClientRect();
-    if (rect.top < 0) {
+    if (rect.top < -50) {
       card.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
@@ -5869,7 +5869,7 @@ function changeStudentsPage(newPage) {
   const table = document.getElementById("studentsManagementTable");
   if (table) {
     const rect = table.getBoundingClientRect();
-    if (rect.top < 0) {
+    if (rect.top < -50) {
       table.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
@@ -5885,7 +5885,6 @@ window.changeStudentsPageSize = changeStudentsPageSize;
 
 function renderResultsTable(results, keepPage = false) {
   const tbody = document.getElementById("resultsTableBody");
-  const paginationBar = document.getElementById("resultsPaginationBar");
   if (!tbody) return;
 
   if (!keepPage) {
@@ -5894,10 +5893,13 @@ function renderResultsTable(results, keepPage = false) {
   lastFullResultsData = results || [];
 
   if (!results || results.length === 0) {
-    if (paginationBar) {
-      paginationBar.style.display = "none";
-      paginationBar.innerHTML = "";
-    }
+    ['resultsPaginationTop', 'resultsPaginationBar'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = "none";
+        el.innerHTML = "";
+      }
+    });
     const searchInput = document.getElementById("searchStudentInput");
     const query = searchInput ? searchInput.value.trim() : "";
     if (query) {
@@ -6108,18 +6110,20 @@ function renderResultsTable(results, keepPage = false) {
     });
   });
 
-  // Render thanh điều hướng phân trang ở góc phải phía dưới
-  renderPaginationBarHtml(
-    'resultsPaginationBar',
-    resultsCurrentPage,
-    totalPages,
-    totalItems,
-    resultsPageSize,
-    startIndex + 1,
-    endIndex,
-    'changeResultsPage',
-    'changeResultsPageSize'
-  );
+  // Render thanh điều hướng phân trang ở cả Khung đỏ (trên đầu bảng) và góc phải phía dưới (chân bảng)
+  ['resultsPaginationTop', 'resultsPaginationBar'].forEach(id => {
+    renderPaginationBarHtml(
+      id,
+      resultsCurrentPage,
+      totalPages,
+      totalItems,
+      resultsPageSize,
+      startIndex + 1,
+      endIndex,
+      'changeResultsPage',
+      'changeResultsPageSize'
+    );
+  });
 }
 
 // Tìm kiếm nhanh học sinh
@@ -7013,7 +7017,6 @@ function applyStudentFilters() {
  */
 function renderStudentsTable(students, keepPage = false) {
   const tbody = document.getElementById("studentsTableBody");
-  const paginationBar = document.getElementById("studentsPaginationBar");
   if (!tbody) return;
 
   if (!keepPage) {
@@ -7022,10 +7025,13 @@ function renderStudentsTable(students, keepPage = false) {
   lastFullStudentsData = students || [];
 
   if (!students || students.length === 0) {
-    if (paginationBar) {
-      paginationBar.style.display = "none";
-      paginationBar.innerHTML = "";
-    }
+    ['studentsPaginationTop', 'studentsPaginationBar'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = "none";
+        el.innerHTML = "";
+      }
+    });
     tbody.innerHTML = `
       <tr>
         <td colspan="9" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;">
@@ -7118,18 +7124,20 @@ function renderStudentsTable(students, keepPage = false) {
 
   tbody.innerHTML = html;
 
-  // Render thanh điều hướng phân trang ở góc phải phía dưới
-  renderPaginationBarHtml(
-    'studentsPaginationBar',
-    studentsCurrentPage,
-    totalPages,
-    totalItems,
-    studentsPageSize,
-    startIndex + 1,
-    endIndex,
-    'changeStudentsPage',
-    'changeStudentsPageSize'
-  );
+  // Render thanh điều hướng phân trang ở cả Khung đỏ (trên đầu bảng) và góc phải phía dưới (chân bảng)
+  ['studentsPaginationTop', 'studentsPaginationBar'].forEach(id => {
+    renderPaginationBarHtml(
+      id,
+      studentsCurrentPage,
+      totalPages,
+      totalItems,
+      studentsPageSize,
+      startIndex + 1,
+      endIndex,
+      'changeStudentsPage',
+      'changeStudentsPageSize'
+    );
+  });
 }
 
 /**
