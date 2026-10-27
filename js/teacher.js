@@ -5743,11 +5743,161 @@ function clearSearchFilter() {
   renderResultsTable(currentDisplayedResultsList || []);
 }
 
-function renderResultsTable(results) {
+// ============================================================================
+// HỆ THỐNG PHÂN TRANG (PAGINATION) BẢNG KẾT QUẢ & DANH SÁCH HỌC SINH
+// Mặc định 60 học sinh / trang để bảng tải siêu tốc, không bị lag dù có > 1,000 HS
+// ============================================================================
+let resultsCurrentPage = 1;
+let resultsPageSize = 60; // 60, 100, 200, "ALL"
+let lastFullResultsData = [];
+
+let studentsCurrentPage = 1;
+let studentsPageSize = 60;
+let lastFullStudentsData = [];
+
+/**
+ * Render thanh điều hướng phân trang chung
+ */
+function renderPaginationBarHtml(containerId, currentPage, totalPages, totalItems, pageSize, startItem, endItem, onPageChangeFnName, onPageSizeChangeFnName) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (totalItems <= 0) {
+    container.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
+
+  container.style.display = "flex";
+
+  // Tạo các nút số trang (1, 2, ..., N)
+  let pagesHtml = "";
+  if (totalPages > 1) {
+    const prevDisabled = currentPage <= 1 ? "disabled" : "";
+    pagesHtml += `
+      <button type="button" class="btn-page-nav" ${prevDisabled} onclick="${onPageChangeFnName}(1)" title="Về trang đầu">«</button>
+      <button type="button" class="btn-page-nav" ${prevDisabled} onclick="${onPageChangeFnName}(${currentPage - 1})" title="Trang trước">‹</button>
+    `;
+
+    // Tính toán dải số trang hiển thị thông minh
+    const visiblePages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) visiblePages.push(i);
+    } else {
+      visiblePages.push(1);
+      let left = Math.max(2, currentPage - 1);
+      let right = Math.min(totalPages - 1, currentPage + 1);
+
+      if (currentPage <= 3) {
+        right = 4;
+      }
+      if (currentPage >= totalPages - 2) {
+        left = totalPages - 3;
+      }
+
+      if (left > 2) visiblePages.push("...");
+      for (let i = left; i <= right; i++) visiblePages.push(i);
+      if (right < totalPages - 1) visiblePages.push("...");
+      visiblePages.push(totalPages);
+    }
+
+    visiblePages.forEach(p => {
+      if (p === "...") {
+        pagesHtml += `<span class="pagination-ellipsis">…</span>`;
+      } else {
+        const isActive = p === currentPage ? "active" : "";
+        pagesHtml += `<button type="button" class="btn-page-nav ${isActive}" onclick="${onPageChangeFnName}(${p})">${p}</button>`;
+      }
+    });
+
+    const nextDisabled = currentPage >= totalPages ? "disabled" : "";
+    pagesHtml += `
+      <button type="button" class="btn-page-nav" ${nextDisabled} onclick="${onPageChangeFnName}(${currentPage + 1})" title="Trang sau">›</button>
+      <button type="button" class="btn-page-nav" ${nextDisabled} onclick="${onPageChangeFnName}(${totalPages})" title="Đến trang cuối">»</button>
+    `;
+  }
+
+  const strPageSize = String(pageSize);
+  const optionsHtml = [
+    { val: "60", label: "60 hs / trang" },
+    { val: "100", label: "100 hs / trang" },
+    { val: "200", label: "200 hs / trang" },
+    { val: "ALL", label: "Tất cả" }
+  ].map(opt => `<option value="${opt.val}" ${strPageSize === opt.val ? "selected" : ""}>${opt.label}</option>`).join("");
+
+  container.innerHTML = `
+    <div class="pagination-left">
+      <span>Hiển thị <strong>${startItem.toLocaleString('vi-VN')}</strong> - <strong>${endItem.toLocaleString('vi-VN')}</strong> trên tổng số <strong>${totalItems.toLocaleString('vi-VN')}</strong> học sinh</span>
+    </div>
+    <div class="pagination-right">
+      <div class="pagination-size-selector">
+        <label for="${containerId}_size" style="font-size: 0.82rem; font-weight: 600; color: #64748b;">Số lượng / trang:</label>
+        <select id="${containerId}_size" class="pagination-size-select" onchange="${onPageSizeChangeFnName}(this.value)">
+          ${optionsHtml}
+        </select>
+      </div>
+      <div class="pagination-nav-group">
+        ${pagesHtml}
+      </div>
+    </div>
+  `;
+}
+
+function changeResultsPage(newPage) {
+  resultsCurrentPage = Number(newPage);
+  renderResultsTable(lastFullResultsData, true);
+  const card = document.getElementById("resultsTableCard");
+  if (card) {
+    const rect = card.getBoundingClientRect();
+    if (rect.top < 0) {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+}
+window.changeResultsPage = changeResultsPage;
+
+function changeResultsPageSize(newSize) {
+  resultsPageSize = newSize === "ALL" ? "ALL" : Number(newSize);
+  resultsCurrentPage = 1;
+  renderResultsTable(lastFullResultsData, true);
+}
+window.changeResultsPageSize = changeResultsPageSize;
+
+function changeStudentsPage(newPage) {
+  studentsCurrentPage = Number(newPage);
+  renderStudentsTable(lastFullStudentsData, true);
+  const table = document.getElementById("studentsManagementTable");
+  if (table) {
+    const rect = table.getBoundingClientRect();
+    if (rect.top < 0) {
+      table.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+}
+window.changeStudentsPage = changeStudentsPage;
+
+function changeStudentsPageSize(newSize) {
+  studentsPageSize = newSize === "ALL" ? "ALL" : Number(newSize);
+  studentsCurrentPage = 1;
+  renderStudentsTable(lastFullStudentsData, true);
+}
+window.changeStudentsPageSize = changeStudentsPageSize;
+
+function renderResultsTable(results, keepPage = false) {
   const tbody = document.getElementById("resultsTableBody");
+  const paginationBar = document.getElementById("resultsPaginationBar");
   if (!tbody) return;
 
+  if (!keepPage) {
+    resultsCurrentPage = 1;
+  }
+  lastFullResultsData = results || [];
+
   if (!results || results.length === 0) {
+    if (paginationBar) {
+      paginationBar.style.display = "none";
+      paginationBar.innerHTML = "";
+    }
     const searchInput = document.getElementById("searchStudentInput");
     const query = searchInput ? searchInput.value.trim() : "";
     if (query) {
@@ -5764,10 +5914,21 @@ function renderResultsTable(results) {
     return;
   }
 
-  tbody.innerHTML = "";
-  const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+  // Tính toán phân trang
+  const totalItems = results.length;
+  const effectivePageSize = (resultsPageSize === "ALL" || resultsPageSize <= 0) ? totalItems : Number(resultsPageSize);
+  const totalPages = Math.max(1, Math.ceil(totalItems / effectivePageSize));
 
-  results.forEach((row, idx) => {
+  if (resultsCurrentPage > totalPages) resultsCurrentPage = totalPages;
+  if (resultsCurrentPage < 1) resultsCurrentPage = 1;
+
+  const startIndex = (resultsCurrentPage - 1) * effectivePageSize;
+  const endIndex = Math.min(startIndex + effectivePageSize, totalItems);
+  const pageItems = results.slice(startIndex, endIndex);
+
+  tbody.innerHTML = "";
+
+  pageItems.forEach((row, idx) => {
     const isSubmitted = row.isSubmitted;
     let scoreBadgeHtml = "";
     let dungSaiHtml = "";
@@ -5809,8 +5970,10 @@ function renderResultsTable(results) {
       tr.style.background = "#fcfdfd";
     }
 
+    const continuousStt = row.stt || (startIndex + idx + 1);
+
     tr.innerHTML = `
-      <td>${row.stt || idx + 1}</td>
+      <td>${continuousStt}</td>
       <td><strong>${row.lop}</strong></td>
       <td>
         <strong style="color: #0f172a;">${row.hoTen}</strong>
@@ -5830,7 +5993,8 @@ function renderResultsTable(results) {
   tbody.querySelectorAll(".btn-view-detail").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const idx = parseInt(btn.dataset.index);
-      const record = results[idx]?.subRecord || results[idx];
+      const rowItem = pageItems[idx];
+      const record = rowItem?.subRecord || rowItem;
       if (record) openStudentDetailModal(record);
     });
   });
@@ -5839,7 +6003,7 @@ function renderResultsTable(results) {
   tbody.querySelectorAll(".btn-delete-result").forEach(btn => {
     btn.addEventListener("click", async (e) => {
       const idx = parseInt(btn.dataset.index);
-      const item = results[idx];
+      const item = pageItems[idx];
       if (!item) return;
 
       if (!confirm(`Bạn có chắc chắn muốn xóa kết quả thi của học sinh "${item.hoTen}" (${item.usernameHS}) khỏi Google Sheets không?`)) {
@@ -5943,6 +6107,19 @@ function renderResultsTable(results) {
       }
     });
   });
+
+  // Render thanh điều hướng phân trang ở góc phải phía dưới
+  renderPaginationBarHtml(
+    'resultsPaginationBar',
+    resultsCurrentPage,
+    totalPages,
+    totalItems,
+    resultsPageSize,
+    startIndex + 1,
+    endIndex,
+    'changeResultsPage',
+    'changeResultsPageSize'
+  );
 }
 
 // Tìm kiếm nhanh học sinh
@@ -6834,11 +7011,21 @@ function applyStudentFilters() {
 /**
  * Hiển thị danh sách học sinh vào bảng
  */
-function renderStudentsTable(students) {
+function renderStudentsTable(students, keepPage = false) {
   const tbody = document.getElementById("studentsTableBody");
+  const paginationBar = document.getElementById("studentsPaginationBar");
   if (!tbody) return;
 
+  if (!keepPage) {
+    studentsCurrentPage = 1;
+  }
+  lastFullStudentsData = students || [];
+
   if (!students || students.length === 0) {
+    if (paginationBar) {
+      paginationBar.style.display = "none";
+      paginationBar.innerHTML = "";
+    }
     tbody.innerHTML = `
       <tr>
         <td colspan="9" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;">
@@ -6850,8 +7037,20 @@ function renderStudentsTable(students) {
     return;
   }
 
+  // Phân trang danh sách học sinh
+  const totalItems = students.length;
+  const effectivePageSize = (studentsPageSize === "ALL" || studentsPageSize <= 0) ? totalItems : Number(studentsPageSize);
+  const totalPages = Math.max(1, Math.ceil(totalItems / effectivePageSize));
+
+  if (studentsCurrentPage > totalPages) studentsCurrentPage = totalPages;
+  if (studentsCurrentPage < 1) studentsCurrentPage = 1;
+
+  const startIndex = (studentsCurrentPage - 1) * effectivePageSize;
+  const endIndex = Math.min(startIndex + effectivePageSize, totalItems);
+  const pageItems = students.slice(startIndex, endIndex);
+
   let html = "";
-  students.forEach((st, idx) => {
+  pageItems.forEach((st, idx) => {
     let dobText = formatDob(st.ngaySinh);
 
     const safeUsername = escapeHtml(st.username || "");
@@ -6866,7 +7065,7 @@ function renderStudentsTable(students) {
 
     html += `
       <tr data-username="${safeUsername}">
-        <td style="text-align: center; font-weight: 600; color: #64748b;">${idx + 1}</td>
+        <td style="text-align: center; font-weight: 600; color: #64748b;">${startIndex + idx + 1}</td>
         <td style="text-align: center;">
           <span class="badge-class ${badgeGradeClass}" style="font-weight: 700; padding: 3px 8px; border-radius: 6px; font-size: 0.78rem;">
             ${safeLop}
@@ -6918,6 +7117,19 @@ function renderStudentsTable(students) {
   });
 
   tbody.innerHTML = html;
+
+  // Render thanh điều hướng phân trang ở góc phải phía dưới
+  renderPaginationBarHtml(
+    'studentsPaginationBar',
+    studentsCurrentPage,
+    totalPages,
+    totalItems,
+    studentsPageSize,
+    startIndex + 1,
+    endIndex,
+    'changeStudentsPage',
+    'changeStudentsPageSize'
+  );
 }
 
 /**
