@@ -542,6 +542,20 @@ function doPost(e) {
       case "updateTeacherPassword":
         return handleUpdateTeacherPassword(payload);
 
+      case "deleteStudentResult":
+        return handleDeleteStudentResult(payload);
+
+      case "deleteStudent":
+        return handleDeleteStudent(payload);
+
+      case "addStudent":
+        return handleAddStudent(payload);
+
+      case "ensureDeThiColumns":
+        const ssEnsurePost = getSpreadsheet();
+        ensureDeThiSheetColumns(ssEnsurePost.getSheetByName(SHEETS.DETHI));
+        return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
+
       // --- MODULE 3: HỌC SINH ---
       case "getStudentExams":
         return handleGetStudentExams(payload);
@@ -2847,7 +2861,8 @@ function handleDeleteStudentResult(payload) {
 
       const isMatchHS = rowHS.toUpperCase() === usernameHS.toUpperCase();
       const isMatchMaDe = rowMaDe === maDe;
-      const isMatchGV = !usernameGV || rowGV === usernameGV;
+      const cleanGv = s => String(s || "").trim().toLowerCase().replace(/^0+/, "");
+      const isMatchGV = !usernameGV || rowGV === usernameGV || cleanGv(rowGV) === cleanGv(usernameGV);
       const isMatchTime = !thoiGianNop || rowThoiGianNop === thoiGianNop || String(row[11]).includes(thoiGianNop);
 
       if (isMatchHS && isMatchMaDe && isMatchGV && isMatchTime) {

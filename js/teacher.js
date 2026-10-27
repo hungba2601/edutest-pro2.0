@@ -5712,23 +5712,86 @@ function renderResultsTable(results) {
 
       btn.disabled = true;
       try {
-        const resp = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({
+        let res = null;
+        let lastErrorMsg = "";
+
+        // 1. Thử gửi POST lên máy chủ Google Sheets
+        try {
+          const resp = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({
+              action: "deleteStudentResult",
+              usernameGV: currentTeacher?.username || "",
+              usernameHS: item.usernameHS,
+              maDe: item.maDe,
+              thoiGianNop: item.thoiGianNop || ""
+            })
+          });
+          const text = await resp.text();
+          if (text && !text.trim().startsWith("<")) {
+            res = JSON.parse(text);
+          }
+        } catch (postErr) {
+          console.warn("POST deleteStudentResult lỗi kết nối, chuyển sang GET fallback:", postErr);
+        }
+
+        // 2. Tự động fallback sang GET nếu POST báo chưa hỗ trợ hoặc thất bại
+        if (!res || !res.success) {
+          if (res?.message) lastErrorMsg = res.message;
+          const cleanUserGv = (currentTeacher?.username || "").trim();
+
+          // Thử 2a: GET có usernameGV
+          const qp = new URLSearchParams({
             action: "deleteStudentResult",
-            usernameGV: currentTeacher.username,
             usernameHS: item.usernameHS,
-            maDe: item.maDe
-          })
-        });
-        const res = await resp.json();
+            maDe: item.maDe,
+            thoiGianNop: item.thoiGianNop || "",
+            _t: Date.now()
+          });
+          if (cleanUserGv) {
+            qp.append("usernameGV", cleanUserGv);
+          }
+
+          const getUrl = `${API_URL}${API_URL.includes("?") ? "&" : "?"}${qp.toString()}`;
+          try {
+            const getResp = await fetch(getUrl);
+            const getText = await getResp.text();
+            if (getText && !getText.trim().startsWith("<")) {
+              res = JSON.parse(getText);
+            }
+          } catch (eGet) {
+            console.warn("GET 1 deleteStudentResult lỗi:", eGet);
+          }
+
+          // Thử 2b: Nếu báo "Không tìm thấy" (do Google Sheets làm mất số 0 đầu ở mã GV), thử bỏ usernameGV hoặc đổi đầu 0
+          if (!res || (!res.success && res.message && res.message.includes("Không tìm thấy"))) {
+            const qpNoGv = new URLSearchParams({
+              action: "deleteStudentResult",
+              usernameHS: item.usernameHS,
+              maDe: item.maDe,
+              thoiGianNop: item.thoiGianNop || "",
+              _t: Date.now()
+            });
+            const getUrlNoGv = `${API_URL}${API_URL.includes("?") ? "&" : "?"}${qpNoGv.toString()}`;
+            try {
+              const getRespNoGv = await fetch(getUrlNoGv);
+              const getTextNoGv = await getRespNoGv.text();
+              if (getTextNoGv && !getTextNoGv.trim().startsWith("<")) {
+                res = JSON.parse(getTextNoGv);
+              }
+            } catch (eGet2) {
+              console.warn("GET 2 deleteStudentResult lỗi:", eGet2);
+            }
+          }
+        }
+
         if (res && res.success) {
-          showToast("Đã xóa", `Đã xóa bài thi của học sinh ${item.hoTen}!`, "success", 3000);
+          showToast("Đã xóa bài làm", `Đã xóa kết quả thi của học sinh ${item.hoTen}!`, "success", 3000);
           const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
           loadTeacherResults(selectedMaDe);
         } else {
-          throw new Error(res ? res.message : "Xóa thất bại!");
+          throw new Error(res?.message || lastErrorMsg || "Không thể xóa bài làm khỏi máy chủ!");
         }
       } catch (delErr) {
         alert("Lỗi khi xóa bài làm: " + delErr.message);
