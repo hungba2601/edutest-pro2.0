@@ -944,10 +944,11 @@ function handleLogin(payload) {
             }
           } catch (eHub) {}
 
-          // Kiểm tra quyền Quản trị viên (CHỈ CÓ TÀI KHOẢN CÓ CỘT D LÀ 'admin' THÌ MỚI CÓ QUYỀN ADMIN)
-          // Tài khoản có tên là 'admin' nhưng Cột D là 'gv' thì KHÔNG PHẢI là Admin!
+          // Phân quyền: Tài khoản 'admin' là Ban Giám Hiệu (BGH). Tài khoản có Cột D là 'admin' là Quản trị viên (Admin)
           const roleVal = gvCols.colRole >= 0 ? String(row[gvCols.colRole] || "").trim().toLowerCase() : "";
-          const isAdmin = (roleVal === "admin");
+          const isBGH = (gvUser.toLowerCase() === "admin" || username.toLowerCase() === "admin");
+          const hasAdminTeacherMgmt = (roleVal === "admin");
+          const isAdmin = (isBGH || hasAdminTeacherMgmt);
 
           const verColIdx = gvCols.colVer >= 0 ? gvCols.colVer : ensureGiaoVienSheetColumns(sheetGV);
           const reqVer = getCentralBackendVersion(sheetGV);
@@ -955,21 +956,23 @@ function handleLogin(payload) {
 
           return createJsonResponse({
             success: true,
-            message: isAdmin ? "Đăng nhập Quản trị viên (Admin) thành công!" : "Đăng nhập Giáo viên thành công!",
+            message: isBGH ? "Đăng nhập Ban Giám Hiệu (BGH) thành công!" : (isAdmin ? "Đăng nhập Quản trị viên (Admin) thành công!" : "Đăng nhập Giáo viên thành công!"),
             role: isAdmin ? "ADMIN" : "GV",
             requiredBackendVersion: reqVer,
             teacherBackendVersion: teacherCurrentVer,
             data: {
               username: gvUser,
-              hoTenGV: String(row[gvCols.colName] || ""),
-              quyen: roleVal || "gv",
-              lopGiangDay: String(row[gvCols.colClass] || ""),
+              hoTenGV: String(row[gvCols.colName] || (isBGH ? "Ban Giám Hiệu" : "")),
+              quyen: roleVal || (hasAdminTeacherMgmt ? "admin" : "gv"),
+              lopGiangDay: String(row[gvCols.colClass] || (isBGH ? "BGH" : "")),
               truong: String(row[gvCols.colSchool] || ""),
               ngaySinh: "",
               serverUrl: personalServerUrl || "",
               requiredBackendVersion: reqVer,
               teacherBackendVersion: teacherCurrentVer,
               isAdmin: isAdmin,
+              isBGH: isBGH,
+              hasAdminTeacherMgmt: hasAdminTeacherMgmt,
               role: isAdmin ? "ADMIN" : "GV"
             }
           });
@@ -1918,6 +1921,13 @@ function isAdminAccount(username) {
   return false;
 }
 
+// Kiểm tra quyền xem dữ liệu của toàn bộ giáo viên (dành cho Ban Giám Hiệu 'admin' hoặc Quản trị viên Cột D là 'admin')
+function canViewAllTeachersData(username) {
+  var s = String(username || "").trim().toLowerCase();
+  if (!s || s === "all" || s === "admin") return true;
+  return isAdminAccount(s);
+}
+
 function handleSaveExam(payload) {
   const ss = getSpreadsheet();
   const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
@@ -2042,7 +2052,7 @@ function handleGetTeacherExams(payload) {
     const row = data[i];
     if (!row[0]) continue;
 
-    if (!usernameGV || usernameGV === "all" || isAdminAccount(usernameGV) || isSameTeacherAccount(row[2], usernameGV)) {
+    if (!usernameGV || canViewAllTeachersData(usernameGV) || isSameTeacherAccount(row[2], usernameGV)) {
       const cheDoXemText = String(row[cols.reviewCol] || "").trim();
       const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
       const jsonRaw = row[cols.jsonCol];
@@ -2210,7 +2220,7 @@ function handleGetTeacherResults(payload) {
     const rowGV = String(row[8]).trim().toLowerCase();
     const rowMaDe = String(row[7]).trim();
 
-    if (!usernameGV || usernameGV === "all" || isAdminAccount(usernameGV) || isSameTeacherAccount(rowGV, usernameGV)) {
+    if (!usernameGV || canViewAllTeachersData(usernameGV) || isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -2281,7 +2291,7 @@ function handleGetStudentsForTeacher(payload) {
   }
 
   // Chuẩn hóa danh sách lớp được phép
-  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all" || isAdminAccount(usernameGV);
+  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || canViewAllTeachersData(usernameGV);
   const allowedClasses = allowedClassesStr.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
 
   const dataHS = sheetHS.getDataRange().getValues();
@@ -3509,6 +3519,7 @@ function handleGetAdminTeachers(payload) {
         hoTenGV: String(row[cols.colName] || ""),
         quyen: quyenVal || "gv",
         isAdmin: isAdmin,
+        isBGH: (rawUser.toLowerCase() === "admin"),
         lopGiangDay: lopVal,
         truong: String(row[cols.colSchool] || ""),
         backendVersion: formatBackendVersion(row[cols.colVer], "2.0")

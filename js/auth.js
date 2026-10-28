@@ -463,15 +463,21 @@ loginForm.addEventListener("submit", async (e) => {
         if (result.data.lop) result.data.lop = normalizeClassName(result.data.lop);
         if (result.data.password) delete result.data.password;
       }
+      const rawUser = String(username || result.data?.username || "").trim().toLowerCase();
+      const isBGH = (rawUser === "admin");
       const quyenVal = String(result.data?.quyen || "").trim().toLowerCase();
-      // CHỈ CÓ TÀI KHOẢN CÓ QUYỀN LÀ 'admin' (CỘT D TRÊN SHEET) MỚI LÀ ADMIN
-      // Tài khoản có tên đăng nhập là 'admin' nhưng quyền là 'gv' thì TUYỆT ĐỐI KHÔNG phải là Admin!
-      const isUserAdmin = (quyenVal === "admin");
+      // Phân quyền:
+      // - isTeacherMgmtAdmin: Tài khoản có Cột D là 'admin' (quản lý thêm, sửa, xóa, đổi pass GV)
+      // - isBGH: Tài khoản 'admin' là Ban Giám Hiệu (chỉ xem 1 tab thống kê điểm số all GV)
+      const isTeacherMgmtAdmin = (quyenVal === "admin");
+      const isUserAdmin = (isTeacherMgmtAdmin || isBGH || result.role === "ADMIN");
       const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole || "GV");
       if (result.data) {
         result.data.isAdmin = isUserAdmin;
+        result.data.isBGH = isBGH;
+        result.data.hasTeacherMgmt = isTeacherMgmtAdmin;
         result.data.role = savedRole;
-        result.data.quyen = quyenVal || "gv";
+        result.data.quyen = quyenVal || (isTeacherMgmtAdmin ? "admin" : "gv");
       }
       localStorage.setItem("currentUser", JSON.stringify(result.data));
       localStorage.setItem("userRole", savedRole);
