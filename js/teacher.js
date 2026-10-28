@@ -131,25 +131,30 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
 
-// 1. Kiểm tra tài khoản Admin hệ thống (tài khoản "admin" hoặc tài khoản có Cột D - Quyền là "admin")
+// 1. Kiểm tra tài khoản Admin hệ thống (Chỉ tài khoản có Cột D - Quyền là "admin")
 function isCurrentUserAdmin() {
-  let username = String(currentTeacher?.username || "").trim().toLowerCase();
-  let role = "";
+  let username = "";
   let quyen = "";
+  let role = "";
   let isAdminFlag = false;
   try {
     const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
-    if (u && u.username && !username) username = String(u.username).trim().toLowerCase();
+    if (u && u.username) username = String(u.username).trim().toLowerCase();
     if (u && (u.isAdmin === true || u.isAdmin === "true")) isAdminFlag = true;
     if (u && u.quyen) quyen = String(u.quyen).trim().toLowerCase();
     if (u && u.role) role = String(u.role).trim().toUpperCase();
   } catch (e) {}
   if (!role) role = (localStorage.getItem("userRole") || "").toUpperCase();
+  if (currentTeacher?.username) username = String(currentTeacher.username).trim().toLowerCase();
   if (currentTeacher?.isAdmin === true || currentTeacher?.isAdmin === "true") isAdminFlag = true;
   if (currentTeacher?.quyen) quyen = String(currentTeacher.quyen).trim().toLowerCase();
   if (currentTeacher?.role) role = String(currentTeacher.role).trim().toUpperCase();
 
-  return username === "admin" || isAdminFlag || role === "ADMIN" || quyen === "admin";
+  // QUY TẮC BẮT BUỘC: CHỈ CÓ TÀI KHOẢN CÓ CỘT D (QUYỀN) LÀ "admin" MỚI LÀ ADMIN
+  // Tài khoản có username là "admin" nhưng Cột D là "gv" thì TUYỆT ĐỐI KHÔNG PHẢI LÀ ADMIN và KHÔNG HIỂN THỊ tab Quản lý Giáo viên!
+  if (username === "admin" && quyen !== "admin") return false;
+  if (quyen === "gv") return false;
+  return (quyen === "admin");
 }
 
 function isAdminRole() {
@@ -10183,8 +10188,8 @@ function updateAdminTeacherStats() {
 
   adminTeachersCache.forEach(t => {
     const q = String(t.quyen || "").toLowerCase();
-    const u = String(t.username || "").toLowerCase();
-    if (q === "admin" || t.isAdmin || u === "admin") {
+    // CHỈ CÓ TÀI KHOẢN CÓ CỘT D (QUYỀN) LÀ 'admin' MỚI TÍNH LÀ ADMIN
+    if (q === "admin") {
       adminCount++;
     } else {
       gvCount++;
@@ -10216,7 +10221,7 @@ function renderAdminTeachersTable() {
     const classes = String(t.lopGiangDay || "").toLowerCase();
     const school = String(t.truong || "").toLowerCase();
     const q = String(t.quyen || "").toLowerCase();
-    const isAdmin = (q === "admin" || t.isAdmin || u === "admin");
+    const isAdmin = (q === "admin");
 
     if (roleFilter === "ADMIN" && !isAdmin) return false;
     if (roleFilter === "GV" && isAdmin) return false;
@@ -10234,7 +10239,7 @@ function renderAdminTeachersTable() {
     const rawUser = String(t.username || "");
     const cleanUser = rawUser.replace(/^'+/, "");
     const q = String(t.quyen || "").toLowerCase();
-    const isAdmin = (q === "admin" || t.isAdmin || cleanUser.toLowerCase() === "admin");
+    const isAdmin = (q === "admin");
     const roleBadge = isAdmin
       ? '<span class="badge-role-admin">🛡️ Quản trị viên (Admin)</span>'
       : '<span class="badge-role-gv">👨‍🏫 Giáo viên</span>';
@@ -10645,7 +10650,7 @@ window.openEditTeacherModal = function(cleanUser) {
   document.getElementById("teacherInputFullName").value = t.hoTenGV || "";
   document.getElementById("teacherInputPassword").value = t.password || "";
   document.getElementById("teacherPasswordGroup").style.display = "block";
-  document.getElementById("teacherInputRole").value = (String(t.quyen || "").toLowerCase() === "admin" || t.isAdmin) ? "admin" : "gv";
+  document.getElementById("teacherInputRole").value = (String(t.quyen || "").toLowerCase() === "admin") ? "admin" : "gv";
   document.getElementById("teacherInputClasses").value = t.lopGiangDay || "";
   document.getElementById("teacherInputSchool").value = t.truong || "";
   document.getElementById("btnSaveTeacherText").textContent = "Cập Nhật Vào Sheet";

@@ -464,12 +464,14 @@ loginForm.addEventListener("submit", async (e) => {
         if (result.data.password) delete result.data.password;
       }
       const quyenVal = String(result.data?.quyen || "").trim().toLowerCase();
-      const isUserAdmin = (result.role === "ADMIN") || (result.data && result.data.isAdmin) || (quyenVal === "admin") || (username.toLowerCase() === "admin");
-      const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole);
+      // CHỈ CÓ TÀI KHOẢN CÓ QUYỀN LÀ 'admin' (CỘT D TRÊN SHEET) MỚI LÀ ADMIN
+      // Tài khoản có tên đăng nhập là 'admin' nhưng quyền là 'gv' thì TUYỆT ĐỐI KHÔNG phải là Admin!
+      const isUserAdmin = (quyenVal === "admin");
+      const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole || "GV");
       if (result.data) {
         result.data.isAdmin = isUserAdmin;
         result.data.role = savedRole;
-        if (quyenVal) result.data.quyen = quyenVal;
+        result.data.quyen = quyenVal || "gv";
       }
       localStorage.setItem("currentUser", JSON.stringify(result.data));
       localStorage.setItem("userRole", savedRole);

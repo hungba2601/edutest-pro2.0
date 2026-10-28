@@ -115,8 +115,9 @@ function initDatabase() {
     sheetGV.appendRow(headers);
     formatHeaderRow(sheetGV);
 
-    // Thêm dữ liệu giáo viên mẫu và tài khoản Quản trị viên (Admin)
-    sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "admin", "ADMIN", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+    // Thêm dữ liệu giáo viên mẫu và tài khoản Ban Giám Hiệu (mặc định quyền gv)
+    sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "gv", "", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+    sheetGV.appendRow(["0938750424", "hung2601", "Nguyễn Phi Hùng", "admin", "8A1, 9A1", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
     sheetGV.appendRow(["GV001", "123", "Thầy Lê Hoàng Nam", "gv", "9A1, 9A2", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
     sheetGV.appendRow(["GV002", "123", "Cô Nguyễn Thùy Chi", "gv", "9A1, 9A3", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
   } else {
@@ -127,13 +128,13 @@ function initDatabase() {
       const gvRows = sheetGV.getDataRange().getValues();
       let hasAdmin = false;
       for (let r = 1; r < gvRows.length; r++) {
-        if (String(gvRows[r][0] || "").trim().toLowerCase() === "admin") {
+        if (String(gvRows[r][3] || "").trim().toLowerCase() === "admin") {
           hasAdmin = true;
           break;
         }
       }
       if (!hasAdmin) {
-        sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "admin", "ADMIN", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+        sheetGV.appendRow(["0938750424", "hung2601", "Nguyễn Phi Hùng", "admin", "", "THCS An Nhơn", CURRENT_BACKEND_VERSION]);
       }
     } catch (eAdmin) {}
   }
@@ -476,16 +477,13 @@ function ensureGiaoVienSheetColumns(sheetGV) {
       formatHeaderRow(sheetGV);
       roleColIdx = 3;
 
-      // Cập nhật giá trị cột D cho các dòng hiện tại
+      // Cập nhật giá trị cột D cho các dòng hiện tại (mặc định 'gv' nếu ô đang trống)
       const allRows = sheetGV.getDataRange().getValues();
       for (let r = 1; r < allRows.length; r++) {
-        const u = String(allRows[r][0] || "").trim().toLowerCase();
         const roleCell = sheetGV.getRange(r + 1, 4);
-        if (u === "admin") {
-          roleCell.setValue("admin");
-        } else {
-          const oldVal = String(roleCell.getValue() || "").trim();
-          if (!oldVal) roleCell.setValue("gv");
+        const oldVal = String(roleCell.getValue() || "").trim();
+        if (!oldVal) {
+          roleCell.setValue("gv");
         }
       }
       Logger.log("✅ ĐÃ CHÈN THÀNH CÔNG CỘT D (QUYỀN) VÀ ĐẨY CÁC CỘT SANG PHẢI 1 CỘT!");
@@ -946,13 +944,10 @@ function handleLogin(payload) {
             }
           } catch (eHub) {}
 
-          // Kiểm tra quyền Quản trị viên (Cột D là Quyền, nếu có giá trị 'admin' thì người đó có quyền Admin)
+          // Kiểm tra quyền Quản trị viên (CHỈ CÓ TÀI KHOẢN CÓ CỘT D LÀ 'admin' THÌ MỚI CÓ QUYỀN ADMIN)
+          // Tài khoản có tên là 'admin' nhưng Cột D là 'gv' thì KHÔNG PHẢI là Admin!
           const roleVal = gvCols.colRole >= 0 ? String(row[gvCols.colRole] || "").trim().toLowerCase() : "";
-          const isAdmin = (roleVal === "admin" ||
-                           gvUser.toLowerCase() === "admin" ||
-                           username.toLowerCase() === "admin" ||
-                           String(row[gvCols.colClass] || "").toUpperCase().includes("ADMIN") ||
-                           String(row[gvCols.colName] || "").toUpperCase().includes("ADMIN"));
+          const isAdmin = (roleVal === "admin");
 
           const verColIdx = gvCols.colVer >= 0 ? gvCols.colVer : ensureGiaoVienSheetColumns(sheetGV);
           const reqVer = getCentralBackendVersion(sheetGV);
@@ -966,9 +961,9 @@ function handleLogin(payload) {
             teacherBackendVersion: teacherCurrentVer,
             data: {
               username: gvUser,
-              hoTenGV: String(row[gvCols.colName] || (isAdmin ? "Quản trị viên" : "")),
-              quyen: roleVal || (isAdmin ? "admin" : "gv"),
-              lopGiangDay: String(row[gvCols.colClass] || (isAdmin ? "ADMIN" : "")),
+              hoTenGV: String(row[gvCols.colName] || ""),
+              quyen: roleVal || "gv",
+              lopGiangDay: String(row[gvCols.colClass] || ""),
               truong: String(row[gvCols.colSchool] || ""),
               ngaySinh: "",
               serverUrl: personalServerUrl || "",
@@ -1132,9 +1127,8 @@ function handleVerifyAdminPassword(payload) {
       const gvRows = sheet.getDataRange().getValues();
       const gvMap = getGiaoVienColMap(sheet);
       for (let r = 1; r < gvRows.length; r++) {
-        const u = String(gvRows[r][gvMap.colUser] || "").trim().toLowerCase();
         const role = gvMap.colRole >= 0 ? String(gvRows[r][gvMap.colRole] || "").trim().toLowerCase() : "";
-        if (u === "admin" || role === "admin") {
+        if (role === "admin") {
           const p = String(gvRows[r][gvMap.colPass] || "").trim();
           if (p) candidates.push(p);
         }
@@ -1903,7 +1897,25 @@ function isSameStudentAccount(acc1, acc2) {
 
 function isAdminAccount(username) {
   var s = String(username || "").trim().toLowerCase();
-  return (s === "admin");
+  if (!s) return false;
+  try {
+    const ss = getSpreadsheet();
+    if (ss) {
+      const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+      if (sheetGV) {
+        const gvCols = getGiaoVienColMap(sheetGV);
+        if (gvCols.colRole >= 0) {
+          const data = sheetGV.getDataRange().getValues();
+          for (let i = 1; i < data.length; i++) {
+            if (isSameTeacherAccount(data[i][gvCols.colUser], s)) {
+              return (String(data[i][gvCols.colRole] || "").trim().toLowerCase() === "admin");
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
+  return false;
 }
 
 function handleSaveExam(payload) {
@@ -2030,7 +2042,7 @@ function handleGetTeacherExams(payload) {
     const row = data[i];
     if (!row[0]) continue;
 
-    if (!usernameGV || usernameGV === "all" || usernameGV === "admin" || isSameTeacherAccount(row[2], usernameGV)) {
+    if (!usernameGV || usernameGV === "all" || isAdminAccount(usernameGV) || isSameTeacherAccount(row[2], usernameGV)) {
       const cheDoXemText = String(row[cols.reviewCol] || "").trim();
       const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
       const jsonRaw = row[cols.jsonCol];
@@ -2198,7 +2210,7 @@ function handleGetTeacherResults(payload) {
     const rowGV = String(row[8]).trim().toLowerCase();
     const rowMaDe = String(row[7]).trim();
 
-    if (!usernameGV || usernameGV === "all" || usernameGV === "admin" || isSameTeacherAccount(rowGV, usernameGV)) {
+    if (!usernameGV || usernameGV === "all" || isAdminAccount(usernameGV) || isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -2269,7 +2281,7 @@ function handleGetStudentsForTeacher(payload) {
   }
 
   // Chuẩn hóa danh sách lớp được phép
-  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all" || usernameGV === "admin";
+  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all" || isAdminAccount(usernameGV);
   const allowedClasses = allowedClassesStr.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
 
   const dataHS = sheetHS.getDataRange().getValues();
@@ -3478,11 +3490,10 @@ function handleGetAdminTeachers(payload) {
       const rawPass = String(row[cols.colPass] !== null && row[cols.colPass] !== undefined ? row[cols.colPass] : "").trim();
       if (!rawUser && !rawPass) continue;
 
+      // CHỈ CÓ TÀI KHOẢN CÓ CỘT D (QUYỀN) LÀ 'admin' THÌ MỚI LÀ ADMIN
+      // Tài khoản có tên là 'admin' nhưng Cột D là 'gv' thì KHÔNG PHẢI là Admin!
       const quyenVal = cols.colRole >= 0 ? String(row[cols.colRole] || "").trim().toLowerCase() : "";
-      const isAdmin = (quyenVal === "admin" ||
-                       rawUser.toLowerCase() === "admin" ||
-                       String(row[cols.colClass] || "").toUpperCase().includes("ADMIN") ||
-                       String(row[cols.colName] || "").toUpperCase().includes("ADMIN"));
+      const isAdmin = (quyenVal === "admin");
 
       let lopVal = String(row[cols.colClass] || "").trim();
       if (!lopVal && !isAdmin) {
@@ -3496,7 +3507,7 @@ function handleGetAdminTeachers(payload) {
         username: rawUser,
         password: rawPass,
         hoTenGV: String(row[cols.colName] || ""),
-        quyen: quyenVal || (isAdmin ? "admin" : "gv"),
+        quyen: quyenVal || "gv",
         isAdmin: isAdmin,
         lopGiangDay: lopVal,
         truong: String(row[cols.colSchool] || ""),
