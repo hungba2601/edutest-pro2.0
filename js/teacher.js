@@ -9118,6 +9118,14 @@ function initCentralHubModal() {
           buildGradeAndClassFilters(freshClasses);
           applyStudentFilters();
 
+          // Tự động cập nhật lớp giảng dạy lên Sheet Trung Tâm (Cột E) để Admin luôn thấy
+          const freshClassesStr = (freshClasses && freshClasses.length > 0) ? freshClasses.join(", ") : (currentTeacher?.lopGiangDay || "");
+          if (freshClassesStr && currentTeacher?.username) {
+            try {
+              fetch(`${DEFAULT_GAS_API_URL}?action=updateTeacherClasses&usernameGV=${encodeURIComponent(currentTeacher.username)}&lopGiangDay=${encodeURIComponent(freshClassesStr)}&_t=${Date.now()}`);
+            } catch (eCls) {}
+          }
+
         } else {
           // Khôi phục URL mặc định của Admin
           localStorage.removeItem("custom_gas_api_url");
@@ -9157,11 +9165,16 @@ function initCentralHubModal() {
           truong: s.truong || (currentTeacher ? currentTeacher.truong : "") || ""
         }));
 
+        const freshClassesStrSync = (currentTeacherStudents && currentTeacherStudents.length > 0)
+          ? [...new Set(currentTeacherStudents.map(s => s.lop).filter(Boolean))].join(", ")
+          : (currentTeacher?.lopGiangDay || "");
+
         const payload = {
           action: "syncTeacherAndStudentsToHub",
           usernameGV: currentTeacher.username,
           hoTenGV: currentTeacher.hoTenGV || "",
           truong: currentTeacher.truong || "",
+          lopGiangDay: freshClassesStrSync,
           serverUrl: inputUrl,
           students: studentsToSend
         };
@@ -10052,12 +10065,50 @@ function initAdminTeacherManagement() {
     btnAdminEditCentralVersion.addEventListener("click", handleAdminEditCentralVersion);
   }
 
+  // Nút Đồng bộ lớp giảng dạy từ Sheet/URL giáo viên
+  const btnAdminSyncTeacherClasses = document.getElementById("btnAdminSyncTeacherClasses");
+  if (btnAdminSyncTeacherClasses) {
+    btnAdminSyncTeacherClasses.addEventListener("click", handleAdminSyncTeacherClasses);
+  }
+
   // 4. Khởi tạo Modals
   initAdminModals();
 
   // Nạp dữ liệu ban đầu
   loadAdminTeachersList();
   loadAdminHubServersList();
+}
+
+/**
+ * Admin quét và đồng bộ Lớp giảng dạy từ URL máy chủ riêng của tất cả Giáo viên về Sheet Trung Tâm
+ */
+async function handleAdminSyncTeacherClasses() {
+  const btn = document.getElementById("btnAdminSyncTeacherClasses");
+  const oldHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="table-spinner"></span> Đang đồng bộ lớp...`;
+  }
+
+  showToast("Đang đồng bộ...", "Đang kết nối tới URL Google Sheets riêng của các Giáo viên để kéo lớp giảng dạy...", "info", 5000);
+
+  try {
+    const res = await fetch(`${DEFAULT_GAS_API_URL}?action=syncClassesFromHubServers&_t=${Date.now()}`);
+    const data = await res.json();
+    if (data && data.success) {
+      showToast("Đồng bộ thành công! 🎉", data.message || `Đã cập nhật lớp cho ${data.updatedCount || 0} giáo viên!`, "success", 6000);
+      await loadAdminTeachersList(true);
+    } else {
+      showToast("Lỗi đồng bộ", data?.message || "Không thể đồng bộ lớp từ máy chủ giáo viên", "error", 6000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối", err.message || err.toString(), "error", 6000);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldHtml;
+    }
+  }
 }
 
 /**

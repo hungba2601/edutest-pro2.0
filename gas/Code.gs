@@ -75,6 +75,18 @@ function chayThemCotQuyenChoGiaoVien() {
 }
 
 /**
+ * ============================================================================
+ * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG ĐỒNG BỘ LỚP GIẢNG DẠY TỪ URL CỦA TẤT CẢ GIÁO VIÊN
+ * Chọn hàm 'chayDongBoLopGiangDayTuSheetGiaoVien' trong menu dropdown rồi bấm 'Chạy' (Run)
+ * ============================================================================
+ */
+function chayDongBoLopGiangDayTuSheetGiaoVien() {
+  Logger.log("⏳ Bắt đầu quét các URL máy chủ giáo viên trong HUB_SERVERS...");
+  const result = handleSyncClassesFromHubServers();
+  Logger.log("🎉 Kết quả đồng bộ lớp: " + JSON.stringify(result));
+}
+
+/**
  * Hàm khởi tạo tự động 5 Sheet chuẩn cấu trúc nếu chưa có và thêm tài khoản mẫu
  * Chạy hàm này 1 lần duy nhất trong trình soạn thảo Apps Script để kiểm tra
  */
@@ -716,6 +728,10 @@ function doGet(e) {
           return handleDeleteHubServer(payload);
         case "setCentralBackendVersion":
           return handleSetCentralBackendVersion(payload);
+        case "syncClassesFromHubServers":
+          return handleSyncClassesFromHubServers(payload);
+        case "updateTeacherClasses":
+          return handleUpdateTeacherClasses(payload);
       }
     }
 
@@ -801,6 +817,12 @@ function doPost(e) {
 
       case "setCentralBackendVersion":
         return handleSetCentralBackendVersion(payload);
+
+      case "syncClassesFromHubServers":
+        return handleSyncClassesFromHubServers(payload);
+
+      case "updateTeacherClasses":
+        return handleUpdateTeacherClasses(payload);
 
       // --- MODULE 2: GIÁO VIÊN ---
       case "saveExam":
@@ -1286,6 +1308,61 @@ function handleSyncTeacherAndStudentsToHub(payload) {
     // Ghi toàn bộ dữ liệu trở lại Google Sheets trong duy nhất 1 lần gọi lệnh (siêu tốc, < 0.5s, không lo timeout)
     if (studentRows.length > 1) {
       sheetHubStudents.getRange(1, 1, studentRows.length, 7).setValues(studentRows);
+    }
+
+    // ========================================================================
+    // 3. ĐỒNG BỘ LỚP GIẢNG DẠY SANG SHEET DATA_GIAOVIEN TRUNG TÂM (CỘT E)
+    // ========================================================================
+    try {
+      const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+      if (sheetGV) {
+        ensureGiaoVienSheetColumns(sheetGV);
+        const gvCols = getGiaoVienColMap(sheetGV);
+        const gvRows = sheetGV.getDataRange().getValues();
+
+        // Xác định chuỗi lớp giảng dạy (ưu tiên payload.lopGiangDay, nếu không có thì lấy unique từ học sinh)
+        let classesStr = String(payload.lopGiangDay || payload.classes || "").trim();
+        if (!classesStr && students.length > 0) {
+          const uniqueClasses = [];
+          students.forEach(st => {
+            const l = formatClassValue(st.lop || "").trim();
+            if (l && !uniqueClasses.includes(l)) uniqueClasses.push(l);
+          });
+          classesStr = uniqueClasses.join(", ");
+        }
+
+        let gvFound = false;
+        for (let r = 1; r < gvRows.length; r++) {
+          if (isSameTeacherAccount(gvRows[r][gvCols.colUser], usernameGV)) {
+            gvFound = true;
+            if (classesStr) {
+              sheetGV.getRange(r + 1, gvCols.colClass + 1).setValue(classesStr);
+            }
+            if (truong && !gvRows[r][gvCols.colSchool]) {
+              sheetGV.getRange(r + 1, gvCols.colSchool + 1).setValue(truong);
+            }
+            if (hoTenGV && !gvRows[r][gvCols.colName]) {
+              sheetGV.getRange(r + 1, gvCols.colName + 1).setValue(hoTenGV);
+            }
+            break;
+          }
+        }
+
+        if (!gvFound && usernameGV) {
+          const maxCol = Math.max(sheetGV.getLastColumn(), 7);
+          const newGvRow = new Array(maxCol).fill("");
+          newGvRow[gvCols.colUser] = usernameGV.startsWith("0") ? "'" + usernameGV : usernameGV;
+          newGvRow[gvCols.colPass] = "'123456";
+          newGvRow[gvCols.colName] = hoTenGV || usernameGV;
+          if (gvCols.colRole >= 0) newGvRow[gvCols.colRole] = "gv";
+          newGvRow[gvCols.colClass] = classesStr;
+          newGvRow[gvCols.colSchool] = truong;
+          if (gvCols.colVer >= 0) newGvRow[gvCols.colVer] = "2.0";
+          sheetGV.appendRow(newGvRow);
+        }
+      }
+    } catch (eGvSync) {
+      Logger.log("Lỗi đồng bộ DATA_GIAOVIEN trong handleSyncTeacherAndStudentsToHub: " + eGvSync);
     }
 
     return createJsonResponse({
@@ -3372,6 +3449,27 @@ function handleGetAdminTeachers(payload) {
     ensureGiaoVienSheetColumns(sheetGV);
     const cols = getGiaoVienColMap(sheetGV);
     const data = sheetGV.getDataRange().getValues();
+
+    // Lập bản đồ tra cứu lớp từ HUB_STUDENTS phòng trường hợp trên DATA_GIAOVIEN chưa có lớp
+    const hubClassMap = {};
+    try {
+      const sheetHubStudents = ss.getSheetByName(SHEETS.HUB_STUDENTS);
+      if (sheetHubStudents) {
+        const hsData = sheetHubStudents.getDataRange().getValues();
+        for (let j = 1; j < hsData.length; j++) {
+          const maGV = String(hsData[j][4] || "").trim().toLowerCase();
+          const lopHS = formatClassValue(hsData[j][2] || "").trim();
+          if (maGV && lopHS) {
+            if (!hubClassMap[maGV]) hubClassMap[maGV] = [];
+            if (!hubClassMap[maGV].includes(lopHS)) hubClassMap[maGV].push(lopHS);
+            const clean = maGV.replace(/^0+/, "");
+            if (!hubClassMap[clean]) hubClassMap[clean] = [];
+            if (!hubClassMap[clean].includes(lopHS)) hubClassMap[clean].push(lopHS);
+          }
+        }
+      }
+    } catch (eHsMap) {}
+
     const teachers = [];
 
     for (let i = 1; i < data.length; i++) {
@@ -3386,13 +3484,21 @@ function handleGetAdminTeachers(payload) {
                        String(row[cols.colClass] || "").toUpperCase().includes("ADMIN") ||
                        String(row[cols.colName] || "").toUpperCase().includes("ADMIN"));
 
+      let lopVal = String(row[cols.colClass] || "").trim();
+      if (!lopVal && !isAdmin) {
+        const fromHub = hubClassMap[rawUser.toLowerCase()] || hubClassMap[rawUser.replace(/^0+/, "").toLowerCase()];
+        if (fromHub && fromHub.length > 0) {
+          lopVal = fromHub.join(", ");
+        }
+      }
+
       teachers.push({
         username: rawUser,
         password: rawPass,
         hoTenGV: String(row[cols.colName] || ""),
         quyen: quyenVal || (isAdmin ? "admin" : "gv"),
         isAdmin: isAdmin,
-        lopGiangDay: String(row[cols.colClass] || ""),
+        lopGiangDay: lopVal,
         truong: String(row[cols.colSchool] || ""),
         backendVersion: formatBackendVersion(row[cols.colVer], "2.0")
       });
@@ -3845,5 +3951,161 @@ function handleDeleteHubServer(payload) {
       success: false,
       message: "Lỗi xóa kết nối HUB_SERVERS: " + err.toString()
     });
+  }
+}
+
+/**
+ * 9. ĐỒNG BỘ LỚP GIẢNG DẠY TỪ MÁY CHỦ RIÊNG / GOOGLE SHEETS CỦA GIÁO VIÊN VÀO DATA_GIAOVIEN TRUNG TÂM (CỘT E)
+ * Quét toàn bộ URL máy chủ trong HUB_SERVERS, gọi API của từng GV để lấy chuỗi lớp và lưu vào Cột E
+ * Payload: { usernameGV: "..." } (Tùy chọn: chỉ định 1 GV hoặc đồng bộ tất cả)
+ */
+function handleSyncClassesFromHubServers(payload) {
+  try {
+    const ss = getSpreadsheet();
+    let sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+    let sheetHub = ss.getSheetByName(SHEETS.HUB_SERVERS || "HUB_SERVERS");
+    if (!sheetGV) return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_GIAOVIEN!" });
+    if (!sheetHub) return createJsonResponse({ success: false, message: "Không tìm thấy Sheet HUB_SERVERS!" });
+
+    ensureGiaoVienSheetColumns(sheetGV);
+    const gvCols = getGiaoVienColMap(sheetGV);
+    const gvData = sheetGV.getDataRange().getValues();
+    const hubData = sheetHub.getDataRange().getValues();
+
+    const targetUser = payload && payload.usernameGV ? String(payload.usernameGV).trim().toLowerCase() : "";
+
+    // Lập bản đồ dòng của từng GV trên DATA_GIAOVIEN (1-based row index)
+    const gvRowMap = {};
+    for (let i = 1; i < gvData.length; i++) {
+      const u = String(gvData[i][gvCols.colUser] || "").trim();
+      if (u) {
+        gvRowMap[u.toLowerCase()] = i + 1;
+        gvRowMap[u.replace(/^0+/, "").toLowerCase()] = i + 1;
+      }
+    }
+
+    const results = [];
+    let updatedCount = 0;
+
+    for (let h = 1; h < hubData.length; h++) {
+      const maGV = String(hubData[h][0] || "").trim();
+      const hoTen = String(hubData[h][1] || "").trim();
+      const serverUrl = String(hubData[h][3] || "").trim();
+
+      if (!maGV || !serverUrl) continue;
+      if (targetUser && !isSameTeacherAccount(maGV, targetUser)) continue;
+
+      // Bỏ qua nếu serverUrl chính là link của trung tâm (tránh loop)
+      if (SPREADSHEET_URL && serverUrl.includes(SPREADSHEET_URL)) continue;
+
+      try {
+        const queryUrl = serverUrl + (serverUrl.includes("?") ? "&" : "?") + "action=getStudentsForTeacher&usernameGV=" + encodeURIComponent(maGV) + "&_t=" + Date.now();
+        const response = UrlFetchApp.fetch(queryUrl, {
+          method: "get",
+          muteHttpExceptions: true,
+          followRedirects: true,
+          validateHttpsCertificates: true
+        });
+
+        if (response.getResponseCode() === 200) {
+          const respText = response.getContentText();
+          if (respText && !respText.trim().startsWith("<")) {
+            const data = JSON.parse(respText);
+            if (data && data.success) {
+              let classesStr = "";
+              if (data.allowedClasses && String(data.allowedClasses).trim() !== "") {
+                classesStr = String(data.allowedClasses).trim();
+              } else if (Array.isArray(data.classes) && data.classes.length > 0) {
+                classesStr = data.classes.filter(Boolean).join(", ");
+              } else if (Array.isArray(data.students) && data.students.length > 0) {
+                const uniqueLop = [];
+                data.students.forEach(st => {
+                  const l = formatClassValue(st.lop || "").trim();
+                  if (l && !uniqueLop.includes(l)) uniqueLop.push(l);
+                });
+                classesStr = uniqueLop.join(", ");
+              }
+
+              if (classesStr) {
+                const targetRow = gvRowMap[maGV.toLowerCase()] || gvRowMap[maGV.replace(/^0+/, "").toLowerCase()];
+                if (targetRow) {
+                  sheetGV.getRange(targetRow, gvCols.colClass + 1).setValue(classesStr);
+                  updatedCount++;
+                  results.push({ maGV: maGV, hoTen: hoTen, classes: classesStr, status: "updated" });
+                } else {
+                  const maxCol = Math.max(sheetGV.getLastColumn(), 7);
+                  const newRow = new Array(maxCol).fill("");
+                  newRow[gvCols.colUser] = maGV.startsWith("0") ? "'" + maGV : maGV;
+                  newRow[gvCols.colPass] = "'123456";
+                  newRow[gvCols.colName] = hoTen || maGV;
+                  if (gvCols.colRole >= 0) newRow[gvCols.colRole] = "gv";
+                  newRow[gvCols.colClass] = classesStr;
+                  newRow[gvCols.colSchool] = String(hubData[h][2] || "").trim();
+                  if (gvCols.colVer >= 0) newRow[gvCols.colVer] = "2.0";
+                  sheetGV.appendRow(newRow);
+                  gvRowMap[maGV.toLowerCase()] = sheetGV.getLastRow();
+                  gvRowMap[maGV.replace(/^0+/, "").toLowerCase()] = sheetGV.getLastRow();
+                  updatedCount++;
+                  results.push({ maGV: maGV, hoTen: hoTen, classes: classesStr, status: "created" });
+                }
+              } else {
+                results.push({ maGV: maGV, hoTen: hoTen, status: "no_classes_found" });
+              }
+            }
+          }
+        } else {
+          results.push({ maGV: maGV, hoTen: hoTen, status: "http_error_" + response.getResponseCode() });
+        }
+      } catch (errFetch) {
+        results.push({ maGV: maGV, hoTen: hoTen, status: "error", error: errFetch.toString() });
+      }
+    }
+
+    return createJsonResponse({
+      success: true,
+      message: `Đã đồng bộ thành công lớp giảng dạy cho ${updatedCount} giáo viên từ Google Sheets riêng về Sheet Trung Tâm!`,
+      updatedCount: updatedCount,
+      details: results
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi đồng bộ lớp giảng dạy từ máy chủ GV: " + err.toString()
+    });
+  }
+}
+
+/**
+ * 10. Cập nhật lớp giảng dạy cho một giáo viên cụ thể trên Sheet DATA_GIAOVIEN trung tâm
+ * Payload: { usernameGV: "...", lopGiangDay: "..." }
+ */
+function handleUpdateTeacherClasses(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+    if (!sheetGV) return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_GIAOVIEN!" });
+
+    const usernameGV = String(payload.usernameGV || "").trim();
+    const lopGiangDay = String(payload.lopGiangDay || "").trim();
+    if (!usernameGV) return createJsonResponse({ success: false, message: "Thiếu mã tài khoản giáo viên!" });
+
+    ensureGiaoVienSheetColumns(sheetGV);
+    const cols = getGiaoVienColMap(sheetGV);
+    const data = sheetGV.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (isSameTeacherAccount(data[i][cols.colUser], usernameGV)) {
+        sheetGV.getRange(i + 1, cols.colClass + 1).setValue(lopGiangDay);
+        return createJsonResponse({
+          success: true,
+          message: `Đã cập nhật lớp giảng dạy "${lopGiangDay}" cho giáo viên ${usernameGV} vào Sheet DATA_GIAOVIEN trung tâm!`,
+          lopGiangDay: lopGiangDay
+        });
+      }
+    }
+
+    return createJsonResponse({ success: false, message: `Không tìm thấy giáo viên ${usernameGV} trên Sheet DATA_GIAOVIEN!` });
+  } catch (err) {
+    return createJsonResponse({ success: false, message: "Lỗi cập nhật lớp GV: " + err.toString() });
   }
 }
