@@ -10046,12 +10046,46 @@ function initAdminTeacherManagement() {
     btnRefreshAdminHubServers.addEventListener("click", () => loadAdminHubServersList(true));
   }
 
+  // Nút đổi phiên bản trung tâm (Ô H1)
+  const btnAdminEditCentralVersion = document.getElementById("btnAdminEditCentralVersion");
+  if (btnAdminEditCentralVersion) {
+    btnAdminEditCentralVersion.addEventListener("click", handleAdminEditCentralVersion);
+  }
+
   // 4. Khởi tạo Modals
   initAdminModals();
 
   // Nạp dữ liệu ban đầu
   loadAdminTeachersList();
   loadAdminHubServersList();
+}
+
+/**
+ * Admin cập nhật phiên bản backend hệ thống trung tâm (ghi trực tiếp vào Ô H1 Sheet DATA_GIAOVIEN)
+ */
+async function handleAdminEditCentralVersion() {
+  const currentVer = (localStorage.getItem("required_backend_version") || "2.3").trim();
+  const inputVer = prompt(`Nhập phiên bản Backend hệ thống trung tâm mới:\n(Hệ thống sẽ cập nhật trực tiếp vào Ô H1 của Sheet DATA_GIAOVIEN)\nVí dụ: 2.3, 2.4, 3.0...`, currentVer);
+  if (!inputVer || inputVer.trim() === "" || inputVer.trim() === currentVer) return;
+
+  const newVer = inputVer.trim().replace(/^v/i, "");
+  showToast("Đang cập nhật...", `Đang ghi phiên bản ${newVer} vào Ô H1 trên Sheet Trung Tâm...`, "info", 3000);
+
+  try {
+    const res = await fetch(`${DEFAULT_GAS_API_URL}?action=setCentralBackendVersion&version=${encodeURIComponent(newVer)}&_t=${Date.now()}`);
+    const data = await res.json();
+    if (data && data.success) {
+      localStorage.setItem("required_backend_version", newVer);
+      const statCentralVersion = document.getElementById("statCentralVersion");
+      if (statCentralVersion) statCentralVersion.textContent = newVer;
+      showToast("Thành công! 🎉", data.message || `Đã cập nhật phiên bản trung tâm thành ${newVer} tại Ô H1!`, "success", 5000);
+      loadAdminTeachersList(true);
+    } else {
+      showToast("Lỗi cập nhật", data?.message || "Không thể cập nhật phiên bản", "error", 5000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối", err.message || err.toString(), "error", 5000);
+  }
 }
 
 /**
@@ -10090,6 +10124,7 @@ function updateAdminTeacherStats() {
   const statTotalGv = document.getElementById("statTotalGv");
   const statTotalAdmin = document.getElementById("statTotalAdmin");
   const statTotalGvStandard = document.getElementById("statTotalGvStandard");
+  const statCentralVersion = document.getElementById("statCentralVersion");
 
   const total = adminTeachersCache.length;
   let adminCount = 0;
@@ -10108,6 +10143,10 @@ function updateAdminTeacherStats() {
   if (statTotalGv) statTotalGv.textContent = total;
   if (statTotalAdmin) statTotalAdmin.textContent = adminCount;
   if (statTotalGvStandard) statTotalGvStandard.textContent = gvCount;
+  if (statCentralVersion) {
+    const curReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
+    statCentralVersion.textContent = curReq;
+  }
 }
 
 /**
