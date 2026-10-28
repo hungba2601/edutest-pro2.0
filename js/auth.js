@@ -463,8 +463,14 @@ loginForm.addEventListener("submit", async (e) => {
         if (result.data.lop) result.data.lop = normalizeClassName(result.data.lop);
         if (result.data.password) delete result.data.password;
       }
-      const isUserAdmin = (result.role === "ADMIN") || (result.data && result.data.isAdmin) || (username.toLowerCase() === "admin");
+      const quyenVal = String(result.data?.quyen || "").trim().toLowerCase();
+      const isUserAdmin = (result.role === "ADMIN") || (result.data && result.data.isAdmin) || (quyenVal === "admin") || (username.toLowerCase() === "admin");
       const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole);
+      if (result.data) {
+        result.data.isAdmin = isUserAdmin;
+        result.data.role = savedRole;
+        if (quyenVal) result.data.quyen = quyenVal;
+      }
       localStorage.setItem("currentUser", JSON.stringify(result.data));
       localStorage.setItem("userRole", savedRole);
       localStorage.setItem("loginTime", new Date().toISOString());

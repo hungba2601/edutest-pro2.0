@@ -131,30 +131,29 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
 
-// 1. Kiểm tra tài khoản Admin hệ thống (CHỈ DUY NHẤT TÀI KHOẢN "admin" MỚI LÀ ADMIN BGH XEM ĐIỂM TẤT CẢ GV)
+// 1. Kiểm tra tài khoản Admin hệ thống (tài khoản "admin" hoặc tài khoản có Cột D - Quyền là "admin")
 function isCurrentUserAdmin() {
   let username = String(currentTeacher?.username || "").trim().toLowerCase();
-  if (!username) {
-    try {
-      const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
-      if (u && u.username) username = String(u.username).trim().toLowerCase();
-    } catch (e) {}
-  }
-  return username === "admin";
+  let role = "";
+  let quyen = "";
+  let isAdminFlag = false;
+  try {
+    const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
+    if (u && u.username && !username) username = String(u.username).trim().toLowerCase();
+    if (u && (u.isAdmin === true || u.isAdmin === "true")) isAdminFlag = true;
+    if (u && u.quyen) quyen = String(u.quyen).trim().toLowerCase();
+    if (u && u.role) role = String(u.role).trim().toUpperCase();
+  } catch (e) {}
+  if (!role) role = (localStorage.getItem("userRole") || "").toUpperCase();
+  if (currentTeacher?.isAdmin === true || currentTeacher?.isAdmin === "true") isAdminFlag = true;
+  if (currentTeacher?.quyen) quyen = String(currentTeacher.quyen).trim().toLowerCase();
+  if (currentTeacher?.role) role = String(currentTeacher.role).trim().toUpperCase();
+
+  return username === "admin" || isAdminFlag || role === "ADMIN" || quyen === "admin";
 }
 
 function isAdminRole() {
-  let username = String(currentTeacher?.username || "").trim().toLowerCase();
-  if (!username) {
-    try {
-      const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
-      if (u && u.username) username = String(u.username).trim().toLowerCase();
-    } catch (e) {}
-  }
-  if (username === "admin") return true;
-  const role = (localStorage.getItem("userRole") || "").toUpperCase();
-  if (role === "ADMIN" && username === "admin") return true;
-  return false;
+  return isCurrentUserAdmin();
 }
 
 // Kiểm tra tài khoản dùng chung Sheet Trung Tâm (0938750424 và admin)
@@ -1168,15 +1167,17 @@ function initTabSwitching() {
   const tabBtnCreate = document.getElementById("tabBtnCreate");
   const tabBtnResults = document.getElementById("tabBtnResults");
   const tabBtnStudents = document.getElementById("tabBtnStudents");
+  const tabBtnAdminTeachers = document.getElementById("tabBtnAdminTeachers");
   const tabCreate = document.getElementById("tabCreate");
   const tabResults = document.getElementById("tabResults");
   const tabStudents = document.getElementById("tabStudents");
+  const tabAdminTeachers = document.getElementById("tabAdminTeachers");
 
   function switchTab(activeBtn, activeTab) {
-    [tabBtnCreate, tabBtnResults, tabBtnStudents].forEach(b => {
+    [tabBtnCreate, tabBtnResults, tabBtnStudents, tabBtnAdminTeachers].forEach(b => {
       if (b) b.classList.remove("active");
     });
-    [tabCreate, tabResults, tabStudents].forEach(t => {
+    [tabCreate, tabResults, tabStudents, tabAdminTeachers].forEach(t => {
       if (t) t.style.display = "none";
     });
 
@@ -1204,6 +1205,14 @@ function initTabSwitching() {
     tabBtnStudents.addEventListener("click", () => {
       switchTab(tabBtnStudents, tabStudents);
       loadTeacherStudents();
+    });
+  }
+
+  if (tabBtnAdminTeachers) {
+    tabBtnAdminTeachers.addEventListener("click", () => {
+      switchTab(tabBtnAdminTeachers, tabAdminTeachers);
+      if (typeof loadAdminTeachersList === "function") loadAdminTeachersList();
+      if (typeof loadAdminHubServersList === "function") loadAdminHubServersList();
     });
   }
 }
@@ -9717,6 +9726,9 @@ function initTeacherDashboard() {
     const adminTeacherGrp = document.getElementById("adminTeacherFilterGroup");
     const btnOpenHubModal = document.getElementById("btnOpenHubModal");
 
+    const tabBtnAdminTeachers = document.getElementById("tabBtnAdminTeachers");
+    const tabAdminTeachers = document.getElementById("tabAdminTeachers");
+
     if (isAdminRole()) {
       API_URL = DEFAULT_GAS_API_URL;
       const brandRoleTag = document.getElementById("brandRoleTag");
@@ -9732,26 +9744,40 @@ function initTeacherDashboard() {
       const dropdownBadge = document.querySelector(".dropdown-user-badge");
       if (dropdownBadge) dropdownBadge.textContent = "Quản Trị Viên";
 
-      // Ẩn tab Tạo đề & tab Học sinh, chỉ giữ lại tab Thống kê kết quả
-      if (tabBtnCreate) tabBtnCreate.style.display = "none";
-      if (tabBtnStudents) tabBtnStudents.style.display = "none";
-      if (tabCreate) {
-        tabCreate.style.display = "none";
-        tabCreate.classList.remove("active");
-      }
-      if (tabStudents) {
-        tabStudents.style.display = "none";
-        tabStudents.classList.remove("active");
-      }
+      // Hiển thị Tab Quản lý Giáo viên cho Quản trị viên
+      if (tabBtnAdminTeachers) tabBtnAdminTeachers.style.display = "";
 
-      if (tabBtnResults) {
-        tabBtnResults.classList.add("active");
-        const span = tabBtnResults.querySelector("span");
-        if (span) span.textContent = "Xem Thống Kê & Điểm Số";
-      }
-      if (tabResults) {
-        tabResults.style.display = "block";
-        tabResults.classList.add("active");
+      const isOnlyAdminAccount = String(currentTeacher?.username || "").toLowerCase() === "admin";
+      if (isOnlyAdminAccount) {
+        // Tài khoản BGH 'admin': ẩn Tạo đề & Học sinh để gọn gàng
+        if (tabBtnCreate) tabBtnCreate.style.display = "none";
+        if (tabBtnStudents) tabBtnStudents.style.display = "none";
+        if (tabCreate) {
+          tabCreate.style.display = "none";
+          tabCreate.classList.remove("active");
+        }
+        if (tabStudents) {
+          tabStudents.style.display = "none";
+          tabStudents.classList.remove("active");
+        }
+
+        if (tabBtnResults) {
+          tabBtnResults.classList.add("active");
+          const span = tabBtnResults.querySelector("span");
+          if (span) span.textContent = "Xem Thống Kê & Điểm Số";
+        }
+        if (tabResults) {
+          tabResults.style.display = "block";
+          tabResults.classList.add("active");
+        }
+      } else {
+        // Giáo viên có phân quyền Admin (Cột D là admin): HIỆN ĐẦY ĐỦ CẢ 4 TAB
+        if (tabBtnCreate) tabBtnCreate.style.display = "";
+        if (tabBtnStudents) tabBtnStudents.style.display = "";
+        if (tabBtnResults) {
+          const span = tabBtnResults.querySelector("span");
+          if (span) span.textContent = "Xem Kết Quả & Thống Kê";
+        }
       }
 
       // Hiện thanh chọn giáo viên để Admin kiểm tra kết quả của toàn bộ GV
@@ -9762,15 +9788,21 @@ function initTeacherDashboard() {
 
       // Khởi tạo selector Giáo viên cho Admin
       initAdminTeacherSelector();
+
+      // Khởi tạo module Quản trị Giáo viên & Kết nối HUB
+      initAdminTeacherManagement();
     } else {
-      // TẤT CẢ GIÁO VIÊN (bao gồm tài khoản 0938750424 dùng chung sheet trung tâm & GV dùng sheet riêng):
-      // ĐẢM BẢO HIỆN ĐẦY ĐỦ TẤT CẢ CÁC TAB
+      // TẤT CẢ GIÁO VIÊN BÌNH THƯỜNG:
       if (tabBtnCreate) tabBtnCreate.style.display = "";
       if (tabBtnStudents) tabBtnStudents.style.display = "";
       if (tabBtnResults) {
         const span = tabBtnResults.querySelector("span");
         if (span) span.textContent = "Xem Kết Quả & Thống Kê";
       }
+
+      // Ẩn tab Quản lý Giáo viên
+      if (tabBtnAdminTeachers) tabBtnAdminTeachers.style.display = "none";
+      if (tabAdminTeachers) tabAdminTeachers.style.display = "none";
 
       // Ẩn thanh chọn giáo viên (chỉ dành riêng cho Admin BGH)
       if (adminTeacherGrp) adminTeacherGrp.style.display = "none";
@@ -9944,3 +9976,907 @@ if (document.readyState === "loading") {
 }
 
 
+
+
+// ============================================================================
+// MODULE QUẢN LÝ GIÁO VIÊN & KẾT NỐI MÁY CHỦ (DÀNH CHO QUẢN TRỊ VIÊN ADMIN)
+// ============================================================================
+let adminTeachersCache = [];
+let adminHubServersCache = [];
+let adminTeacherPasswordMaskMap = {};
+
+function initAdminTeacherManagement() {
+  const tabBtnAdminTeachers = document.getElementById("tabBtnAdminTeachers");
+  const tabAdminTeachers = document.getElementById("tabAdminTeachers");
+  if (!tabBtnAdminTeachers || !tabAdminTeachers) return;
+
+  // 1. Chuyển đổi Sub-tabs: DATA_GIAOVIEN <-> HUB_SERVERS
+  const btnSubTabAdminTeachers = document.getElementById("btnSubTabAdminTeachers");
+  const btnSubTabAdminHub = document.getElementById("btnSubTabAdminHub");
+  const panelAdminTeachersList = document.getElementById("panelAdminTeachersList");
+  const panelAdminHubServersList = document.getElementById("panelAdminHubServersList");
+
+  function switchAdminSubTab(activeBtn, activePanel) {
+    [btnSubTabAdminTeachers, btnSubTabAdminHub].forEach(b => b && b.classList.remove("active"));
+    [panelAdminTeachersList, panelAdminHubServersList].forEach(p => p && (p.style.display = "none"));
+
+    if (activeBtn) activeBtn.classList.add("active");
+    if (activePanel) activePanel.style.display = "block";
+  }
+
+  if (btnSubTabAdminTeachers) {
+    btnSubTabAdminTeachers.addEventListener("click", () => {
+      switchAdminSubTab(btnSubTabAdminTeachers, panelAdminTeachersList);
+      loadAdminTeachersList();
+    });
+  }
+
+  if (btnSubTabAdminHub) {
+    btnSubTabAdminHub.addEventListener("click", () => {
+      switchAdminSubTab(btnSubTabAdminHub, panelAdminHubServersList);
+      loadAdminHubServersList();
+    });
+  }
+
+  // 2. Tìm kiếm & Lọc dữ liệu trong DATA_GIAOVIEN
+  const searchAdminTeacherInput = document.getElementById("searchAdminTeacherInput");
+  const selectFilterAdminRole = document.getElementById("selectFilterAdminRole");
+  if (searchAdminTeacherInput) {
+    searchAdminTeacherInput.addEventListener("input", () => renderAdminTeachersTable());
+  }
+  if (selectFilterAdminRole) {
+    selectFilterAdminRole.addEventListener("change", () => renderAdminTeachersTable());
+  }
+
+  // Nút Làm mới DATA_GIAOVIEN
+  const btnRefreshAdminTeachers = document.getElementById("btnRefreshAdminTeachers");
+  if (btnRefreshAdminTeachers) {
+    btnRefreshAdminTeachers.addEventListener("click", () => loadAdminTeachersList(true));
+  }
+
+  // 3. Tìm kiếm trong HUB_SERVERS
+  const searchAdminHubInput = document.getElementById("searchAdminHubInput");
+  if (searchAdminHubInput) {
+    searchAdminHubInput.addEventListener("input", () => renderAdminHubServersTable());
+  }
+
+  // Nút Làm mới HUB_SERVERS
+  const btnRefreshAdminHubServers = document.getElementById("btnRefreshAdminHubServers");
+  if (btnRefreshAdminHubServers) {
+    btnRefreshAdminHubServers.addEventListener("click", () => loadAdminHubServersList(true));
+  }
+
+  // 4. Khởi tạo Modals
+  initAdminModals();
+
+  // Nạp dữ liệu ban đầu
+  loadAdminTeachersList();
+  loadAdminHubServersList();
+}
+
+/**
+ * Nạp danh sách Giáo viên từ Sheet DATA_GIAOVIEN
+ */
+async function loadAdminTeachersList(forceRefresh = false) {
+  const tbody = document.getElementById("adminTeachersTableBody");
+  if (!tbody) return;
+
+  if (forceRefresh || adminTeachersCache.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #2563eb;"><span class="table-spinner"></span> Đang tải danh sách giáo viên từ Sheet DATA_GIAOVIEN...</td></tr>';
+  }
+
+  try {
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(`${targetUrl}?action=getAdminTeachers&t=${Date.now()}`);
+    const data = await res.json();
+
+    if (data && data.success && Array.isArray(data.teachers)) {
+      adminTeachersCache = data.teachers;
+      updateAdminTeacherStats();
+      renderAdminTeachersTable();
+      populateHubTeacherQuickSelect();
+    } else {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Không thể tải danh sách GV: ${data.message || "Lỗi không xác định"}</td></tr>`;
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Lỗi kết nối Google Sheets: ${err.message || err.toString()}</td></tr>`;
+  }
+}
+
+/**
+ * Cập nhật số liệu thống kê Giáo viên
+ */
+function updateAdminTeacherStats() {
+  const statTotalGv = document.getElementById("statTotalGv");
+  const statTotalAdmin = document.getElementById("statTotalAdmin");
+  const statTotalGvStandard = document.getElementById("statTotalGvStandard");
+
+  const total = adminTeachersCache.length;
+  let adminCount = 0;
+  let gvCount = 0;
+
+  adminTeachersCache.forEach(t => {
+    const q = String(t.quyen || "").toLowerCase();
+    const u = String(t.username || "").toLowerCase();
+    if (q === "admin" || t.isAdmin || u === "admin") {
+      adminCount++;
+    } else {
+      gvCount++;
+    }
+  });
+
+  if (statTotalGv) statTotalGv.textContent = total;
+  if (statTotalAdmin) statTotalAdmin.textContent = adminCount;
+  if (statTotalGvStandard) statTotalGvStandard.textContent = gvCount;
+}
+
+/**
+ * Render bảng danh sách giáo viên DATA_GIAOVIEN
+ */
+function renderAdminTeachersTable() {
+  const tbody = document.getElementById("adminTeachersTableBody");
+  if (!tbody) return;
+
+  const kw = (document.getElementById("searchAdminTeacherInput")?.value || "").trim().toLowerCase();
+  const roleFilter = document.getElementById("selectFilterAdminRole")?.value || "ALL";
+
+  const filtered = adminTeachersCache.filter(t => {
+    const u = String(t.username || "").toLowerCase();
+    const name = String(t.hoTenGV || "").toLowerCase();
+    const classes = String(t.lopGiangDay || "").toLowerCase();
+    const school = String(t.truong || "").toLowerCase();
+    const q = String(t.quyen || "").toLowerCase();
+    const isAdmin = (q === "admin" || t.isAdmin || u === "admin");
+
+    if (roleFilter === "ADMIN" && !isAdmin) return false;
+    if (roleFilter === "GV" && isAdmin) return false;
+
+    if (!kw) return true;
+    return u.includes(kw) || name.includes(kw) || classes.includes(kw) || school.includes(kw);
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Không tìm thấy giáo viên nào phù hợp với điều kiện tìm kiếm.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((t, idx) => {
+    const rawUser = String(t.username || "");
+    const cleanUser = rawUser.replace(/^'+/, "");
+    const q = String(t.quyen || "").toLowerCase();
+    const isAdmin = (q === "admin" || t.isAdmin || cleanUser.toLowerCase() === "admin");
+    const roleBadge = isAdmin
+      ? '<span class="badge-role-admin">🛡️ Quản trị viên (Admin)</span>'
+      : '<span class="badge-role-gv">👨‍🏫 Giáo viên</span>';
+
+    const isPassVisible = !!adminTeacherPasswordMaskMap[cleanUser];
+    const passDisplay = isPassVisible ? (t.password || "--") : "••••••••";
+    const verDisplay = t.backendVersion || "2.0";
+
+    return `
+      <tr>
+        <td style="text-align: center; font-weight: 700; color: #64748b;">${idx + 1}</td>
+        <td>
+          <div style="font-weight: 700; color: #0f172a; font-family: monospace; font-size: 0.92rem;">${cleanUser}</div>
+        </td>
+        <td>
+          <div style="font-weight: 700; color: #1e3a8a;">${t.hoTenGV || "--"}</div>
+        </td>
+        <td style="text-align: center;">${roleBadge}</td>
+        <td>
+          <div class="pass-container">
+            <span id="passSpan_${cleanUser}">${passDisplay}</span>
+            <button type="button" class="btn-inline-icon" onclick="toggleTeacherPasswordMask('${cleanUser}')" title="Ẩn/Hiện mật khẩu">
+              ${isPassVisible ? '🙈' : '👁️'}
+            </button>
+            <button type="button" class="btn-inline-icon" onclick="copyTeacherPassword('${cleanUser}')" title="Sao chép mật khẩu">
+              📋
+            </button>
+          </div>
+        </td>
+        <td>
+          <div style="font-size: 0.85rem; color: #334155; line-height: 1.4;">${t.lopGiangDay || "--"}</div>
+        </td>
+        <td>
+          <div style="font-size: 0.85rem; color: #475569;">${t.truong || "--"}</div>
+        </td>
+        <td style="text-align: center;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 0.78rem; background: #f1f5f9; color: #334155;">${verDisplay}</span>
+        </td>
+        <td style="text-align: center;">
+          <div class="table-action-btns">
+            <button type="button" class="btn-tbl-action key" onclick="openResetTeacherPassModal('${cleanUser}')" title="Đổi mật khẩu GV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </button>
+            <button type="button" class="btn-tbl-action edit" onclick="openEditTeacherModal('${cleanUser}')" title="Chỉnh sửa thông tin GV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </button>
+            <button type="button" class="btn-tbl-action delete" onclick="deleteTeacherAccount('${cleanUser}')" title="Xóa tài khoản GV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 1-2h6c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+window.toggleTeacherPasswordMask = function(cleanUser) {
+  adminTeacherPasswordMaskMap[cleanUser] = !adminTeacherPasswordMaskMap[cleanUser];
+  renderAdminTeachersTable();
+};
+
+window.copyTeacherPassword = function(cleanUser) {
+  const teacher = adminTeachersCache.find(t => String(t.username || "").replace(/^'+/, "") === cleanUser);
+  if (teacher && teacher.password) {
+    navigator.clipboard.writeText(teacher.password);
+    showToast("Đã chép", `Đã sao chép mật khẩu của ${teacher.hoTenGV || cleanUser}`, "success", 2000);
+  }
+};
+
+/**
+ * Nạp danh sách máy chủ kết nối từ Sheet HUB_SERVERS
+ */
+async function loadAdminHubServersList(forceRefresh = false) {
+  const tbody = document.getElementById("adminHubServersTableBody");
+  if (!tbody) return;
+
+  if (forceRefresh || adminHubServersCache.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2.5rem; color: #4f46e5;"><span class="table-spinner"></span> Đang tải danh bạ máy chủ từ Sheet HUB_SERVERS...</td></tr>';
+  }
+
+  try {
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(`${targetUrl}?action=getAdminHubServers&t=${Date.now()}`);
+    const data = await res.json();
+
+    if (data && data.success && Array.isArray(data.servers)) {
+      adminHubServersCache = data.servers;
+      updateAdminHubStats();
+      renderAdminHubServersTable();
+    } else {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Không thể tải danh bạ HUB: ${data.message || "Lỗi không xác định"}</td></tr>`;
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Lỗi kết nối Google Sheets HUB: ${err.message || err.toString()}</td></tr>`;
+  }
+}
+
+/**
+ * Cập nhật số liệu thống kê HUB_SERVERS
+ */
+function updateAdminHubStats() {
+  const statTotal = document.getElementById("statTotalHubServers");
+  const statActive = document.getElementById("statHubActive");
+  const statInactive = document.getElementById("statHubInactive");
+
+  const total = adminHubServersCache.length;
+  let activeCount = 0;
+  let inactiveCount = 0;
+
+  adminHubServersCache.forEach(s => {
+    const url = String(s.serverUrl || "").trim();
+    if (url && url.startsWith("https://script.google.com/macros/s/")) {
+      activeCount++;
+    } else {
+      inactiveCount++;
+    }
+  });
+
+  if (statTotal) statTotal.textContent = total;
+  if (statActive) statActive.textContent = activeCount;
+  if (statInactive) statInactive.textContent = inactiveCount;
+}
+
+/**
+ * Render bảng danh bạ HUB_SERVERS
+ */
+function renderAdminHubServersTable() {
+  const tbody = document.getElementById("adminHubServersTableBody");
+  if (!tbody) return;
+
+  const kw = (document.getElementById("searchAdminHubInput")?.value || "").trim().toLowerCase();
+
+  const filtered = adminHubServersCache.filter(s => {
+    const ma = String(s.maGV || "").toLowerCase();
+    const name = String(s.hoTenGV || "").toLowerCase();
+    const school = String(s.truong || "").toLowerCase();
+    const url = String(s.serverUrl || "").toLowerCase();
+
+    if (!kw) return true;
+    return ma.includes(kw) || name.includes(kw) || school.includes(kw) || url.includes(kw);
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Không tìm thấy máy chủ giáo viên nào phù hợp.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((s, idx) => {
+    const rawMa = String(s.maGV || "");
+    const cleanMa = rawMa.replace(/^'+/, "");
+    const rawUrl = String(s.serverUrl || "").trim();
+    const hasUrl = rawUrl.startsWith("https://script.google.com/macros/s/");
+
+    let urlCellHtml = "";
+    if (hasUrl) {
+      const shortUrl = rawUrl.length > 45 ? rawUrl.substring(0, 42) + "..." : rawUrl;
+      urlCellHtml = `
+        <div style="display: flex; align-items: center; gap: 6px; max-width: 100%;">
+          <span style="font-family: monospace; font-size: 0.8rem; color: #2563eb; background: #eff6ff; padding: 3px 6px; border-radius: 5px; border: 1px solid #bfdbfe; word-break: break-all;" title="${rawUrl}">${shortUrl}</span>
+          <button type="button" class="btn-inline-icon" onclick="copyHubServerUrl('${cleanMa}')" title="Sao chép link Web App">📋</button>
+          <a href="${rawUrl}" target="_blank" rel="noopener" class="btn-inline-icon" title="Mở link kiểm tra" style="text-decoration: none;">↗️</a>
+        </div>
+      `;
+    } else {
+      urlCellHtml = `
+        <button type="button" class="badge-server-inactive" onclick="openEditHubServerModal('${cleanMa}')" style="cursor: pointer; border: 1px dashed #f59e0b; background: #fffbeb;">
+          ⚠️ Chưa cấu hình link Web App (Bấm để thêm)
+        </button>
+      `;
+    }
+
+    const statusBadge = hasUrl
+      ? '<span class="badge-server-active">Hoạt động</span>'
+      : '<span class="badge-server-inactive">Chưa có link</span>';
+
+    return `
+      <tr>
+        <td style="text-align: center; font-weight: 700; color: #64748b;">${idx + 1}</td>
+        <td>
+          <div style="font-weight: 700; color: #0f172a; font-family: monospace; font-size: 0.92rem;">${cleanMa}</div>
+        </td>
+        <td>
+          <div style="font-weight: 700; color: #1e3a8a;">${s.hoTenGV || "--"}</div>
+        </td>
+        <td>
+          <div style="font-size: 0.85rem; color: #475569;">${s.truong || "--"}</div>
+        </td>
+        <td>${urlCellHtml}</td>
+        <td style="text-align: center;">${statusBadge}</td>
+        <td style="text-align: center; font-size: 0.8rem; color: #64748b;">${s.ngayCapNhat || "--"}</td>
+        <td style="text-align: center;">
+          <div class="table-action-btns">
+            <button type="button" class="btn-tbl-action edit" onclick="openEditHubServerModal('${cleanMa}')" title="Sửa / Thêm Link URL">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </button>
+            ${hasUrl ? `
+            <button type="button" class="btn-tbl-action ping" onclick="pingTestHubServer('${cleanMa}')" title="Kiểm tra Ping Server">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </button>` : ''}
+            <button type="button" class="btn-tbl-action delete" onclick="deleteHubServer('${cleanMa}')" title="Xóa kết nối khỏi HUB_SERVERS">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 1-2h6c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+window.copyHubServerUrl = function(cleanMa) {
+  const s = adminHubServersCache.find(item => String(item.maGV || "").replace(/^'+/, "") === cleanMa);
+  if (s && s.serverUrl) {
+    navigator.clipboard.writeText(s.serverUrl);
+    showToast("Đã chép", `Đã sao chép Link Web App của ${s.hoTenGV || cleanMa}`, "success", 2000);
+  }
+};
+
+/**
+ * Kiểm tra kết nối ping đến máy chủ Web App của Giáo viên
+ */
+window.pingTestHubServer = async function(cleanMa) {
+  const s = adminHubServersCache.find(item => String(item.maGV || "").replace(/^'+/, "") === cleanMa);
+  if (!s || !s.serverUrl) {
+    showToast("Chưa có URL", "Giáo viên này chưa cấu hình link Web App!", "warning", 3000);
+    return;
+  }
+
+  showToast("Đang kiểm tra...", `Đang kiểm tra kết nối đến máy chủ của ${s.hoTenGV || cleanMa}...`, "info", 2000);
+  try {
+    const separator = s.serverUrl.includes("?") ? "&" : "?";
+    const testUrl = `${s.serverUrl}${separator}action=checkBackendVersion&t=${Date.now()}`;
+    const res = await fetch(testUrl);
+    const data = await res.json();
+
+    if (data && data.success) {
+      showToast("Kết nối Tốt ✅", `Máy chủ online! Phiên bản Code.gs: ${data.version || "OK"}`, "success", 4000);
+    } else {
+      showToast("Tín hiệu phản hồi", `Máy chủ online nhưng trả về: ${data.message || "OK"}`, "info", 3500);
+    }
+  } catch (err) {
+    showToast("Không thể kết nối ❌", `Không thể kết nối đến Web App: ${err.message || err.toString()}`, "error", 4500);
+  }
+};
+
+/**
+ * Điền nhanh danh sách GV từ DATA_GIAOVIEN vào select của modal HUB
+ */
+function populateHubTeacherQuickSelect() {
+  const select = document.getElementById("hubSelectTeacherQuick");
+  if (!select) return;
+
+  const currentVal = select.value;
+  select.innerHTML = '<option value="">-- Chọn giáo viên từ danh sách DATA_GIAOVIEN --</option>';
+
+  adminTeachersCache.forEach(t => {
+    const rawUser = String(t.username || "");
+    const cleanUser = rawUser.replace(/^'+/, "");
+    const opt = document.createElement("option");
+    opt.value = cleanUser;
+    opt.textContent = `${t.hoTenGV || cleanUser} (${cleanUser}) - ${t.truong || ""}`;
+    select.appendChild(opt);
+  });
+
+  if (currentVal) select.value = currentVal;
+}
+
+/**
+ * Khởi tạo sự kiện cho 3 Modals
+ */
+function initAdminModals() {
+  // Modal 1: Thêm/Sửa Giáo viên
+  const modalAddEditTeacher = document.getElementById("modalAddEditTeacher");
+  const btnOpenAddTeacherModal = document.getElementById("btnOpenAddTeacherModal");
+  const btnCloseAddEditTeacherModal = document.getElementById("btnCloseAddEditTeacherModal");
+  const btnCancelAddEditTeacherModal = document.getElementById("btnCancelAddEditTeacherModal");
+  const btnSaveTeacherAccount = document.getElementById("btnSaveTeacherAccount");
+  const btnGenRandomTeacherPass = document.getElementById("btnGenRandomTeacherPass");
+
+  if (btnOpenAddTeacherModal) {
+    btnOpenAddTeacherModal.addEventListener("click", () => openAddTeacherModal());
+  }
+  if (btnCloseAddEditTeacherModal) {
+    btnCloseAddEditTeacherModal.addEventListener("click", () => modalAddEditTeacher.style.display = "none");
+  }
+  if (btnCancelAddEditTeacherModal) {
+    btnCancelAddEditTeacherModal.addEventListener("click", () => modalAddEditTeacher.style.display = "none");
+  }
+  if (btnGenRandomTeacherPass) {
+    btnGenRandomTeacherPass.addEventListener("click", () => {
+      const passInput = document.getElementById("teacherInputPassword");
+      if (passInput) passInput.value = "1234";
+    });
+  }
+  if (btnSaveTeacherAccount) {
+    btnSaveTeacherAccount.addEventListener("click", handleSaveTeacherAccountSubmit);
+  }
+
+  // Modal 2: Đổi Mật Khẩu Giáo Viên
+  const modalResetTeacherPassword = document.getElementById("modalResetTeacherPassword");
+  const btnCloseResetTeacherPassModal = document.getElementById("btnCloseResetTeacherPassModal");
+  const btnCancelResetTeacherPassModal = document.getElementById("btnCancelResetTeacherPassModal");
+  const btnSubmitResetTeacherPassword = document.getElementById("btnSubmitResetTeacherPassword");
+  const btnGenQuickPass = document.getElementById("btnGenQuickPass");
+
+  if (btnCloseResetTeacherPassModal) {
+    btnCloseResetTeacherPassModal.addEventListener("click", () => modalResetTeacherPassword.style.display = "none");
+  }
+  if (btnCancelResetTeacherPassModal) {
+    btnCancelResetTeacherPassModal.addEventListener("click", () => modalResetTeacherPassword.style.display = "none");
+  }
+  if (btnGenQuickPass) {
+    btnGenQuickPass.addEventListener("click", () => {
+      const inp = document.getElementById("resetPassNewPasswordInput");
+      if (inp) inp.value = "1234";
+    });
+  }
+  if (btnSubmitResetTeacherPassword) {
+    btnSubmitResetTeacherPassword.addEventListener("click", handleSubmitResetTeacherPassword);
+  }
+
+  // Modal 3: Thêm / Sửa kết nối HUB_SERVERS
+  const modalAddEditHubServer = document.getElementById("modalAddEditHubServer");
+  const btnOpenAddHubServerModal = document.getElementById("btnOpenAddHubServerModal");
+  const btnCloseAddEditHubModal = document.getElementById("btnCloseAddEditHubModal");
+  const btnCancelAddEditHubModal = document.getElementById("btnCancelAddEditHubModal");
+  const btnSaveHubServer = document.getElementById("btnSaveHubServer");
+  const btnPasteHubModalUrl = document.getElementById("btnPasteHubModalUrl");
+  const hubSelectTeacherQuick = document.getElementById("hubSelectTeacherQuick");
+
+  if (btnOpenAddHubServerModal) {
+    btnOpenAddHubServerModal.addEventListener("click", () => openAddHubServerModal());
+  }
+  if (btnCloseAddEditHubModal) {
+    btnCloseAddEditHubModal.addEventListener("click", () => modalAddEditHubServer.style.display = "none");
+  }
+  if (btnCancelAddEditHubModal) {
+    btnCancelAddEditHubModal.addEventListener("click", () => modalAddEditHubServer.style.display = "none");
+  }
+  if (hubSelectTeacherQuick) {
+    hubSelectTeacherQuick.addEventListener("change", (e) => {
+      const selectedUser = e.target.value;
+      if (!selectedUser) return;
+      const t = adminTeachersCache.find(item => String(item.username || "").replace(/^'+/, "") === selectedUser);
+      if (t) {
+        document.getElementById("hubInputMaGV").value = selectedUser;
+        document.getElementById("hubInputHoTen").value = t.hoTenGV || "";
+        document.getElementById("hubInputTruong").value = t.truong || "";
+      }
+    });
+  }
+  if (btnPasteHubModalUrl) {
+    btnPasteHubModalUrl.addEventListener("click", async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim()) {
+            document.getElementById("hubInputServerUrl").value = text.trim();
+            showToast("Đã dán", "Đã dán URL Web App vào ô nhập!", "info", 2000);
+          }
+        }
+      } catch (e) {}
+    });
+  }
+  if (btnSaveHubServer) {
+    btnSaveHubServer.addEventListener("click", handleSaveHubServerSubmit);
+  }
+}
+
+/**
+ * Mở modal thêm mới Giáo viên
+ */
+window.openAddTeacherModal = function() {
+  const modal = document.getElementById("modalAddEditTeacher");
+  if (!modal) return;
+
+  document.getElementById("modalAddEditTeacherTitle").textContent = "Thêm Giáo Viên Mới";
+  document.getElementById("teacherEditOriginalUser").value = "";
+  document.getElementById("teacherInputUsername").value = "";
+  document.getElementById("teacherInputUsername").disabled = false;
+  document.getElementById("teacherInputFullName").value = "";
+  document.getElementById("teacherInputPassword").value = "1234";
+  document.getElementById("teacherPasswordGroup").style.display = "block";
+  document.getElementById("teacherInputRole").value = "gv";
+  document.getElementById("teacherInputClasses").value = "";
+  document.getElementById("teacherInputSchool").value = currentTeacher?.truong || "";
+  document.getElementById("btnSaveTeacherText").textContent = "Lưu Vào Sheet DATA_GIAOVIEN";
+
+  modal.style.display = "flex";
+};
+
+/**
+ * Mở modal sửa thông tin Giáo viên
+ */
+window.openEditTeacherModal = function(cleanUser) {
+  const modal = document.getElementById("modalAddEditTeacher");
+  if (!modal) return;
+
+  const t = adminTeachersCache.find(item => String(item.username || "").replace(/^'+/, "") === cleanUser);
+  if (!t) {
+    showToast("Không tìm thấy", "Không tìm thấy thông tin giáo viên!", "error", 3000);
+    return;
+  }
+
+  document.getElementById("modalAddEditTeacherTitle").textContent = `Chỉnh Sửa Giáo Viên: ${t.hoTenGV || cleanUser}`;
+  document.getElementById("teacherEditOriginalUser").value = cleanUser;
+  document.getElementById("teacherInputUsername").value = cleanUser;
+  document.getElementById("teacherInputUsername").disabled = true; // Không đổi username để tránh lệch khóa
+  document.getElementById("teacherInputFullName").value = t.hoTenGV || "";
+  document.getElementById("teacherInputPassword").value = t.password || "";
+  document.getElementById("teacherPasswordGroup").style.display = "block";
+  document.getElementById("teacherInputRole").value = (String(t.quyen || "").toLowerCase() === "admin" || t.isAdmin) ? "admin" : "gv";
+  document.getElementById("teacherInputClasses").value = t.lopGiangDay || "";
+  document.getElementById("teacherInputSchool").value = t.truong || "";
+  document.getElementById("btnSaveTeacherText").textContent = "Cập Nhật Vào Sheet";
+
+  modal.style.display = "flex";
+};
+
+/**
+ * Xử lý lưu thông tin Giáo viên vào Sheet DATA_GIAOVIEN
+ */
+async function handleSaveTeacherAccountSubmit() {
+  const origUser = document.getElementById("teacherEditOriginalUser").value.trim();
+  const username = document.getElementById("teacherInputUsername").value.trim();
+  const fullName = document.getElementById("teacherInputFullName").value.trim();
+  const password = document.getElementById("teacherInputPassword").value.trim();
+  const role = document.getElementById("teacherInputRole").value;
+  const classes = document.getElementById("teacherInputClasses").value.trim();
+  const school = document.getElementById("teacherInputSchool").value.trim();
+  const btnSave = document.getElementById("btnSaveTeacherAccount");
+  const btnText = document.getElementById("btnSaveTeacherText");
+
+  if (!username) {
+    showToast("Thiếu thông tin", "Mã tài khoản Giáo viên (SĐT) không được để trống!", "warning", 3000);
+    return;
+  }
+  if (!fullName) {
+    showToast("Thiếu thông tin", "Họ tên Giáo viên không được để trống!", "warning", 3000);
+    return;
+  }
+
+  const isEditing = !!origUser;
+  const action = isEditing ? "updateTeacher" : "addTeacher";
+
+  btnSave.disabled = true;
+  btnText.textContent = "Đang ghi vào Sheet...";
+
+  try {
+    const payload = {
+      action: action,
+      username: username,
+      originalUsername: origUser,
+      hoTenGV: fullName,
+      password: password,
+      quyen: role,
+      lopGiangDay: classes,
+      truong: school
+    };
+
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result && result.success) {
+      showToast("Thành công ✅", result.message || "Đã lưu vào sheet DATA_GIAOVIEN thành công!", "success", 3500);
+      document.getElementById("modalAddEditTeacher").style.display = "none";
+      await loadAdminTeachersList(true);
+    } else {
+      showToast("Lỗi lưu Sheet ❌", result.message || "Không thể lưu vào Google Sheets!", "error", 4000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối ❌", err.message || err.toString(), "error", 4000);
+  } finally {
+    btnSave.disabled = false;
+    btnText.textContent = isEditing ? "Cập Nhật Vào Sheet" : "Lưu Vào Sheet DATA_GIAOVIEN";
+  }
+}
+
+/**
+ * Mở modal đổi mật khẩu nhanh cho GV
+ */
+window.openResetTeacherPassModal = function(cleanUser) {
+  const modal = document.getElementById("modalResetTeacherPassword");
+  if (!modal) return;
+
+  const t = adminTeachersCache.find(item => String(item.username || "").replace(/^'+/, "") === cleanUser);
+  document.getElementById("resetPassTargetUsername").value = cleanUser;
+  document.getElementById("resetPassTargetTeacherName").textContent = t ? (t.hoTenGV || cleanUser) : cleanUser;
+  document.getElementById("resetPassTargetTeacherUser").textContent = `(${cleanUser})`;
+  document.getElementById("resetPassNewPasswordInput").value = "1234";
+
+  modal.style.display = "flex";
+};
+
+/**
+ * Xử lý lưu mật khẩu mới vào Sheet DATA_GIAOVIEN
+ */
+async function handleSubmitResetTeacherPassword() {
+  const username = document.getElementById("resetPassTargetUsername").value.trim();
+  const newPassword = document.getElementById("resetPassNewPasswordInput").value.trim();
+  const btnSubmit = document.getElementById("btnSubmitResetTeacherPassword");
+
+  if (!newPassword) {
+    showToast("Thiếu thông tin", "Vui lòng nhập mật khẩu mới!", "warning", 3000);
+    return;
+  }
+
+  btnSubmit.disabled = true;
+  btnSubmit.textContent = "Đang lưu...";
+
+  try {
+    const payload = {
+      action: "adminResetTeacherPassword",
+      username: username,
+      newPassword: newPassword
+    };
+
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result && result.success) {
+      showToast("Đã đổi MK ✅", result.message || "Đã cập nhật mật khẩu mới vào Google Sheets!", "success", 3500);
+      document.getElementById("modalResetTeacherPassword").style.display = "none";
+      await loadAdminTeachersList(true);
+    } else {
+      showToast("Lỗi đổi MK ❌", result.message || "Không thể đổi mật khẩu trên Google Sheets!", "error", 4000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối ❌", err.message || err.toString(), "error", 4000);
+  } finally {
+    btnSubmit.disabled = false;
+    btnSubmit.textContent = "Lưu Mật Khẩu Mới";
+  }
+}
+
+/**
+ * Xóa tài khoản Giáo viên khỏi DATA_GIAOVIEN
+ */
+window.deleteTeacherAccount = async function(cleanUser) {
+  if (cleanUser.toLowerCase() === "admin") {
+    showToast("Bảo vệ hệ thống", "Không thể xóa tài khoản Quản trị viên 'admin'!", "warning", 3500);
+    return;
+  }
+
+  const t = adminTeachersCache.find(item => String(item.username || "").replace(/^'+/, "") === cleanUser);
+  const teacherName = t ? (t.hoTenGV || cleanUser) : cleanUser;
+
+  const ok = confirm(`⚠️ Bạn có chắc chắn muốn XÓA Giáo viên "${teacherName}" (${cleanUser})?\n\nHành động này sẽ xóa vĩnh viễn dòng tương ứng trên Sheet DATA_GIAOVIEN.`);
+  if (!ok) return;
+
+  showToast("Đang xóa...", `Đang xóa giáo viên ${teacherName} khỏi Google Sheets...`, "info", 2000);
+
+  try {
+    const payload = {
+      action: "deleteTeacher",
+      username: cleanUser
+    };
+
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result && result.success) {
+      showToast("Đã xóa ✅", result.message || "Đã xóa giáo viên khỏi Google Sheets!", "success", 3500);
+      await loadAdminTeachersList(true);
+    } else {
+      showToast("Lỗi xóa ❌", result.message || "Không thể xóa giáo viên trên Google Sheets!", "error", 4000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối ❌", err.message || err.toString(), "error", 4000);
+  }
+};
+
+/**
+ * Mở modal thêm kết nối máy chủ GV vào HUB_SERVERS
+ */
+window.openAddHubServerModal = function() {
+  const modal = document.getElementById("modalAddEditHubServer");
+  if (!modal) return;
+
+  document.getElementById("modalAddEditHubTitle").textContent = "Thêm Kết Nối Máy Chủ GV";
+  document.getElementById("hubSelectTeacherQuick").value = "";
+  document.getElementById("hubInputMaGV").value = "";
+  document.getElementById("hubInputMaGV").disabled = false;
+  document.getElementById("hubInputHoTen").value = "";
+  document.getElementById("hubInputTruong").value = currentTeacher?.truong || "";
+  document.getElementById("hubInputServerUrl").value = "";
+  document.getElementById("hubInputTrangThai").value = "Hoạt động";
+  document.getElementById("btnSaveHubServerText").textContent = "Lưu Vào Sheet HUB_SERVERS";
+
+  modal.style.display = "flex";
+};
+
+/**
+ * Mở modal chỉnh sửa / thêm link URL cho GV trong HUB_SERVERS
+ */
+window.openEditHubServerModal = function(cleanMa) {
+  const modal = document.getElementById("modalAddEditHubServer");
+  if (!modal) return;
+
+  let s = adminHubServersCache.find(item => String(item.maGV || "").replace(/^'+/, "") === cleanMa);
+  if (!s) {
+    // Nếu chưa có trong HUB_SERVERS, tìm trong DATA_GIAOVIEN để nạp thông tin sẵn
+    const t = adminTeachersCache.find(item => String(item.username || "").replace(/^'+/, "") === cleanMa);
+    s = {
+      maGV: cleanMa,
+      hoTenGV: t ? t.hoTenGV : cleanMa,
+      truong: t ? t.truong : "",
+      serverUrl: "",
+      trangThai: "Hoạt động"
+    };
+  }
+
+  document.getElementById("modalAddEditHubTitle").textContent = `Cập Nhật Kết Nối: ${s.hoTenGV || cleanMa}`;
+  const select = document.getElementById("hubSelectTeacherQuick");
+  if (select) select.value = cleanMa;
+
+  document.getElementById("hubInputMaGV").value = cleanMa;
+  document.getElementById("hubInputMaGV").disabled = false;
+  document.getElementById("hubInputHoTen").value = s.hoTenGV || "";
+  document.getElementById("hubInputTruong").value = s.truong || "";
+  document.getElementById("hubInputServerUrl").value = s.serverUrl || "";
+  document.getElementById("hubInputTrangThai").value = s.trangThai || "Hoạt động";
+  document.getElementById("btnSaveHubServerText").textContent = "Lưu Vào Sheet HUB_SERVERS";
+
+  modal.style.display = "flex";
+};
+
+/**
+ * Lưu cấu hình kết nối vào Sheet HUB_SERVERS
+ */
+async function handleSaveHubServerSubmit() {
+  const maGV = document.getElementById("hubInputMaGV").value.trim();
+  const hoTen = document.getElementById("hubInputHoTen").value.trim();
+  const truong = document.getElementById("hubInputTruong").value.trim();
+  const serverUrl = document.getElementById("hubInputServerUrl").value.trim();
+  const trangThai = document.getElementById("hubInputTrangThai").value;
+  const btnSave = document.getElementById("btnSaveHubServer");
+  const btnText = document.getElementById("btnSaveHubServerText");
+
+  if (!maGV) {
+    showToast("Thiếu thông tin", "Mã Giáo viên không được để trống!", "warning", 3000);
+    return;
+  }
+
+  if (serverUrl && (!serverUrl.startsWith("https://script.google.com/macros/s/") || !serverUrl.includes("/exec"))) {
+    showToast("URL không hợp lệ", "Link Web App phải có dạng: https://script.google.com/macros/s/.../exec", "warning", 4000);
+    return;
+  }
+
+  btnSave.disabled = true;
+  btnText.textContent = "Đang lưu vào Sheet...";
+
+  try {
+    const payload = {
+      action: "saveHubServer",
+      maGV: maGV,
+      hoTenGV: hoTen,
+      truong: truong,
+      serverUrl: serverUrl,
+      trangThai: trangThai
+    };
+
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result && result.success) {
+      showToast("Đã lưu kết nối ✅", result.message || "Đã lưu vào sheet HUB_SERVERS thành công!", "success", 3500);
+      document.getElementById("modalAddEditHubServer").style.display = "none";
+      await loadAdminHubServersList(true);
+    } else {
+      showToast("Lỗi lưu HUB ❌", result.message || "Không thể lưu vào Google Sheets!", "error", 4000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối ❌", err.message || err.toString(), "error", 4000);
+  } finally {
+    btnSave.disabled = false;
+    btnText.textContent = "Lưu Vào Sheet HUB_SERVERS";
+  }
+}
+
+/**
+ * Xóa kết nối khỏi HUB_SERVERS
+ */
+window.deleteHubServer = async function(cleanMa) {
+  const s = adminHubServersCache.find(item => String(item.maGV || "").replace(/^'+/, "") === cleanMa);
+  const name = s ? (s.hoTenGV || cleanMa) : cleanMa;
+
+  const ok = confirm(`⚠️ Bạn có chắc chắn muốn xóa kết nối của Giáo viên "${name}" (${cleanMa}) khỏi Sheet HUB_SERVERS không?`);
+  if (!ok) return;
+
+  showToast("Đang xóa...", `Đang xóa kết nối của ${name} khỏi Sheet HUB_SERVERS...`, "info", 2000);
+
+  try {
+    const payload = {
+      action: "deleteHubServer",
+      maGV: cleanMa
+    };
+
+    const targetUrl = DEFAULT_GAS_API_URL;
+    const res = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result && result.success) {
+      showToast("Đã xóa ✅", result.message || "Đã xóa kết nối khỏi sheet HUB_SERVERS!", "success", 3500);
+      await loadAdminHubServersList(true);
+    } else {
+      showToast("Lỗi xóa HUB ❌", result.message || "Không thể xóa kết nối!", "error", 4000);
+    }
+  } catch (err) {
+    showToast("Lỗi kết nối ❌", err.message || err.toString(), "error", 4000);
+  }
+};
