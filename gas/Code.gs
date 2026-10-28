@@ -1898,9 +1898,10 @@ function isSameStudentAccount(acc1, acc2) {
   return false;
 }
 
-function isAdminAccount(username) {
-  var s = String(username || "").trim().toLowerCase();
-  if (!s) return false;
+var _adminAccountsCache = null;
+function getAdminAccountsMap() {
+  if (_adminAccountsCache) return _adminAccountsCache;
+  var map = {};
   try {
     const ss = getSpreadsheet();
     if (ss) {
@@ -1910,15 +1911,26 @@ function isAdminAccount(username) {
         if (gvCols.colRole >= 0) {
           const data = sheetGV.getDataRange().getValues();
           for (let i = 1; i < data.length; i++) {
-            if (isSameTeacherAccount(data[i][gvCols.colUser], s)) {
-              return (String(data[i][gvCols.colRole] || "").trim().toLowerCase() === "admin");
+            var u = String(data[i][gvCols.colUser] || "").trim().toLowerCase();
+            var r = String(data[i][gvCols.colRole] || "").trim().toLowerCase();
+            if (r === "admin") {
+              map[u] = true;
+              map[u.replace(/^0+/, "")] = true;
             }
           }
         }
       }
     }
   } catch (e) {}
-  return false;
+  _adminAccountsCache = map;
+  return map;
+}
+
+function isAdminAccount(username) {
+  var s = String(username || "").trim().toLowerCase();
+  if (!s) return false;
+  var map = getAdminAccountsMap();
+  return !!(map[s] || map[s.replace(/^0+/, "")]);
 }
 
 // Kiểm tra quyền xem dữ liệu của toàn bộ giáo viên (dành cho Ban Giám Hiệu 'admin' hoặc Quản trị viên Cột D là 'admin')
@@ -2045,6 +2057,7 @@ function handleGetTeacherExams(payload) {
   const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
+  const isAllGV = (!usernameGV || usernameGV === "all");
   const data = sheetDeThi.getDataRange().getValues();
   const exams = [];
 
@@ -2052,7 +2065,7 @@ function handleGetTeacherExams(payload) {
     const row = data[i];
     if (!row[0]) continue;
 
-    if (!usernameGV || canViewAllTeachersData(usernameGV) || isSameTeacherAccount(row[2], usernameGV)) {
+    if (isAllGV || isSameTeacherAccount(row[2], usernameGV)) {
       const cheDoXemText = String(row[cols.reviewCol] || "").trim();
       const cheDoXemDiemText = String(row[cols.scoreCol] || "").trim();
       const jsonRaw = row[cols.jsonCol];
@@ -2207,6 +2220,7 @@ function handleGetTeacherResults(payload) {
 
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
   const maDeFilter = String(payload.maDe || "").trim();
+  const isAllGV = (!usernameGV || usernameGV === "all");
 
   const data = sheetKetQua.getDataRange().getValues();
   const results = [];
@@ -2217,10 +2231,10 @@ function handleGetTeacherResults(payload) {
   // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const rowGV = String(row[8]).trim().toLowerCase();
-    const rowMaDe = String(row[7]).trim();
+    const rowGV = String(row[8] || "").trim().toLowerCase();
+    const rowMaDe = String(row[7] || "").trim();
 
-    if (!usernameGV || canViewAllTeachersData(usernameGV) || isSameTeacherAccount(rowGV, usernameGV)) {
+    if (isAllGV || isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -2291,7 +2305,7 @@ function handleGetStudentsForTeacher(payload) {
   }
 
   // Chuẩn hóa danh sách lớp được phép
-  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || canViewAllTeachersData(usernameGV);
+  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all";
   const allowedClasses = allowedClassesStr.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
 
   const dataHS = sheetHS.getDataRange().getValues();
