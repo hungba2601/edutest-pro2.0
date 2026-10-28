@@ -9485,48 +9485,27 @@ async function initAdminTeacherSelector() {
   function cleanTeacherDirectoryList(rawTeachers) {
     if (!Array.isArray(rawTeachers)) return [];
     const cleanKey = (s) => String(s || "").trim().toLowerCase().replace(/^0+/, "");
-    const mergedMap = new Map();
+    const seen = new Set();
+    const result = [];
 
     rawTeachers.forEach(t => {
       const rawCode = String(t.maGV || "").trim();
       if (!rawCode || rawCode.toLowerCase() === "admin") return;
       const ck = cleanKey(rawCode);
+      if (seen.has(ck)) return;
+      seen.add(ck);
 
-      if (!mergedMap.has(ck)) {
-        mergedMap.set(ck, {
-          maGV: rawCode,
-          hoTenGV: String(t.hoTenGV || "").trim(),
-          truong: String(t.truong || "").trim(),
-          serverUrl: String(t.serverUrl || "").trim(),
-          sheetUrl: String(t.sheetUrl || "").trim(),
-          trangThai: String(t.trangThai || "Hoạt động").trim()
-        });
-      } else {
-        const existing = mergedMap.get(ck);
-        if (rawCode.startsWith("0") && !existing.maGV.startsWith("0")) existing.maGV = rawCode;
-        if (t.hoTenGV && t.hoTenGV.length > existing.hoTenGV.length) existing.hoTenGV = String(t.hoTenGV).trim();
-        if (t.serverUrl && !existing.serverUrl) existing.serverUrl = String(t.serverUrl).trim();
-        if (t.sheetUrl && !existing.sheetUrl) existing.sheetUrl = String(t.sheetUrl).trim();
-        if (t.truong && !existing.truong) existing.truong = String(t.truong).trim();
-      }
+      result.push({
+        maGV: rawCode,
+        hoTenGV: String(t.hoTenGV || "").trim(),
+        truong: String(t.truong || "").trim(),
+        serverUrl: String(t.serverUrl || "").trim(),
+        sheetUrl: String(t.sheetUrl || "").trim(),
+        trangThai: String(t.trangThai || "Hoạt động").trim()
+      });
     });
 
-    // Ưu tiên thứ tự của các tài khoản theo đúng sheet DATA_GIAOVIEN (mã có số 0 ở đầu)
-    const zeroKeys = [];
-    rawTeachers.forEach(t => {
-      const rawCode = String(t.maGV || "").trim();
-      if (rawCode.startsWith("0")) {
-        const ck = cleanKey(rawCode);
-        if (!zeroKeys.includes(ck) && mergedMap.has(ck)) zeroKeys.push(ck);
-      }
-    });
-
-    const finalKeys = [...zeroKeys];
-    mergedMap.forEach((_, ck) => {
-      if (!finalKeys.includes(ck)) finalKeys.push(ck);
-    });
-
-    return finalKeys.map(ck => mergedMap.get(ck)).filter(Boolean);
+    return result;
   }
 
   async function fetchTeachers() {

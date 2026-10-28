@@ -1383,6 +1383,10 @@ function handleSyncTeacherAndStudentsToHub(payload) {
 /**
  * LẤY DANH BẠ GIÁO VIÊN TRÊN TRẠM TRUNG TÂM
  */
+/**
+ * Lấy danh bạ Máy chủ các Giáo viên (Trạm Trung Tâm HUB)
+ * Ưu tiên đúng thứ tự các dòng trong sheet HUB_SERVERS
+ */
 function handleGetTeacherHubDirectory() {
   try {
     const ss = getSpreadsheet();
@@ -1394,103 +1398,99 @@ function handleGetTeacherHubDirectory() {
       return String(str || "").trim().toLowerCase().replace(/^0+/, "");
     };
 
-    // 1. Quét danh sách máy chủ & liên kết từ HUB_SERVERS
-    const hubMap = {};
-    if (sheetHubServers) {
-      const data = sheetHubServers.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        const rawMaGV = String(data[i][0] || "").trim();
-        if (!rawMaGV || rawMaGV.toLowerCase() === "admin") continue;
-        const ck = cleanKey(rawMaGV);
-        const rk = rawMaGV.toLowerCase();
-
-        let sUrl = String(data[i][3] || "").trim();
-        let sheetUrl = "";
-        for (let col = 0; col < data[i].length; col++) {
-          const val = String(data[i][col] || "").trim();
-          if (val.includes("docs.google.com/spreadsheets/")) {
-            sheetUrl = val;
-            break;
-          }
-        }
-
+    // 1. Quét thông tin bổ sung từ DATA_GIAOVIEN (họ tên, quyền, trường)
+    const gvMap = {};
+    if (sheetGV) {
+      const gvCols = getGiaoVienColMap(sheetGV);
+      const gvData = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < gvData.length; i++) {
+        const rawUser = String(gvData[i][gvCols.colUser] || "").trim();
+        if (!rawUser) continue;
+        const ck = cleanKey(rawUser);
+        const rk = rawUser.toLowerCase();
         const info = {
-          maGV: rawMaGV,
-          hoTenGV: String(data[i][1] || "").trim(),
-          truong: String(data[i][2] || "").trim(),
-          serverUrl: sUrl,
-          sheetUrl: sheetUrl,
-          trangThai: String(data[i][4] || "Hoạt động")
+          rawMaGV: rawUser,
+          hoTenGV: String(gvData[i][gvCols.colName] || "").trim(),
+          quyen: gvCols.colRole >= 0 ? String(gvData[i][gvCols.colRole] || "").trim() : "gv",
+          truong: String(gvData[i][gvCols.colSchool] || "").trim()
         };
-
-        if (!hubMap[ck]) hubMap[ck] = info;
-        if (!hubMap[rk]) hubMap[rk] = info;
+        if (!gvMap[ck]) gvMap[ck] = info;
+        if (!gvMap[rk]) gvMap[rk] = info;
       }
     }
 
     const teacherList = [];
     const seen = {};
 
-    // 2. DUYỆT THEO THỨ TỰ CHÍNH XÁC CỦA SHEET DATA_GIAOVIEN (Ưu tiên hàng đầu)
-    if (sheetGV) {
-      const gvCols = getGiaoVienColMap(sheetGV);
-      const gvData = sheetGV.getDataRange().getValues();
-      for (let i = 1; i < gvData.length; i++) {
-        const rawMaGV = String(gvData[i][gvCols.colUser] || "").trim();
-        const roleCol = gvCols.colRole >= 0 ? String(gvData[i][gvCols.colRole] || "").trim() : "";
-        if (!rawMaGV || rawMaGV.toLowerCase() === "admin" || roleCol.toLowerCase() === "admin") continue;
-
-        const ck = cleanKey(rawMaGV);
-        const rk = rawMaGV.toLowerCase();
-        if (seen[ck] || seen[rk]) continue; // Chống lặp tuyệt đối
-        seen[ck] = true;
-        seen[rk] = true;
-
-        const hubInfo = hubMap[ck] || hubMap[rk] || {};
-
-        let sheetUrl = hubInfo.sheetUrl || "";
-        if (!sheetUrl) {
-          for (let col = 0; col < gvData[i].length; col++) {
-            const val = String(gvData[i][col] || "").trim();
-            if (val.includes("docs.google.com/spreadsheets/")) {
-              sheetUrl = val;
-              break;
-            }
-          }
-        }
-
-        teacherList.push({
-          maGV: rawMaGV, // Giữ nguyên mã số có số 0 gốc trong DATA_GIAOVIEN (VD: 0938750424)
-          hoTenGV: String(gvData[i][gvCols.colName] || hubInfo.hoTenGV || rawMaGV).trim(),
-          quyen: roleCol || "gv",
-          truong: String(gvData[i][gvCols.colSchool] || hubInfo.truong || "").trim(),
-          serverUrl: hubInfo.serverUrl || "",
-          sheetUrl: sheetUrl,
-          trangThai: hubInfo.trangThai || "Hoạt động"
-        });
-      }
-    }
-
-    // 3. Nếu trong HUB_SERVERS có GV chưa nằm trong DATA_GIAOVIEN thì đưa tiếp vào cuối
+    // 2. DUYỆT THEO THỨ TỰ CHÍNH XÁC CỦA SHEET HUB_SERVERS (DANH BẠ MÁY CHỦ GIÁO VIÊN)
     if (sheetHubServers) {
-      const data = sheetHubServers.getDataRange().getValues();
-      for (let i = 1; i < data.length; i++) {
-        const rawMaGV = String(data[i][0] || "").trim();
+      const hubData = sheetHubServers.getDataRange().getValues();
+      for (let i = 1; i < hubData.length; i++) {
+        const rawMaGV = String(hubData[i][0] || "").trim();
+        // Chỉ bỏ qua tài khoản admin BGH, TUYỆT ĐỐI không bỏ qua giáo viên có quyền admin (như 0938750424)
         if (!rawMaGV || rawMaGV.toLowerCase() === "admin") continue;
+
         const ck = cleanKey(rawMaGV);
         const rk = rawMaGV.toLowerCase();
         if (seen[ck] || seen[rk]) continue;
         seen[ck] = true;
         seen[rk] = true;
 
-        const hubInfo = hubMap[ck] || hubMap[rk] || {};
+        const gvInfo = gvMap[ck] || gvMap[rk] || {};
+
+        let sUrl = String(hubData[i][3] || "").trim();
+        let sheetUrl = "";
+        for (let col = 0; col < hubData[i].length; col++) {
+          const val = String(hubData[i][col] || "").trim();
+          if (val.includes("docs.google.com/spreadsheets/")) {
+            sheetUrl = val;
+            break;
+          }
+        }
+
         teacherList.push({
           maGV: rawMaGV,
-          hoTenGV: hubInfo.hoTenGV || rawMaGV,
-          truong: hubInfo.truong || "",
-          serverUrl: hubInfo.serverUrl || "",
-          sheetUrl: hubInfo.sheetUrl || "",
-          trangThai: hubInfo.trangThai || "Hoạt động"
+          hoTenGV: String(hubData[i][1] || gvInfo.hoTenGV || rawMaGV).trim(),
+          quyen: gvInfo.quyen || "gv",
+          truong: String(hubData[i][2] || gvInfo.truong || "").trim(),
+          serverUrl: sUrl,
+          sheetUrl: sheetUrl,
+          trangThai: String(hubData[i][4] || "Hoạt động").trim()
+        });
+      }
+    }
+
+    // 3. Nếu trong DATA_GIAOVIEN có GV chưa nằm trong HUB_SERVERS thì đưa tiếp vào
+    if (sheetGV) {
+      const gvCols = getGiaoVienColMap(sheetGV);
+      const gvData = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < gvData.length; i++) {
+        const rawMaGV = String(gvData[i][gvCols.colUser] || "").trim();
+        if (!rawMaGV || rawMaGV.toLowerCase() === "admin") continue;
+
+        const ck = cleanKey(rawMaGV);
+        const rk = rawMaGV.toLowerCase();
+        if (seen[ck] || seen[rk]) continue;
+        seen[ck] = true;
+        seen[rk] = true;
+
+        let sheetUrl = "";
+        for (let col = 0; col < gvData[i].length; col++) {
+          const val = String(gvData[i][col] || "").trim();
+          if (val.includes("docs.google.com/spreadsheets/")) {
+            sheetUrl = val;
+            break;
+          }
+        }
+
+        teacherList.push({
+          maGV: rawMaGV,
+          hoTenGV: String(gvData[i][gvCols.colName] || rawMaGV).trim(),
+          quyen: gvCols.colRole >= 0 ? String(gvData[i][gvCols.colRole] || "").trim() : "gv",
+          truong: String(gvData[i][gvCols.colSchool] || "").trim(),
+          serverUrl: "",
+          sheetUrl: sheetUrl,
+          trangThai: "Hoạt động"
         });
       }
     }
