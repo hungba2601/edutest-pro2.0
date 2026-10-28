@@ -18,7 +18,7 @@
 // ============================================================================
 // CẤU HÌNH LIÊN KẾT BẢNG TÍNH GOOGLE SHEETS
 // Dán link Google Sheets của bạn vào đây (nếu để trống, code sẽ tự dùng Sheet đang mở)
-const SPREADSHEET_URL = ""; 
+const SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1MCOXMDiLbh_Nifk1RxkI0jk8YIJ0hHndvz2dp7Ip5Y/edit"; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2, 2.3,...)
 const CURRENT_BACKEND_VERSION = "2.3";
@@ -38,10 +38,40 @@ const SHEETS = {
  * Hàm lấy đối tượng Spreadsheet linh hoạt (hỗ trợ cả URL hoặc Sheet hiện hành)
  */
 function getSpreadsheet() {
-  if (SPREADSHEET_URL && SPREADSHEET_URL.trim() !== "") {
-    return SpreadsheetApp.openByUrl(SPREADSHEET_URL.trim());
+  try {
+    if (SPREADSHEET_URL && SPREADSHEET_URL.trim() !== "") {
+      return SpreadsheetApp.openByUrl(SPREADSHEET_URL.trim());
+    }
+  } catch (eUrl) {
+    Logger.log("Lỗi openByUrl, chuyển sang getActiveSpreadsheet: " + eUrl);
   }
-  return SpreadsheetApp.getActiveSpreadsheet();
+  try {
+    return SpreadsheetApp.getActiveSpreadsheet();
+  } catch (eActive) {
+    Logger.log("Lỗi getActiveSpreadsheet: " + eActive);
+  }
+  return null;
+}
+
+/**
+ * ============================================================================
+ * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG THÊM CỘT D (QUYỀN) VÀO SHEET DATA_GIAOVIEN
+ * Chọn hàm 'chayThemCotQuyenChoGiaoVien' trong menu dropdown rồi bấm 'Chạy' (Run)
+ * ============================================================================
+ */
+function chayThemCotQuyenChoGiaoVien() {
+  const ss = getSpreadsheet();
+  if (!ss) {
+    Logger.log("❌ Không thể kết nối Bảng tính Google Sheets. Vui lòng kiểm tra lại SPREADSHEET_URL!");
+    return;
+  }
+  let sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+  if (!sheetGV) {
+    Logger.log("❌ Không tìm thấy Sheet DATA_GIAOVIEN!");
+    return;
+  }
+  ensureGiaoVienSheetColumns(sheetGV);
+  Logger.log("🎉 Hoàn tất quá trình thêm Cột D (Quyền) vào Sheet DATA_GIAOVIEN!");
 }
 
 /**
@@ -366,7 +396,16 @@ function getCentralBackendVersion(sheetGV) {
  */
 function ensureGiaoVienSheetColumns(sheetGV) {
   try {
-    if (!sheetGV) return 6;
+    if (!sheetGV) {
+      const ss = getSpreadsheet();
+      if (ss) {
+        sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+      }
+    }
+    if (!sheetGV) {
+      Logger.log("❌ Không tìm thấy Sheet DATA_GIAOVIEN!");
+      return 6;
+    }
     let lastCol = Math.max(sheetGV.getLastColumn(), 5);
     let headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 10)).getValues()[0];
 
@@ -399,6 +438,9 @@ function ensureGiaoVienSheetColumns(sheetGV) {
           if (!oldVal) roleCell.setValue("gv");
         }
       }
+      Logger.log("✅ ĐÃ CHÈN THÀNH CÔNG CỘT D (QUYỀN) VÀ ĐẨY CÁC CỘT SANG PHẢI 1 CỘT!");
+    } else {
+      Logger.log("ℹ️ Cột Quyền đã có sẵn tại cột số " + (roleColIdx + 1));
     }
 
     // Đọc lại header sau khi đảm bảo có cột D
