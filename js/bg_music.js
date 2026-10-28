@@ -2,7 +2,7 @@
  * ============================================================================
  * BACKGROUND MUSIC SYSTEM - EDUTEST PRO 2.0
  * Icon Cái Loa Nhỏ Phía Trên Bên Phải (Gọn gàng & Hiện Popup Đầy Đủ Tính Năng)
- * Tự động phát nhạc nhẹ 30% khi đã đăng nhập (Giáo viên & Học sinh)
+ * Tự động phát nhạc nhẹ 30% khi đã đăng nhập (Admin, Giáo viên & Học sinh)
  * Danh sách phát ngẫu nhiên: "Love Story" & "Sealed With a Kiss"
  * ============================================================================
  */
@@ -44,13 +44,24 @@
   }
 
   /**
-   * Kiểm tra phiên đăng nhập hợp lệ
+   * Kiểm tra phiên đăng nhập hợp lệ (Admin, Giáo viên & Học sinh)
    */
   function isUserLoggedIn() {
     try {
-      const user = localStorage.getItem("currentUser");
-      const role = localStorage.getItem("userRole");
-      return !!(user && (role === "GV" || role === "HS"));
+      const rawUser = localStorage.getItem("currentUser");
+      if (!rawUser) return false;
+      const role = (localStorage.getItem("userRole") || "").toUpperCase();
+      if (role === "GV" || role === "HS" || role === "ADMIN") {
+        return true;
+      }
+      try {
+        const userObj = JSON.parse(rawUser);
+        const username = String(userObj?.username || userObj?.maGV || userObj?.maHS || userObj?.taiKhoan || "").toLowerCase().trim();
+        if (username === "admin" || userObj?.isAdmin || userObj?.role === "ADMIN") {
+          return true;
+        }
+      } catch (e) {}
+      return false;
     } catch (e) {
       return false;
     }
@@ -587,15 +598,17 @@
    * Tự động tắt nhạc khi người dùng bấm Đăng xuất
    */
   function hookLogout() {
-    const btnLogout = document.getElementById("btnLogout");
-    if (btnLogout) {
-      btnLogout.addEventListener("click", () => {
-        if (bgAudio) {
-          bgAudio.pause();
-          bgAudio.currentTime = 0;
-        }
+    const logoutSelectors = ["#btnLogout", "#btnLogoutDropdown", ".btn-logout"];
+    logoutSelectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (bgAudio) {
+            bgAudio.pause();
+            bgAudio.currentTime = 0;
+          }
+        });
       });
-    }
+    });
   }
 
   /**
