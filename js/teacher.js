@@ -6110,8 +6110,12 @@ function renderResultsTable(results, keepPage = false) {
 
         if (res && res.success) {
           showToast("Đã xóa bài làm", `Đã xóa kết quả thi của học sinh ${item.hoTen}!`, "success", 2500);
+        } else if (res && (res.message || "").includes("Không tìm thấy")) {
+          // Nếu máy chủ báo không tìm thấy (do đã được xóa trước đó hoặc không còn trên Sheet):
+          // Giữ nguyên giao diện đã xóa, không khôi phục lại điểm cũ
+          showToast("Đã xóa bài làm", `Bản ghi của học sinh ${item.hoTen} đã được xóa sạch khỏi Google Sheets!`, "info", 3000);
         } else {
-          // Khôi phục lại nếu máy chủ báo lỗi
+          // Khôi phục lại nếu máy chủ báo lỗi khác
           currentRawResultsList = prevRawList;
           currentResultsList = prevRawList;
           applyResultsFiltersAndRender();

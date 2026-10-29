@@ -3290,15 +3290,36 @@ function handleDeleteStudentResult(payload) {
       const rowThoiGianNop = formatDateValue(row[11]);
 
       const isMatchHS = rowHS.toUpperCase() === usernameHS.toUpperCase();
-      const isMatchMaDe = rowMaDe === maDe;
+      const isMatchMaDe = !maDe || rowMaDe.toUpperCase() === maDe.toUpperCase();
       const cleanGv = s => String(s || "").trim().toLowerCase().replace(/^0+/, "");
-      const isMatchGV = !usernameGV || rowGV === usernameGV || cleanGv(rowGV) === cleanGv(usernameGV);
+      const isMatchGV = !usernameGV || usernameGV === "all" || rowGV === usernameGV || cleanGv(rowGV) === cleanGv(usernameGV);
       const isMatchTime = !thoiGianNop || rowThoiGianNop === thoiGianNop || String(row[11]).includes(thoiGianNop);
 
       if (isMatchHS && isMatchMaDe && isMatchGV && isMatchTime) {
         sheetKetQua.deleteRow(i + 1);
         deletedFromKetQua = true;
         break; // Xóa 1 lần nộp bài cụ thể
+      }
+    }
+
+    // Nếu chưa tìm thấy với isMatchTime khắt khe, thử nới lỏng bỏ qua isMatchTime (vì 1 HS thường chỉ nộp 1 lần trong 1 đề thi)
+    if (!deletedFromKetQua) {
+      for (let i = dataKetQua.length - 1; i >= 1; i--) {
+        const row = dataKetQua[i];
+        const rowHS = String(row[0] || "").trim();
+        const rowMaDe = String(row[7] || "").trim();
+        const rowGV = String(row[8] || "").trim().toLowerCase();
+        const cleanGv = s => String(s || "").trim().toLowerCase().replace(/^0+/, "");
+
+        const isMatchHS = rowHS.toUpperCase() === usernameHS.toUpperCase();
+        const isMatchMaDe = !maDe || rowMaDe.toUpperCase() === maDe.toUpperCase();
+        const isMatchGV = !usernameGV || usernameGV === "all" || rowGV === usernameGV || cleanGv(rowGV) === cleanGv(usernameGV);
+
+        if (isMatchHS && isMatchMaDe && isMatchGV) {
+          sheetKetQua.deleteRow(i + 1);
+          deletedFromKetQua = true;
+          break;
+        }
       }
     }
 
@@ -3313,7 +3334,7 @@ function handleDeleteStudentResult(payload) {
         const rowThoiGianNop = formatDateValue(row[9]);
 
         const isMatchHS = rowHS.toUpperCase() === usernameHS.toUpperCase();
-        const isMatchMaDe = rowMaDe === maDe;
+        const isMatchMaDe = !maDe || rowMaDe.toUpperCase() === maDe.toUpperCase();
         const isMatchTime = !thoiGianNop || rowThoiGianNop === thoiGianNop || String(row[9]).includes(thoiGianNop);
 
         if (isMatchHS && isMatchMaDe && isMatchTime) {
@@ -3331,9 +3352,14 @@ function handleDeleteStudentResult(payload) {
         maDe: maDe
       });
     } else {
+      // Nếu trên Google Sheets không còn bản ghi (đã bị xóa từ trước hoặc không tồn tại),
+      // thì mục tiêu xóa đã hoàn tất, trả về success: true để giao diện đồng bộ sạch
       return createJsonResponse({
-        success: false,
-        message: "Không tìm thấy bản ghi kết quả phù hợp trên Google Sheets để xóa!"
+        success: true,
+        alreadyDeleted: true,
+        message: "Bản ghi kết quả của học sinh đã được xóa / không còn trên Google Sheets!",
+        usernameHS: usernameHS,
+        maDe: maDe
       });
     }
   } catch (err) {
