@@ -13,7 +13,7 @@
   
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.3">
-  <link rel="stylesheet" href="css/student.css?v=3.8">
+  <link rel="stylesheet" href="css/student.css?v=3.9">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -516,14 +516,14 @@
   </div>
 
   <!-- ====================================================================
-       MODAL 1: XÁC NHẬN VÀO THI CHÍNH THỨC & BẬT TOÀN MÀN HÌNH
+       MODAL 1: HƯỚNG DẪN & XÁC NHẬN VÀO PHÒNG THI (BẬT TOÀN MÀN HÌNH)
        ==================================================================== -->
   <div class="modal-backdrop-custom" id="modalConfirmStartExam" style="display: none;">
     <div class="modal-card-proctoring">
       <div class="proctoring-modal-banner">
-        <div class="proctoring-modal-badge-icon">🛡️</div>
+        <div class="proctoring-modal-badge-icon">📝</div>
         <div class="proctoring-modal-header-info">
-          <span class="proctoring-modal-supertitle">QUY CHẾ PHÒNG THI CHÍNH THỨC</span>
+          <span class="proctoring-modal-supertitle">HƯỚNG DẪN &amp; QUY CHẾ PHÒNG THI</span>
           <h3 class="proctoring-modal-title" id="startExamModalTitle">Kỳ Kiểm Tra Trực Tuyến</h3>
         </div>
       </div>
@@ -535,40 +535,40 @@
             <strong class="meta-value" id="startExamModalDuration">45 phút</strong>
           </div>
           <div class="proctoring-meta-item">
-            <span class="meta-label">Số câu trắc nghiệm:</span>
+            <span class="meta-label">Số câu hỏi:</span>
             <strong class="meta-value" id="startExamModalQuestions">-- câu</strong>
           </div>
           <div class="proctoring-meta-item">
-            <span class="meta-label">Chế độ làm bài:</span>
-            <strong class="meta-value text-danger">Thi chính thức (1 lần)</strong>
+            <span class="meta-label">Hình thức bài thi:</span>
+            <strong class="meta-value text-primary-theme">Thi chính thức (1 lần)</strong>
           </div>
           <div class="proctoring-meta-item">
-            <span class="meta-label">Giới hạn vi phạm:</span>
-            <strong class="meta-value text-danger"><span id="startExamAllowedViolations">5</span> lần cảnh báo</strong>
+            <span class="meta-label">Chế độ giám sát:</span>
+            <strong class="meta-value text-primary-theme">Toàn màn hình (<span id="startExamAllowedViolations">5</span> lần nhắc)</strong>
           </div>
         </div>
 
         <div class="proctoring-rules-box">
           <h4 class="rules-box-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            QUY ĐỊNH GIÁM SÁT THI & CHỐNG GIAN LẬN:
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            LƯU Ý QUAN TRỌNG KHI BẮT ĐẦU LÀM BÀI:
           </h4>
           <ul class="rules-list">
-            <li>Khi bấm bắt đầu, bài thi sẽ <strong>tự động chuyển sang chế độ Toàn Màn Hình (Full Screen)</strong>.</li>
-            <li>Thí sinh <strong>không được thu nhỏ màn hình</strong>, không được mở tab khác hoặc chuyển sang ứng dụng khác để tra cứu.</li>
-            <li>Hệ thống cho phép cảnh báo tối đa <strong id="startExamRulesMax">5</strong> lần.</li>
-            <li><strong class="text-danger">ĐẶC BIỆT LƯU Ý:</strong> Nếu vi phạm đến lần thứ <strong id="startExamRulesNext" class="text-danger">6</strong>, hệ thống sẽ <strong>TỰ ĐỘNG THU VÀ NỘP BÀI THI NGAY LẬP TỨC</strong>!</li>
+            <li>Khi bấm nút bắt đầu, bài thi sẽ <strong>tự động chuyển sang chế độ Toàn Màn Hình (Full Screen)</strong> và tính giờ làm bài.</li>
+            <li>Thí sinh tập trung làm bài, <strong>không thu nhỏ màn hình</strong>, không mở tab khác hoặc chuyển ứng dụng ngoài.</li>
+            <li>Hệ thống cho phép nhắc nhở tối đa <strong id="startExamRulesMax">5</strong> lần nếu thí sinh vô tình rời màn hình.</li>
+            <li>Nếu vượt quá số lần nhắc nhở (đến lần thứ <strong id="startExamRulesNext">6</strong>), hệ thống sẽ <strong>tự động thu và nộp bài thi</strong> để đảm bảo tính công bằng.</li>
           </ul>
         </div>
       </div>
 
       <div class="proctoring-modal-footer">
         <button type="button" class="btn-cancel-start-exam" id="btnCancelStartExam">
-          <span>Hủy Bỏ</span>
+          <span>Quay Lại</span>
         </button>
         <button type="button" class="btn-confirm-start-exam" id="btnConfirmStartExam">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-          <span>Tôi Đã Hiểu - Bật Toàn Màn Hình & Bắt Đầu Thi</span>
+          <span>Sẵn Sàng - Bật Toàn Màn Hình &amp; Bắt Đầu</span>
         </button>
       </div>
     </div>
