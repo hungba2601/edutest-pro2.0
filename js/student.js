@@ -797,6 +797,7 @@ let currentExamViolations = 0;
 let lastViolationTimestamp = 0;
 let isViolationModalShowing = false;
 let examPendingStart = null;
+let proctoringWatchdogTimer = null;
 
 // Kiểm tra toàn màn hình
 function isFullScreenActive() {
@@ -846,6 +847,15 @@ function handleFullscreenChange() {
   if (!isProctoringActive || isSubmittingExam) return;
   if (!isFullScreenActive()) {
     triggerExamViolation("Thoát chế độ toàn màn hình");
+  } else {
+    // Trình duyệt đang ở chế độ toàn màn hình hợp lệ
+    const modal = document.getElementById("modalExamViolation");
+    if (modal && isViolationModalShowing) {
+      modal.style.display = "none";
+      isViolationModalShowing = false;
+    }
+    // Đặt timestamp về 0 để nếu học sinh tiếp tục nhấn ESC sẽ lập tức bị bắt lỗi lần tiếp theo
+    lastViolationTimestamp = 0;
   }
 }
 
@@ -882,11 +892,34 @@ function startProctoringListeners(maxAllowed) {
   document.addEventListener("MSFullscreenChange", handleFullscreenChange);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("blur", handleWindowBlur);
+
+  // WATCHDOG TIMER: Giám sát liên tục mỗi 800ms
+  // Đảm bảo học sinh KHÔNG THỂ ở chế độ thu nhỏ mà không bị bắt lỗi
+  if (proctoringWatchdogTimer) clearInterval(proctoringWatchdogTimer);
+  proctoringWatchdogTimer = setInterval(() => {
+    if (!isProctoringActive || isSubmittingExam) {
+      clearInterval(proctoringWatchdogTimer);
+      proctoringWatchdogTimer = null;
+      return;
+    }
+    // Nếu học sinh đang không ở toàn màn hình
+    if (!isFullScreenActive()) {
+      // Nếu modal cảnh báo chưa hiển thị -> Kích hoạt bắt lỗi ngay!
+      if (!isViolationModalShowing) {
+        triggerExamViolation("Thoát chế độ toàn màn hình");
+      }
+    }
+  }, 800);
 }
 
 function stopProctoringListeners() {
   isProctoringActive = false;
   isViolationModalShowing = false;
+
+  if (proctoringWatchdogTimer) {
+    clearInterval(proctoringWatchdogTimer);
+    proctoringWatchdogTimer = null;
+  }
 
   const proctoringTag = document.getElementById("examProctoringTag");
   if (proctoringTag) proctoringTag.style.display = "none";
@@ -909,8 +942,16 @@ function triggerExamViolation(reasonText = "Thoát toàn màn hình / Chuyển t
   if (isViolationModalShowing) return;
 
   const now = Date.now();
-  // Debounce 1.5s tránh kích hoạt đúp nhiều sự kiện cùng lúc
-  if (now - lastViolationTimestamp < 1500) return;
+  // Debounce 1.0s chỉ để tránh trùng lặp giữa 3 sự kiện đồng thời (blur + visibility + fullscreen)
+  if (lastViolationTimestamp > 0 && (now - lastViolationTimestamp < 1000)) {
+    // Đang trong nhịp debounce sự kiện đồng thời: đảm bảo modal vi phạm vẫn bật để khóa màn hình
+    const modal = document.getElementById("modalExamViolation");
+    if (modal && !isFullScreenActive()) {
+      isViolationModalShowing = true;
+      modal.style.display = "flex";
+    }
+    return;
+  }
   lastViolationTimestamp = now;
 
   currentExamViolations++;
@@ -919,7 +960,7 @@ function triggerExamViolation(reasonText = "Thoát toàn màn hình / Chuyển t
   const countSpan = document.getElementById("proctoringViolationCount");
   if (countSpan) countSpan.textContent = currentExamViolations;
 
-  // KIỂM TRA: NẾU VƯỢT QUÁ SỐ LẦN CHO PHÉP (Ví dụ cấu hình 5, lần thứ 6 vi phạm) -> TỰ ĐỘNG NỘP BÀI!
+  // KIỂM TRA: NẾU VƯỢT QUÁ SỐ LẦN CHO PHÉP (Ví dụ cấu hình 4, lần thứ 5 vi phạm) -> TỰ ĐỘNG NỘP BÀI!
   if (currentExamViolations > currentExamMaxViolations) {
     stopProctoringListeners();
     alert(`🚨 BẠN ĐÃ VI PHẠM QUY CHẾ THI QUÁ ${currentExamMaxViolations} LẦN CHO PHÉP!\n\n• Hành vi: ${reasonText}.\n• Số lần vi phạm: ${currentExamViolations}/${currentExamMaxViolations} lần.\n\nHệ thống ĐÃ TỰ ĐỘNG THU VÀ NỘP BÀI THI CỦA BẠN NGAY LẬP TỨC!`);
@@ -964,10 +1005,24 @@ function triggerExamViolation(reasonText = "Thoát toàn màn hình / Chuyển t
 // Học sinh bấm nút quay lại toàn màn hình từ modal vi phạm
 function resumeExamFromViolation() {
   const modal = document.getElementById("modalExamViolation");
-  if (modal) modal.style.display = "none";
-  isViolationModalShowing = false;
-  lastViolationTimestamp = Date.now();
+  // Gọi bật toàn màn hình trực tiếp từ click người dùng
   enterFullScreen();
+
+  // Kiểm tra sau khi bật toàn màn hình
+  setTimeout(() => {
+    if (isFullScreenActive()) {
+      if (modal) modal.style.display = "none";
+      isViolationModalShowing = false;
+      // QUAN TRỌNG: Đặt timestamp về 0 để nếu học sinh tiếp tục nhấn ESC (lần 2, 3...)
+      // thì hệ thống sẽ lập tức nhận diện là lần vi phạm mới, không bị debounce nuốt mất!
+      lastViolationTimestamp = 0;
+    } else {
+      // Nếu chưa bật được toàn màn hình, tiếp tục gọi lại và giữ nguyên modal để khóa màn hình
+      enterFullScreen();
+      if (modal) modal.style.display = "flex";
+      isViolationModalShowing = true;
+    }
+  }, 250);
 }
 
 // Mở modal xác nhận vào thi chính thức (Yêu cầu toàn màn hình)
