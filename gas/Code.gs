@@ -3467,13 +3467,41 @@ function handleAddStudent(payload) {
     }
 
     // Thêm dòng mới: [Tài khoản HS, Mật khẩu, Lớp, Họ tên, Ngày sinh, Giới tính, Trường]
+    const sttTrongLop = parseInt(payload.sttTrongLop || 0, 10) || 0;
     const lopToSave = lop.includes("/") ? "'" + lop : lop;
     const newRow = [username, password, lopToSave, hoTen, ngaySinh, gioiTinh, truong];
-    sheetHS.appendRow(newRow);
+
+    // Thu thập tất cả các dòng của lớp này trên Sheet (1-based index)
+    const classRows = [];
+    for (let i = 1; i < dataHS.length; i++) {
+      const rowClass = formatClassValue(dataHS[i][2] || "").trim().toUpperCase();
+      if (rowClass === lop) {
+        classRows.push(i + 1);
+      }
+    }
+
+    if (classRows.length === 0) {
+      // Lớp chưa có trên Sheet: thêm vào cuối bảng
+      sheetHS.appendRow(newRow);
+    } else if (sttTrongLop > 0 && sttTrongLop <= classRows.length) {
+      // Chèn đúng vị trí STT được chỉ định (trước học sinh hiện tại của vị trí đó)
+      const targetRow = classRows[sttTrongLop - 1];
+      sheetHS.insertRowBefore(targetRow);
+      sheetHS.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+    } else {
+      // Không nhập STT hoặc STT lớn hơn sĩ số: chèn ngay sau học sinh cuối cùng của lớp
+      const lastRowOfClass = classRows[classRows.length - 1];
+      sheetHS.insertRowAfter(lastRowOfClass);
+      sheetHS.getRange(lastRowOfClass + 1, 1, 1, newRow.length).setValues([newRow]);
+    }
+
+    const positionMsg = sttTrongLop > 0
+      ? (" (STT " + sttTrongLop + " lớp " + lop + ")")
+      : (" (cuối danh sách lớp " + lop + ")");
 
     return createJsonResponse({
       success: true,
-      message: "Đã thêm mới học sinh \"" + hoTen + "\" (" + username + ") vào Google Sheets thành công!",
+      message: "Đã thêm mới học sinh \"" + hoTen + "\" (" + username + ")" + positionMsg + " vào Google Sheets thành công!",
       student: {
         username: username,
         password: password,
@@ -3481,7 +3509,8 @@ function handleAddStudent(payload) {
         hoTen: hoTen,
         ngaySinh: ngaySinh,
         gioiTinh: gioiTinh,
-        truong: truong
+        truong: truong,
+        sttTrongLop: sttTrongLop
       }
     });
   } catch (err) {

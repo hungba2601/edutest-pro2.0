@@ -8328,6 +8328,7 @@ function initAddStudentModal() {
 
   const inpName = document.getElementById("inputAddStudentFullName");
   const inpClass = document.getElementById("inputAddStudentClass");
+  const inpOrder = document.getElementById("inputAddStudentOrder");
   const selGender = document.getElementById("selectAddStudentGender");
   const inpUser = document.getElementById("inputAddStudentUsername");
   const inpPass = document.getElementById("inputAddStudentPassword");
@@ -8336,6 +8337,13 @@ function initAddStudentModal() {
   const alertBox = document.getElementById("addStudentAlertBox");
   const spinner = document.getElementById("addStudentSpinner");
   const btnText = document.getElementById("btnConfirmAddStudentText");
+
+  function updateOrderPlaceholder() {
+    if (!inpOrder) return;
+    const currentClass = (inpClass ? inpClass.value : "").trim().toLowerCase();
+    const countInClass = (currentTeacherStudents || []).filter(s => (s.lop || "").trim().toLowerCase() === currentClass).length;
+    inpOrder.placeholder = countInClass > 0 ? "VD: " + (countInClass + 1) + " (để trống = cuối lớp)" : "VD: 1";
+  }
 
   function showAlert(msg) {
     if (alertBox) {
@@ -8372,6 +8380,11 @@ function initAddStudentModal() {
     if (inpDob) inpDob.value = "";
     if (inpSchool) inpSchool.value = (currentTeacher && currentTeacher.truong) ? currentTeacher.truong : "";
 
+    if (inpOrder) {
+      inpOrder.value = "";
+      updateOrderPlaceholder();
+    }
+
     // Tự động sinh mã học sinh mẫu
     generateAutoUsername();
 
@@ -8394,9 +8407,13 @@ function initAddStudentModal() {
 
   function generateAutoUsername() {
     const cls = (inpClass ? inpClass.value.trim().toLowerCase().replace(/[^a-z0-9]/g, "") : "") || "hs";
-    // Đếm số lượng học sinh lớp này đang có trong currentTeacherStudents
-    const countInClass = (currentTeacherStudents || []).filter(s => (s.lop || "").toLowerCase() === (inpClass ? inpClass.value : "").trim().toLowerCase()).length;
-    const nextNum = String(countInClass + 1).padStart(2, "0");
+    const specifiedOrder = inpOrder && inpOrder.value.trim() ? parseInt(inpOrder.value.trim(), 10) : 0;
+    let targetNum = specifiedOrder;
+    if (!targetNum || targetNum <= 0) {
+      const countInClass = (currentTeacherStudents || []).filter(s => (s.lop || "").toLowerCase() === (inpClass ? inpClass.value : "").trim().toLowerCase()).length;
+      targetNum = countInClass + 1;
+    }
+    const nextNum = String(targetNum).padStart(2, "0");
     const autoUser = cls + "_" + nextNum;
     if (inpUser) inpUser.value = autoUser;
   }
@@ -8409,8 +8426,20 @@ function initAddStudentModal() {
   }
 
   if (inpClass) {
+    inpClass.addEventListener("input", () => {
+      updateOrderPlaceholder();
+    });
     inpClass.addEventListener("blur", () => {
+      updateOrderPlaceholder();
       if (inpClass.value.trim() && (!inpUser.value || inpUser.value.startsWith("hs_") || inpUser.value.includes("_"))) {
+        generateAutoUsername();
+      }
+    });
+  }
+
+  if (inpOrder) {
+    inpOrder.addEventListener("change", () => {
+      if (inpOrder.value.trim() && (!inpUser.value || inpUser.value.includes("_"))) {
         generateAutoUsername();
       }
     });
@@ -8490,6 +8519,8 @@ function initAddStudentModal() {
       if (btnText) btnText.textContent = "Đang lưu lên Sheets...";
       if (spinner) spinner.style.display = "inline-block";
 
+      const sttTrongLop = inpOrder && inpOrder.value.trim() ? parseInt(inpOrder.value.trim(), 10) : 0;
+
       const payload = {
         action: "addStudent",
         username: username,
@@ -8498,7 +8529,8 @@ function initAddStudentModal() {
         hoTen: hoTen,
         ngaySinh: ngaySinh,
         gioiTinh: gioiTinh,
-        truong: truong
+        truong: truong,
+        sttTrongLop: sttTrongLop
       };
 
       try {
@@ -8525,6 +8557,7 @@ function initAddStudentModal() {
             "&ngaySinh=" + encodeURIComponent(ngaySinh) +
             "&gioiTinh=" + encodeURIComponent(gioiTinh) +
             "&truong=" + encodeURIComponent(truong) +
+            "&sttTrongLop=" + encodeURIComponent(sttTrongLop) +
             "&_t=" + Date.now();
           const getRes = await fetch(getUrl);
           const getTxt = await getRes.text();
@@ -8543,11 +8576,55 @@ function initAddStudentModal() {
             hoTen: hoTen,
             ngaySinh: ngaySinh,
             gioiTinh: gioiTinh,
-            truong: truong
+            truong: truong,
+            sttTrongLop: sttTrongLop
           };
 
-          // Thêm vào currentTeacherStudents
-          currentTeacherStudents.push(newStudentObj);
+          // Chèn vào currentTeacherStudents ở đúng vị trí theo danh sách lớp
+          if (sttTrongLop > 0) {
+            let classIdx = 0;
+            let insertPos = -1;
+            for (let i = 0; i < currentTeacherStudents.length; i++) {
+              if ((currentTeacherStudents[i].lop || "").trim().toUpperCase() === lop) {
+                classIdx++;
+                if (classIdx === sttTrongLop) {
+                  insertPos = i;
+                  break;
+                }
+              }
+            }
+            if (insertPos >= 0) {
+              currentTeacherStudents.splice(insertPos, 0, newStudentObj);
+            } else {
+              // Tìm bạn cuối cùng của lớp đó để chèn sau
+              let lastPos = -1;
+              for (let i = currentTeacherStudents.length - 1; i >= 0; i--) {
+                if ((currentTeacherStudents[i].lop || "").trim().toUpperCase() === lop) {
+                  lastPos = i;
+                  break;
+                }
+              }
+              if (lastPos >= 0) {
+                currentTeacherStudents.splice(lastPos + 1, 0, newStudentObj);
+              } else {
+                currentTeacherStudents.push(newStudentObj);
+              }
+            }
+          } else {
+            // Không nhập STT: chèn vào ngay sau bạn cuối cùng của lớp đó
+            let lastPos = -1;
+            for (let i = currentTeacherStudents.length - 1; i >= 0; i--) {
+              if ((currentTeacherStudents[i].lop || "").trim().toUpperCase() === lop) {
+                lastPos = i;
+                break;
+              }
+            }
+            if (lastPos >= 0) {
+              currentTeacherStudents.splice(lastPos + 1, 0, newStudentObj);
+            } else {
+              currentTeacherStudents.push(newStudentObj);
+            }
+          }
 
           // Cập nhật lại bộ nhớ đệm
           saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
