@@ -1067,22 +1067,12 @@ function handleGetStudentsForTeacher(payload) {
   }
 
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
-  let allowedClassesStr = "";
-
-  // 1. Tìm lớp giảng dạy của giáo viên
-  if (sheetGV) {
-    const dataGV = sheetGV.getDataRange().getValues();
-    for (let i = 1; i < dataGV.length; i++) {
-      if (String(dataGV[i][0]).trim().toLowerCase() === usernameGV) {
-        allowedClassesStr = String(dataGV[i][3] || "").trim();
-        break;
-      }
-    }
-  }
-
-  // Chuẩn hóa danh sách lớp được phép
-  const isAll = !allowedClassesStr || allowedClassesStr.toUpperCase().includes("ALL") || allowedClassesStr.toUpperCase().includes("TẤT CẢ") || !usernameGV || usernameGV === "all";
-  const allowedClasses = allowedClassesStr.split(/[,;\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+  
+  // Trên Sheet cá nhân của Giáo viên, toàn bộ học sinh trong Sheet DATA_HOCSINH đều thuộc quyền quản lý của Giáo viên
+  // Mặc định lấy toàn bộ học sinh để đồng bộ và quản lý đầy đủ, trừ khi payload yêu cầu lọc cụ thể theo 1 lớp
+  const targetClassFilter = payload && payload.lop ? String(payload.lop).trim().toUpperCase() : "";
+  const isAll = !targetClassFilter || targetClassFilter === "ALL" || targetClassFilter === "TẤT CẢ";
+  const allowedClasses = targetClassFilter ? [targetClassFilter] : [];
 
   const dataHS = sheetHS.getDataRange().getValues();
   const students = [];
