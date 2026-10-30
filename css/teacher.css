@@ -143,6 +143,22 @@ body {
   box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4) !important;
 }
 
+/* TAB 4: Quản lý giáo viên -> MÀU TÍM */
+#tabBtnAdminTeachers {
+  color: #7c3aed;
+}
+#tabBtnAdminTeachers:hover {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
+}
+#tabBtnAdminTeachers.active {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  border-color: #6d28d9 !important;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4) !important;
+}
+
 /* NAV USER */
 .nav-user {
   display: flex;
@@ -3038,6 +3054,11 @@ input:checked + .slider:before { transform: translateX(22px); }
     font-size: 0.72rem;
     font-weight: 700;
   }
+  #tabBtnAdminTeachers::after {
+    content: "Giáo Viên";
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
 
   /* Trạng thái tab đang chọn */
   #tabBtnCreate.active {
@@ -3057,6 +3078,12 @@ input:checked + .slider:before { transform: translateX(22px); }
     color: #15803d !important;
     border-color: #bbf7d0 !important;
     box-shadow: 0 2px 8px rgba(22, 163, 74, 0.16) !important;
+  }
+  #tabBtnAdminTeachers.active {
+    background: #f5f3ff !important;
+    color: #6d28d9 !important;
+    border-color: #ddd6fe !important;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.16) !important;
   }
   .nav-tab-btn.active svg {
     transform: scale(1.12) !important;
@@ -3527,7 +3554,8 @@ input:checked + .slider:before { transform: translateX(22px); }
   }
   #tabBtnCreate::after,
   #tabBtnResults::after,
-  #tabBtnStudents::after {
+  #tabBtnStudents::after,
+  #tabBtnAdminTeachers::after {
     font-size: 0.68rem !important;
   }
   .metrics-grid {
@@ -3782,9 +3810,9 @@ input:checked + .slider:before { transform: translateX(22px); }
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  color: #2563eb;
-  border: 1.5px solid #bfdbfe;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  color: #7c3aed;
+  border: 1.5px solid #ddd6fe;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3851,6 +3879,44 @@ input:checked + .slider:before { transform: translateX(22px); }
   background: #ffffff;
   color: #2563eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Tab con 1: Tài Khoản Giáo Viên (DATA_GIAOVIEN) -> MÀU XANH LÁ */
+#btnSubTabAdminTeachers {
+  color: #16a34a !important;
+  background: #f0fdf4 !important;
+  border: 1.5px solid #dcfce7 !important;
+  transition: all 0.2s ease;
+}
+#btnSubTabAdminTeachers:hover {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #bbf7d0 !important;
+}
+#btnSubTabAdminTeachers.active {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  color: #ffffff !important;
+  border-color: #15803d !important;
+  box-shadow: 0 3px 10px rgba(22, 163, 74, 0.35) !important;
+}
+
+/* Tab con 2: Quản Lý Kết Nối GV (HUB_SERVERS) -> MÀU CAM */
+#btnSubTabAdminHub {
+  color: #ea580c !important;
+  background: #fff7ed !important;
+  border: 1.5px solid #ffedd5 !important;
+  transition: all 0.2s ease;
+}
+#btnSubTabAdminHub:hover {
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+  border-color: #fed7aa !important;
+}
+#btnSubTabAdminHub.active {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+  color: #ffffff !important;
+  border-color: #c2410c !important;
+  box-shadow: 0 3px 10px rgba(234, 88, 12, 0.35) !important;
 }
 
 /* Statistics Grid */
