@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=8.7">
+  <link rel="stylesheet" href="css/teacher.css?v=8.8">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -731,8 +731,18 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
             </div>
           </div>
 
-          <!-- CỘT PHẢI: KHOẢNG CÂN BẰNG ĐỂ CỘT GIỮA LUÔN NẰM CHÍNH TÂM 100% -->
-          <div style="display: flex; justify-content: flex-end; flex: 1; min-width: 0;"></div>
+          <!-- CỘT PHẢI: NÚT LÀM MỚI DANH SÁCH HIỆN TẠI -->
+          <div style="display: flex; justify-content: flex-start; align-items: center; flex: 1; min-width: 170px; padding-left: 0.5rem;">
+            <button type="button" id="btnRefreshResults" class="btn-secondary-sm" title="Tải lại kết quả thi và danh sách học sinh mới nhất từ Google Sheets" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 0.95rem; border-radius: 9px; font-weight: 700; font-size: 0.85rem; background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                <path d="M16 21h5v-5"/>
+              </svg>
+              <span>Làm mới danh sách</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2201,6 +2211,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <script src="js/teacher.js?v=10.8"></script>
+  <script src="js/teacher.js?v=10.9"></script>
 </body>
 </html>

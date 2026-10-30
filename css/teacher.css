@@ -1600,6 +1600,18 @@ input:checked + .slider:before { transform: translateX(22px); }
   border-color: #94a3b8;
 }
 
+#btnRefreshResults:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.08) !important;
+}
+
+.spin-animation {
+  animation: spinRefresh 0.8s linear infinite !important;
+}
+
 /* NÚT XUẤT EXCEL MÀU XANH LÁ CÂY NHỎ ĐẸP */
 .btn-export-excel {
   display: inline-flex;

@@ -5293,6 +5293,57 @@ if (btnFilterResults) {
   });
 }
 
+// Bắt sự kiện Làm mới danh sách kết quả hiện tại
+const btnRefreshResults = document.getElementById("btnRefreshResults");
+if (btnRefreshResults) {
+  btnRefreshResults.addEventListener("click", async () => {
+    btnRefreshResults.disabled = true;
+    const origHtml = btnRefreshResults.innerHTML;
+    btnRefreshResults.innerHTML = `
+      <svg class="spin-animation" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+        <path d="M16 21h5v-5"/>
+      </svg>
+      <span>Đang tải lại...</span>
+    `;
+
+    try {
+      const sInput = document.getElementById("searchStudentInput");
+      const bClear = document.getElementById("btnClearSearchStudent");
+      if (sInput) sInput.value = "";
+      if (bClear) bClear.style.display = "none";
+
+      // 1. Tải mới CSDL danh sách học sinh (xóa cache để cập nhật danh sách mới nhất từ Sheet)
+      try {
+        if (typeof loadTeacherStudents === "function") {
+          await loadTeacherStudents(true);
+        }
+      } catch (eSt) {
+        console.warn("Làm mới danh sách học sinh nền:", eSt);
+      }
+
+      // 2. Tải lại kết quả bài làm mới nhất theo đề thi đang chọn
+      const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
+      populateResultClassDropdown(selectedMaDe);
+      await loadTeacherResults(selectedMaDe);
+
+      if (typeof showToast === "function") {
+        showToast("Làm mới thành công", "Đã cập nhật bảng điểm và danh sách mới nhất từ Google Sheets!", "success", 2500);
+      }
+    } catch (err) {
+      console.error("Lỗi khi làm mới kết quả:", err);
+      if (typeof showToast === "function") {
+        showToast("Lỗi làm mới", "Không thể tải dữ liệu mới từ máy chủ: " + err.message, "error", 3500);
+      }
+    } finally {
+      btnRefreshResults.disabled = false;
+      btnRefreshResults.innerHTML = origHtml;
+    }
+  });
+}
+
 const selectFilterExamElem = document.getElementById("selectFilterExam");
 if (selectFilterExamElem) {
   selectFilterExamElem.addEventListener("change", () => {
