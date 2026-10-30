@@ -3480,24 +3480,34 @@ function handleAddStudent(payload) {
       }
     }
 
-    if (classRows.length === 0) {
-      // Lớp chưa có trên Sheet: thêm vào cuối bảng
-      sheetHS.appendRow(newRow);
-    } else if (sttTrongLop > 0 && sttTrongLop <= classRows.length) {
-      // Chèn đúng vị trí STT được chỉ định (trước học sinh hiện tại của vị trí đó)
-      const targetRow = classRows[sttTrongLop - 1];
-      sheetHS.insertRowBefore(targetRow);
-      sheetHS.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+    if (classRows.length > 0) {
+      if (sttTrongLop > 0 && sttTrongLop <= classRows.length) {
+        // Chèn đúng vị trí STT được chỉ định trong lớp (trước học sinh hiện tại của vị trí đó)
+        const targetRow = classRows[sttTrongLop - 1];
+        sheetHS.insertRowBefore(targetRow);
+        sheetHS.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+      } else {
+        // Không nhập STT hoặc STT lớn hơn sĩ số lớp: chèn ngay sau học sinh cuối cùng của lớp
+        const lastRowOfClass = classRows[classRows.length - 1];
+        sheetHS.insertRowAfter(lastRowOfClass);
+        sheetHS.getRange(lastRowOfClass + 1, 1, 1, newRow.length).setValues([newRow]);
+      }
     } else {
-      // Không nhập STT hoặc STT lớn hơn sĩ số: chèn ngay sau học sinh cuối cùng của lớp
-      const lastRowOfClass = classRows[classRows.length - 1];
-      sheetHS.insertRowAfter(lastRowOfClass);
-      sheetHS.getRange(lastRowOfClass + 1, 1, 1, newRow.length).setValues([newRow]);
+      // Lớp chưa có trên Sheet:
+      if (sttTrongLop > 0 && (sttTrongLop + 1) <= sheetHS.getLastRow()) {
+        // Người dùng nhập STT cụ thể: Chèn đúng vào dòng thứ sttTrongLop của danh sách học sinh trên Sheet, đẩy toàn bộ học sinh phía sau xuống!
+        const targetRow = sttTrongLop + 1; // Vì dòng 1 là tiêu đề
+        sheetHS.insertRowBefore(targetRow);
+        sheetHS.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+      } else {
+        // Không nhập STT hoặc STT vượt quá số dòng hiện tại: thêm vào cuối bảng
+        sheetHS.appendRow(newRow);
+      }
     }
 
     const positionMsg = sttTrongLop > 0
-      ? (" (STT " + sttTrongLop + " lớp " + lop + ")")
-      : (" (cuối danh sách lớp " + lop + ")");
+      ? (" (STT " + sttTrongLop + ")")
+      : (" (cuối danh sách)");
 
     return createJsonResponse({
       success: true,

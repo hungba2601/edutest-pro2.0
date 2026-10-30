@@ -8580,7 +8580,7 @@ function initAddStudentModal() {
             sttTrongLop: sttTrongLop
           };
 
-          // Chèn vào currentTeacherStudents ở đúng vị trí theo danh sách lớp
+          // Chèn vào currentTeacherStudents ở đúng vị trí và đẩy các học sinh phía sau xuống
           if (sttTrongLop > 0) {
             let classIdx = 0;
             let insertPos = -1;
@@ -8594,6 +8594,7 @@ function initAddStudentModal() {
               }
             }
             if (insertPos >= 0) {
+              // Tìm thấy học sinh đang ở vị trí STT đó của cùng lớp: chèn vào và dồn các bạn sau xuống
               currentTeacherStudents.splice(insertPos, 0, newStudentObj);
             } else {
               // Tìm bạn cuối cùng của lớp đó để chèn sau
@@ -8605,13 +8606,16 @@ function initAddStudentModal() {
                 }
               }
               if (lastPos >= 0) {
+                // Lớp đã có học sinh: chèn vào ngay sau bạn cuối cùng của lớp đó
                 currentTeacherStudents.splice(lastPos + 1, 0, newStudentObj);
               } else {
-                currentTeacherStudents.push(newStudentObj);
+                // Lớp hoàn toàn chưa có học sinh trên Sheet: chèn theo vị trí STT danh sách hiển thị (dồn các bạn sau xuống)
+                const targetIdx = Math.max(0, Math.min(sttTrongLop - 1, currentTeacherStudents.length));
+                currentTeacherStudents.splice(targetIdx, 0, newStudentObj);
               }
             }
           } else {
-            // Không nhập STT: chèn vào ngay sau bạn cuối cùng của lớp đó
+            // Không nhập STT: chèn vào ngay sau bạn cuối cùng của lớp đó (hoặc cuối bảng nếu lớp mới)
             let lastPos = -1;
             for (let i = currentTeacherStudents.length - 1; i >= 0; i--) {
               if ((currentTeacherStudents[i].lop || "").trim().toUpperCase() === lop) {
