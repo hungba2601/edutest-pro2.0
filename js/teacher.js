@@ -8734,8 +8734,8 @@ async function checkTeacherBackendVersionUpdate() {
     return;
   }
 
-  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2, 2.3,...)
-  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.3").trim();
+  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2, 2.3, 2.4,...)
+  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.4").trim();
   try {
     const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
     if (hubRes.ok) {
@@ -8747,7 +8747,7 @@ async function checkTeacherBackendVersionUpdate() {
     }
   } catch (e) {}
 
-  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.3");
+  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.4");
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
@@ -8886,7 +8886,7 @@ function initCentralHubModal() {
 
   function openModal() {
     // Ẩn cảnh báo cập nhật nếu phiên bản đã đạt chuẩn hoặc là tài khoản trung tâm/admin
-    const rawReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
+    const rawReq = (localStorage.getItem("required_backend_version") || "2.4").trim();
     const curVer = (localStorage.getItem("teacher_backend_version") || "2.0").trim();
     if (window.isTeacherBackendUpdated || compareBackendVersions(curVer, rawReq) >= 0 || isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
       const noticeBox = document.getElementById("hubVersionUpdateNotice");
@@ -9130,8 +9130,8 @@ function initCentralHubModal() {
           }
         } catch (eV) {}
 
-        const rawReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
-        const requiredVersion = formatBackendVersion(rawReq, "2.3");
+        const rawReq = (localStorage.getItem("required_backend_version") || "2.4").trim();
+        const requiredVersion = formatBackendVersion(rawReq, "2.4");
         const isCurrentUpdated = compareBackendVersions(detectedVersion, requiredVersion) >= 0;
         const displayDetectedVer = `v${detectedVersion}`;
 
@@ -10246,7 +10246,7 @@ async function handleAdminSyncTeacherClasses() {
  * Admin cập nhật phiên bản backend hệ thống trung tâm (ghi trực tiếp vào Ô H1 Sheet DATA_GIAOVIEN)
  */
 async function handleAdminEditCentralVersion() {
-  const currentVer = (localStorage.getItem("required_backend_version") || "2.3").trim();
+  const currentVer = (localStorage.getItem("required_backend_version") || "2.4").trim();
   const inputVer = prompt(`Nhập phiên bản Backend hệ thống trung tâm mới:\n(Hệ thống sẽ cập nhật trực tiếp vào Ô H1 của Sheet DATA_GIAOVIEN)\nVí dụ: 2.3, 2.4, 3.0...`, currentVer);
   if (!inputVer || inputVer.trim() === "" || inputVer.trim() === currentVer) return;
 
@@ -10326,7 +10326,7 @@ function updateAdminTeacherStats() {
   if (statTotalAdmin) statTotalAdmin.textContent = adminCount;
   if (statTotalGvStandard) statTotalGvStandard.textContent = gvCount;
   if (statCentralVersion) {
-    const curReq = (localStorage.getItem("required_backend_version") || "2.3").trim();
+    const curReq = (localStorage.getItem("required_backend_version") || "2.4").trim();
     statCentralVersion.textContent = curReq;
   }
 }
