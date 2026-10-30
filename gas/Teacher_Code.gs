@@ -427,15 +427,15 @@ function handleLogin(payload) {
     }
 
     const data = sheetHS.getDataRange().getValues();
-    // Cột: 0: Tài khoản HS | 1: Mật khẩu | 2: Lớp | 3: Họ tên | 4: Ngày sinh | 5: Giới tính | 6: Trường
+    const hsCols = getHocSinhColMap(sheetHS);
     let userFound = false;
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
-      if (!row[0] && !row[1]) continue; // Bỏ qua dòng trống
+      if (!row[hsCols.colUser] && !row[hsCols.colPass]) continue; // Bỏ qua dòng trống
 
-      const hsUser = String(row[0] !== null && row[0] !== undefined ? row[0] : "").trim().replace(/\u00A0/g, "");
-      const hsPass = String(row[1] !== null && row[1] !== undefined ? row[1] : "").trim().replace(/\u00A0/g, "");
+      const hsUser = String(row[hsCols.colUser] !== null && row[hsCols.colUser] !== undefined ? row[hsCols.colUser] : "").trim().replace(/\u00A0/g, "");
+      const hsPass = String(row[hsCols.colPass] !== null && row[hsCols.colPass] !== undefined ? row[hsCols.colPass] : "").trim().replace(/\u00A0/g, "");
 
       if (hsUser.toLowerCase() === username.toLowerCase()) {
         userFound = true;
@@ -446,11 +446,11 @@ function handleLogin(payload) {
             role: "HS",
             data: {
               username: hsUser,
-              lop: formatClassValue(row[2]),
-              hoTen: String(row[3] || ""),
-              ngaySinh: formatBirthDateValue(row[4]),
-              gioiTinh: String(row[5] || ""),
-              truong: String(row[6] || "")
+              lop: formatClassValue(row[hsCols.colClass]),
+              hoTen: String(row[hsCols.colName] || ""),
+              ngaySinh: formatBirthDateValue(row[hsCols.colDob]),
+              gioiTinh: String(row[hsCols.colGender] || ""),
+              truong: String(row[hsCols.colSchool] || "")
             }
           });
         } else {
@@ -1086,22 +1086,23 @@ function handleGetStudentsForTeacher(payload) {
 
   const dataHS = sheetHS.getDataRange().getValues();
   const students = [];
+  const cols = getHocSinhColMap(sheetHS);
 
-  // DATA_HOCSINH: 0: TK HS | 1: Mật khẩu | 2: Lớp | 3: Họ tên | 4: Ngày sinh | 5: Giới tính | 6: Trường
+  // DATA_HOCSINH: tự động map đúng cột thông qua getHocSinhColMap (hỗ trợ cả Sheet có thêm cột STT ở cột A)
   for (let i = 1; i < dataHS.length; i++) {
     const row = dataHS[i];
-    const formattedClass = formatClassValue(row[2]);
+    const formattedClass = formatClassValue(row[cols.colClass]);
     const rowClass = formattedClass.trim().toUpperCase();
 
     if (isAll || allowedClasses.includes(rowClass)) {
       students.push({
-        username: String(row[0] || "").trim(),
-        password: String(row[1] || "").trim(),
+        username: String(row[cols.colUser] !== null && row[cols.colUser] !== undefined ? row[cols.colUser] : "").trim(),
+        password: String(row[cols.colPass] !== null && row[cols.colPass] !== undefined ? row[cols.colPass] : "").trim(),
         lop: formattedClass,
-        hoTen: String(row[3] || "").trim(),
-        ngaySinh: formatBirthDateValue(row[4]),
-        gioiTinh: String(row[5] || "").trim(),
-        truong: String(row[6] || "").trim()
+        hoTen: String(row[cols.colName] || "").trim(),
+        ngaySinh: formatBirthDateValue(row[cols.colDob]),
+        gioiTinh: String(row[cols.colGender] || "").trim(),
+        truong: String(row[cols.colSchool] || "").trim()
       });
     }
   }
@@ -1885,6 +1886,81 @@ function formatBirthDateValue(val) {
     s = s.split("T")[0].trim();
   }
   return s;
+}
+
+/**
+ * Tự động dò tìm chính xác index các cột của Sheet DATA_HOCSINH linh hoạt
+ * Hỗ trợ nhận diện thông minh ngay cả khi giáo viên chèn thêm cột STT ở cột A hoặc thay đổi vị trí cột
+ */
+function getHocSinhColMap(sheetHS) {
+  const map = {
+    colUser: 0,
+    colPass: 1,
+    colClass: 2,
+    colName: 3,
+    colDob: 4,
+    colGender: 5,
+    colSchool: 6
+  };
+  try {
+    if (!sheetHS) return map;
+    const lastCol = Math.max(sheetHS.getLastColumn(), 7);
+    const headers = sheetHS.getRange(1, 1, 1, Math.max(lastCol, 12)).getValues()[0];
+
+    let foundUser = -1;
+    let foundPass = -1;
+    let foundClass = -1;
+    let foundName = -1;
+    let foundDob = -1;
+    let foundGender = -1;
+    let foundSchool = -1;
+    let hasSttCol = false;
+
+    for (let c = 0; c < headers.length; c++) {
+      const h = String(headers[c] || "").trim().toLowerCase();
+      if (!h) continue;
+
+      if (h === "stt" || h === "số tt" || h === "số thứ tự" || h.startsWith("stt")) {
+        hasSttCol = true;
+      } else if (h.includes("tài khoản") || h.includes("mã hs") || h.includes("mã học sinh") || h.includes("username") || h.includes("tên đăng nhập") || h === "tk hs" || h === "mã sinh viên") {
+        foundUser = c;
+      } else if (h.includes("mật khẩu") || h.includes("password") || h === "pass" || h.includes("mk")) {
+        foundPass = c;
+      } else if (h.includes("lớp") || h === "class" || h.includes("lop")) {
+        foundClass = c;
+      } else if (h.includes("họ tên") || h.includes("họ và tên") || h.includes("tên hs") || h.includes("học sinh") || h.includes("hoten") || h === "họ tên học sinh") {
+        foundName = c;
+      } else if (h.includes("ngày sinh") || h.includes("năm sinh") || h === "dob" || h.includes("ngaysinh") || h.includes("sinh nhật")) {
+        foundDob = c;
+      } else if (h.includes("giới tính") || h === "phái" || h === "gender" || h.includes("gioitinh") || h === "nam/nữ") {
+        foundGender = c;
+      } else if (h.includes("trường") || h === "school" || h.includes("truong") || h.includes("đơn vị")) {
+        foundSchool = c;
+      }
+    }
+
+    if (foundUser !== -1) map.colUser = foundUser;
+    if (foundPass !== -1) map.colPass = foundPass;
+    if (foundClass !== -1) map.colClass = foundClass;
+    if (foundName !== -1) map.colName = foundName;
+    if (foundDob !== -1) map.colDob = foundDob;
+    if (foundGender !== -1) map.colGender = foundGender;
+    if (foundSchool !== -1) map.colSchool = foundSchool;
+
+    // Nếu không tìm thấy header rõ ràng nhưng phát hiện cột A là STT (hasSttCol = true hoặc hàng 1 ô A1 là 'STT'):
+    if (foundUser === -1 && (hasSttCol || String(headers[0] || "").trim().toUpperCase() === "STT")) {
+      map.colUser = 1;
+      map.colPass = 2;
+      map.colClass = 3;
+      map.colName = 4;
+      map.colDob = 5;
+      map.colGender = 6;
+      map.colSchool = 7;
+    }
+  } catch (e) {
+    Logger.log("Lỗi getHocSinhColMap: " + e.toString());
+  }
+  return map;
 }
 
 /**
