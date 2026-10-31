@@ -3,7 +3,7 @@
  * Xử lý Xóa học sinh khi click icon thùng rác
  */
 async function handleDeleteStudentAction(u, name, btn) {
-  const confirmDel = confirm(`⚠️ XÁC NHẬN XÓA HỌC SINH:\n\nBạn có chắc chắn muốn XÓA học sinh "${name}" (Mã tài khoản: ${u}) khỏi danh sách?\n\nHọc sinh này sẽ bị xóa vĩnh viễn trên Sheet DATA_HOCSINH của Google Sheets!`);
+  const confirmDel = confirm(`⚠️ XÁC NHẬN XÓA HỌC SINH:\n\nBạn có chắc chắn muốn XÓA học sinh "${name}" (Mã tài khoản: ${u}) khỏi danh sách?\n\nHọc sinh này sẽ bị xóa đồng thời trên Sheet của Giáo viên và Sheet HUB_STUDENTS (Trạm Trung Tâm)!`);
   if (!confirmDel) return;
 
   const origHtml = btn.innerHTML;
@@ -12,13 +12,18 @@ async function handleDeleteStudentAction(u, name, btn) {
 
   try {
     let res = null;
+    const curUsername = (typeof currentTeacher !== "undefined" && currentTeacher && currentTeacher.username) ? currentTeacher.username : "";
+    
+    // 1. Gửi lệnh xóa đến máy chủ hiện tại (Sheet riêng của GV hoặc Sheet trung tâm)
     try {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           action: "deleteStudent",
-          usernameHS: u
+          usernameHS: u,
+          usernameGV: curUsername,
+          hubUrl: (typeof DEFAULT_GAS_API_URL === "string") ? DEFAULT_GAS_API_URL : ""
         })
       });
       const text = await response.text();
@@ -30,7 +35,7 @@ async function handleDeleteStudentAction(u, name, btn) {
     }
 
     if (!res || !res.success) {
-      const getUrl = API_URL + "?action=deleteStudent&usernameHS=" + encodeURIComponent(u) + "&_t=" + Date.now();
+      const getUrl = API_URL + "?action=deleteStudent&usernameHS=" + encodeURIComponent(u) + "&usernameGV=" + encodeURIComponent(curUsername) + "&_t=" + Date.now();
       const getRes = await fetch(getUrl);
       const getTxt = await getRes.text();
       if (getTxt && !getTxt.trim().startsWith("<")) {
@@ -39,7 +44,39 @@ async function handleDeleteStudentAction(u, name, btn) {
     }
 
     if (res && res.success) {
-      showToast("Thành công", res.message || `Đã xóa học sinh "${name}" khỏi Google Sheets!`, "success", 3500);
+      // 2. Nếu máy chủ hiện tại khác Trạm Trung Tâm -> Đồng thời xóa học sinh trên Sheet HUB_STUDENTS của Trạm Trung Tâm
+      if (typeof DEFAULT_GAS_API_URL === "string" && DEFAULT_GAS_API_URL && API_URL !== DEFAULT_GAS_API_URL) {
+        try {
+          let hubDone = false;
+          try {
+            const hResp = await fetch(DEFAULT_GAS_API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: JSON.stringify({
+                action: "deleteStudent",
+                usernameHS: u,
+                usernameGV: curUsername
+              })
+            });
+            const hTxt = await hResp.text();
+            if (hTxt && !hTxt.trim().startsWith("<")) {
+              const hJson = JSON.parse(hTxt);
+              if (hJson && hJson.success) hubDone = true;
+            }
+          } catch (ePostHub) {
+            console.warn("POST xóa HS trên Hub thất bại, dùng GET fallback:", ePostHub);
+          }
+
+          if (!hubDone) {
+            const gHubUrl = `${DEFAULT_GAS_API_URL}?action=deleteStudent&usernameHS=${encodeURIComponent(u)}&usernameGV=${encodeURIComponent(curUsername)}&_t=${Date.now()}`;
+            await fetch(gHubUrl);
+          }
+        } catch (eHub) {
+          console.warn("Lỗi khi đồng bộ xóa HS lên Trạm Trung Tâm:", eHub);
+        }
+      }
+
+      showToast("Thành công", `Đã xóa học sinh "${name}" khỏi Google Sheets và Trạm Trung Tâm (HUB_STUDENTS)!`, "success", 3500);
       currentTeacherStudents = currentTeacherStudents.filter(s => s.username.toUpperCase() !== u.toUpperCase());
       saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
       applyStudentFilters();

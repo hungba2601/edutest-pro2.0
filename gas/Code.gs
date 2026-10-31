@@ -687,6 +687,7 @@ function doGet(e) {
         case "deleteStudentResult":
           return handleDeleteStudentResult(payload);
         case "deleteStudent":
+        case "deleteStudentFromHub":
           return handleDeleteStudent(payload);
         case "addStudent":
           return handleAddStudent(payload);
@@ -854,6 +855,7 @@ function doPost(e) {
         return handleDeleteStudentResult(payload);
 
       case "deleteStudent":
+      case "deleteStudentFromHub":
         return handleDeleteStudent(payload);
 
       case "addStudent":
@@ -1260,17 +1262,41 @@ function handleSyncTeacherAndStudentsToHub(payload) {
 
     // Tự động dọn dẹp các dòng rác bị lệch cột cũ của Giáo viên này (Mã HS chỉ là số thứ tự 1, 2, 3...)
     const initialRowsCount = studentRows.length;
+    let hadRemovedRows = false;
     const cleanedRows = [studentRows[0]];
     for (let i = 1; i < studentRows.length; i++) {
       const rowUser = String(studentRows[i][0] || "").trim();
       const rowGV = String(studentRows[i][4] || "").trim();
       // Nếu là dòng rác bị lệch cột của GV này (Mã HS chỉ là số thứ tự và Mã GV trùng) -> tự động loại bỏ
       if (isSameTeacherAccount(rowGV, usernameGV) && /^\d{1,3}$/.test(rowUser)) {
+        hadRemovedRows = true;
         continue;
       }
       cleanedRows.push(studentRows[i]);
     }
     studentRows = cleanedRows;
+
+    // Tự động dọn dẹp các học sinh của GV này trên HUB_STUDENTS nếu đã bị xóa trên Sheet cá nhân của GV
+    if (students.length > 0) {
+      const incomingMap = {};
+      students.forEach(st => {
+        const u = String(st.username || "").trim().toUpperCase();
+        if (u) incomingMap[u] = true;
+      });
+
+      const prunedRows = [studentRows[0]];
+      for (let i = 1; i < studentRows.length; i++) {
+        const rowUser = String(studentRows[i][0] || "").trim().toUpperCase();
+        const rowGV = String(studentRows[i][4] || "").trim();
+        // Nếu thuộc giáo viên này mà không còn trong danh sách gửi lên (đã bị xóa trên Sheet GV) -> loại bỏ khỏi Hub
+        if (isSameTeacherAccount(rowGV, usernameGV) && !incomingMap[rowUser]) {
+          hadRemovedRows = true;
+          continue;
+        }
+        prunedRows.push(studentRows[i]);
+      }
+      studentRows = prunedRows;
+    }
 
     // Xây dựng bảng tra cứu nhanh theo Mã HS (Mã HS in hoa)
     const studentMap = {}; // key: cleanedUsername -> rowIndex trong studentRows
@@ -1318,8 +1344,8 @@ function handleSyncTeacherAndStudentsToHub(payload) {
 
     // Ghi toàn bộ dữ liệu trở lại Google Sheets trong duy nhất 1 lần gọi lệnh (siêu tốc, < 0.5s, không lo timeout)
     if (studentRows.length > 1) {
-      if (initialRowsCount > studentRows.length) {
-        // Nếu có dòng rác bị loại bỏ, dọn sạch dữ liệu cũ trước khi ghi lại danh sách chuẩn
+      if (hadRemovedRows || initialRowsCount > studentRows.length) {
+        // Nếu có dòng rác hoặc học sinh bị xóa, dọn sạch dữ liệu cũ trước khi ghi lại danh sách chuẩn
         sheetHubStudents.clearContents();
       }
       sheetHubStudents.getRange(1, 1, studentRows.length, 7).setValues(studentRows);
@@ -3466,47 +3492,75 @@ function handleDeleteStudentResult(payload) {
 }
 
 /**
- * Xóa một học sinh khỏi Sheet DATA_HOCSINH
- * Payload: { action: "deleteStudent", usernameHS }
+ * Xóa một học sinh khỏi Sheet DATA_HOCSINH và Sheet HUB_STUDENTS (Trạm Trung Tâm)
+ * Payload: { action: "deleteStudent", usernameHS, usernameGV }
  */
 function handleDeleteStudent(payload) {
   try {
     const ss = getSpreadsheet();
     const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
-    if (!sheetHS) {
-      return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_HOCSINH!" });
-    }
+    const sheetHubStudents = ss.getSheetByName(SHEETS.HUB_STUDENTS || "HUB_STUDENTS");
 
     const usernameHS = String(payload.usernameHS || "").trim();
+    const usernameGV = String(payload.usernameGV || "").trim();
+
     if (!usernameHS) {
       return createJsonResponse({ success: false, message: "Thiếu mã tài khoản học sinh cần xóa!" });
     }
 
-    const dataHS = sheetHS.getDataRange().getValues();
-    let deleted = false;
+    let deletedInHS = false;
+    let deletedInHub = false;
     let deletedName = "";
 
-    for (let i = dataHS.length - 1; i >= 1; i--) {
-      const row = dataHS[i];
-      const rowHS = String(row[0] || "").trim();
-      if (rowHS.toUpperCase() === usernameHS.toUpperCase()) {
-        deletedName = String(row[3] || usernameHS);
-        sheetHS.deleteRow(i + 1);
-        deleted = true;
-        break;
+    // 1. Xóa khỏi Sheet DATA_HOCSINH (nếu có trên Sheet này)
+    if (sheetHS) {
+      const dataHS = sheetHS.getDataRange().getValues();
+      for (let i = dataHS.length - 1; i >= 1; i--) {
+        const row = dataHS[i];
+        const rowHS = String(row[0] || "").trim();
+        if (rowHS.toUpperCase() === usernameHS.toUpperCase()) {
+          deletedName = String(row[3] || usernameHS);
+          sheetHS.deleteRow(i + 1);
+          deletedInHS = true;
+          break;
+        }
       }
     }
 
-    if (deleted) {
+    // 2. Xóa khỏi Sheet HUB_STUDENTS (Trạm Trung Tâm)
+    if (sheetHubStudents) {
+      const hubData = sheetHubStudents.getDataRange().getValues();
+      for (let i = hubData.length - 1; i >= 1; i--) {
+        const row = hubData[i];
+        const rowHS = String(row[0] || "").trim().toUpperCase();
+        const rowGV = String(row[4] || "").trim();
+        const matchUser = (rowHS === usernameHS.toUpperCase());
+        // Nếu có truyền usernameGV thì đối chiếu giáo viên sở hữu; nếu không có thì chỉ so khớp mã học sinh
+        const matchGV = !usernameGV || isSameTeacherAccount(rowGV, usernameGV);
+        if (matchUser && matchGV) {
+          if (!deletedName) deletedName = String(row[1] || usernameHS);
+          sheetHubStudents.deleteRow(i + 1);
+          deletedInHub = true;
+        }
+      }
+    }
+
+    if (deletedInHS || deletedInHub) {
+      const whereMsg = (deletedInHS && deletedInHub)
+        ? "Sheet DATA_HOCSINH và Sheet HUB_STUDENTS (Trạm Trung Tâm)"
+        : (deletedInHub ? "Sheet HUB_STUDENTS (Trạm Trung Tâm)" : "Sheet DATA_HOCSINH");
+
       return createJsonResponse({
         success: true,
-        message: "Đã xóa học sinh \"" + deletedName + "\" (" + usernameHS + ") khỏi Google Sheets thành công!",
-        usernameHS: usernameHS
+        message: "Đã xóa học sinh \"" + (deletedName || usernameHS) + "\" (" + usernameHS + ") khỏi " + whereMsg + " thành công!",
+        usernameHS: usernameHS,
+        deletedInHS: deletedInHS,
+        deletedInHub: deletedInHub
       });
     } else {
       return createJsonResponse({
         success: false,
-        message: "Không tìm thấy học sinh có mã \"" + usernameHS + "\" trên Sheet DATA_HOCSINH!"
+        message: "Không tìm thấy học sinh có mã \"" + usernameHS + "\" trên Sheet DATA_HOCSINH hoặc HUB_STUDENTS!"
       });
     }
   } catch (err) {

@@ -2169,8 +2169,8 @@ function handleDeleteStudentResult(payload) {
 }
 
 /**
- * Xóa một học sinh khỏi Sheet DATA_HOCSINH
- * Payload: { action: "deleteStudent", usernameHS }
+ * Xóa một học sinh khỏi Sheet DATA_HOCSINH và Sheet HUB_STUDENTS (nếu có)
+ * Payload: { action: "deleteStudent", usernameHS, usernameGV, hubUrl }
  */
 function handleDeleteStudent(payload) {
   try {
@@ -2198,6 +2198,34 @@ function handleDeleteStudent(payload) {
         deleted = true;
         break;
       }
+    }
+
+    // Nếu trên Sheet này có Sheet HUB_STUDENTS (trường hợp Sheet tổng) thì xóa luôn
+    const sheetHubStudents = ss.getSheetByName("HUB_STUDENTS");
+    if (sheetHubStudents) {
+      const hubData = sheetHubStudents.getDataRange().getValues();
+      for (let i = hubData.length - 1; i >= 1; i--) {
+        const rowHS = String(hubData[i][0] || "").trim().toUpperCase();
+        if (rowHS === usernameHS.toUpperCase()) {
+          sheetHubStudents.deleteRow(i + 1);
+        }
+      }
+    }
+
+    // Nếu có truyền hubUrl thì tự động gọi sang Trạm Trung Tâm để xóa đồng bộ
+    if (payload.hubUrl && typeof UrlFetchApp !== "undefined") {
+      try {
+        UrlFetchApp.fetch(payload.hubUrl, {
+          method: "post",
+          contentType: "text/plain;charset=utf-8",
+          payload: JSON.stringify({
+            action: "deleteStudent",
+            usernameHS: usernameHS,
+            usernameGV: payload.usernameGV || ""
+          }),
+          muteHttpExceptions: true
+        });
+      } catch (eHub) {}
     }
 
     if (deleted) {
