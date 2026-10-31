@@ -7215,6 +7215,10 @@ function renderStudentsTable(students, keepPage = false) {
         </td>
         <td style="text-align: center;">
           <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+            <button type="button" class="btn-action-edit-student" data-username="${safeUsername}" style="background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease;" title="Chỉnh sửa thông tin học sinh">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Sửa</span>
+            </button>
             <button type="button" class="btn-action-change-pwd" data-username="${safeUsername}" style="background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease;" title="Đổi mật khẩu cho học sinh">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span>Đổi MK</span>
@@ -7852,6 +7856,14 @@ window.addEventListener("DOMContentLoaded", () => {
         const u = btnDelete.getAttribute("data-username");
         const name = btnDelete.getAttribute("data-hoten") || u;
         handleDeleteStudentAction(u, name, btnDelete);
+        return;
+      }
+
+      const btnEditInfo = e.target.closest(".btn-action-edit-student");
+      if (btnEditInfo) {
+        const u = btnEditInfo.getAttribute("data-username");
+        const student = (currentTeacherStudents || []).find(s => (s.username || "").toUpperCase() === (u || "").toUpperCase());
+        if (student) openEditStudentModal(student);
         return;
       }
 
@@ -8697,9 +8709,294 @@ function initAddStudentModal() {
 
 // Đảm bảo khởi tạo sự kiện Thêm học sinh khi DOM sẵn sàng
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initAddStudentModal);
+  document.addEventListener("DOMContentLoaded", () => {
+    initAddStudentModal();
+    initEditStudentModal();
+  });
 } else {
   initAddStudentModal();
+  initEditStudentModal();
+}
+
+// ============================================================================
+// CHỨC NĂNG CHỈNH SỬA THÔNG TIN HỌC SINH (ĐỒNG BỘ SHEET RIÊNG & HUB TRUNG TÂM)
+// ============================================================================
+let targetEditStudent = null;
+
+function openEditStudentModal(student) {
+  if (!student) return;
+  targetEditStudent = student;
+  const modal = document.getElementById("modalEditStudent");
+  if (!modal) return;
+
+  const inpOldUser = document.getElementById("editStudentOldUsername");
+  const inpUser = document.getElementById("editStudentUsername");
+  const inpName = document.getElementById("editStudentFullName");
+  const inpClass = document.getElementById("editStudentClass");
+  const selGender = document.getElementById("editStudentGender");
+  const inpDob = document.getElementById("editStudentDob");
+  const inpPass = document.getElementById("editStudentPassword");
+  const inpSchool = document.getElementById("editStudentSchool");
+  const alertBox = document.getElementById("editStudentAlertBox");
+
+  if (alertBox) {
+    alertBox.style.display = "none";
+    alertBox.textContent = "";
+  }
+
+  if (inpOldUser) inpOldUser.value = student.username || "";
+  if (inpUser) inpUser.value = student.username || "";
+  if (inpName) inpName.value = student.hoTen || "";
+  if (inpClass) inpClass.value = student.lop || "";
+  if (selGender) selGender.value = student.gioiTinh || "Nam";
+  if (inpDob) inpDob.value = student.ngaySinh || "";
+  if (inpPass) inpPass.value = student.password || "123";
+  if (inpSchool) inpSchool.value = student.truong || (currentTeacher && currentTeacher.truong ? currentTeacher.truong : "") || "";
+
+  modal.classList.remove("hidden-modal");
+  modal.style.setProperty("display", "flex", "important");
+  modal.setAttribute("aria-hidden", "false");
+  setTimeout(() => {
+    if (inpName) inpName.focus();
+  }, 100);
+}
+
+function closeEditStudentModal() {
+  const modal = document.getElementById("modalEditStudent");
+  if (modal) {
+    modal.classList.add("hidden-modal");
+    modal.style.setProperty("display", "none", "important");
+    modal.setAttribute("aria-hidden", "true");
+  }
+}
+
+function initEditStudentModal() {
+  const modal = document.getElementById("modalEditStudent");
+  const btnClose = document.getElementById("btnCloseEditStudentModal");
+  const btnCancel = document.getElementById("btnCancelEditStudent");
+  const btnConfirm = document.getElementById("btnConfirmEditStudent");
+  const btnText = document.getElementById("btnConfirmEditStudentText");
+  const spinner = document.getElementById("editStudentSpinner");
+  const alertBox = document.getElementById("editStudentAlertBox");
+
+  const inpOldUser = document.getElementById("editStudentOldUsername");
+  const inpUser = document.getElementById("editStudentUsername");
+  const inpName = document.getElementById("editStudentFullName");
+  const inpClass = document.getElementById("editStudentClass");
+  const selGender = document.getElementById("editStudentGender");
+  const inpDob = document.getElementById("editStudentDob");
+  const inpPass = document.getElementById("editStudentPassword");
+  const inpSchool = document.getElementById("editStudentSchool");
+
+  function showAlert(msg) {
+    if (alertBox) {
+      alertBox.textContent = msg;
+      alertBox.style.display = "block";
+    } else {
+      showToast("Lỗi nhập liệu", msg, "warning");
+    }
+  }
+
+  function hideAlert() {
+    if (alertBox) {
+      alertBox.style.display = "none";
+      alertBox.textContent = "";
+    }
+  }
+
+  if (btnClose) btnClose.addEventListener("click", closeEditStudentModal);
+  if (btnCancel) btnCancel.addEventListener("click", closeEditStudentModal);
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeEditStudentModal();
+    });
+  }
+
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", async () => {
+      hideAlert();
+
+      const oldUsername = (inpOldUser?.value || "").trim();
+      const newUsername = (inpUser?.value || "").trim();
+      const hoTen = (inpName?.value || "").trim();
+      const lop = (inpClass?.value || "").trim().toUpperCase();
+      const gioiTinh = (selGender?.value || "Nam").trim();
+      const ngaySinh = (inpDob?.value || "").trim();
+      const password = (inpPass?.value || "").trim();
+      const truong = (inpSchool?.value || "").trim();
+
+      if (!hoTen) {
+        showAlert("Vui lòng nhập họ và tên học sinh!");
+        if (inpName) inpName.focus();
+        return;
+      }
+      if (!lop) {
+        showAlert("Vui lòng nhập lớp học của học sinh!");
+        if (inpClass) inpClass.focus();
+        return;
+      }
+      if (!newUsername) {
+        showAlert("Vui lòng nhập mã tài khoản học sinh!");
+        if (inpUser) inpUser.focus();
+        return;
+      }
+
+      // Kiểm tra trùng tài khoản mới với học sinh khác
+      if (newUsername.toUpperCase() !== oldUsername.toUpperCase()) {
+        const isExisted = (currentTeacherStudents || []).some(
+          s => (s.username || "").toUpperCase() === newUsername.toUpperCase() && (s.username || "").toUpperCase() !== oldUsername.toUpperCase()
+        );
+        if (isExisted) {
+          showAlert(`Mã tài khoản "${newUsername}" đã được sử dụng bởi học sinh khác trong danh sách!`);
+          if (inpUser) inpUser.focus();
+          return;
+        }
+      }
+
+      btnConfirm.disabled = true;
+      if (btnText) btnText.textContent = "Đang lưu thay đổi...";
+      if (spinner) spinner.style.display = "inline-block";
+
+      try {
+        const curGV = (currentTeacher && currentTeacher.username) ? currentTeacher.username : "";
+        const payload = {
+          action: "updateStudent",
+          oldUsername: oldUsername,
+          username: newUsername,
+          hoTen: hoTen,
+          lop: lop,
+          gioiTinh: gioiTinh,
+          ngaySinh: ngaySinh,
+          password: password,
+          truong: truong,
+          usernameGV: curGV,
+          hubUrl: (typeof DEFAULT_GAS_API_URL === "string") ? DEFAULT_GAS_API_URL : ""
+        };
+
+        // 1. Gửi lệnh cập nhật đến máy chủ hiện tại (Sheet riêng hoặc Sheet trung tâm)
+        let res = null;
+        try {
+          const resp = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+          });
+          const text = await resp.text();
+          if (text && !text.trim().startsWith("<")) {
+            res = JSON.parse(text);
+          }
+        } catch (postErr) {
+          console.warn("POST updateStudent failed, attempting GET fallback...", postErr);
+        }
+
+        // Fallback GET nếu POST thất bại
+        if (!res || !res.success) {
+          const params = new URLSearchParams({
+            action: "updateStudent",
+            oldUsername: oldUsername,
+            username: newUsername,
+            hoTen: hoTen,
+            lop: lop,
+            gioiTinh: gioiTinh,
+            ngaySinh: ngaySinh,
+            password: password,
+            truong: truong,
+            usernameGV: curGV,
+            _t: Date.now()
+          });
+          const getResp = await fetch(`${API_URL}?${params.toString()}`);
+          const getText = await getResp.text();
+          if (getText && !getText.trim().startsWith("<")) {
+            res = JSON.parse(getText);
+          }
+        }
+
+        if (res && res.success) {
+          // 2. Nếu máy chủ hiện tại khác Trạm Trung Tâm -> Đồng thời cập nhật dữ liệu trực tiếp lên Trạm Trung Tâm (HUB_STUDENTS)
+          if (API_URL !== DEFAULT_GAS_API_URL && typeof DEFAULT_GAS_API_URL === "string" && DEFAULT_GAS_API_URL) {
+            try {
+              let hubDone = false;
+              try {
+                const hResp = await fetch(DEFAULT_GAS_API_URL, {
+                  method: "POST",
+                  headers: { "Content-Type": "text/plain;charset=utf-8" },
+                  body: JSON.stringify(payload)
+                });
+                const hTxt = await hResp.text();
+                if (hTxt && !hTxt.trim().startsWith("<")) {
+                  const hJson = JSON.parse(hTxt);
+                  if (hJson && hJson.success) hubDone = true;
+                }
+              } catch (eHubPost) {
+                console.warn("POST sửa HS lên Hub thất bại, dùng GET fallback:", eHubPost);
+              }
+
+              if (!hubDone) {
+                const hubParams = new URLSearchParams({
+                  action: "updateStudent",
+                  oldUsername: oldUsername,
+                  username: newUsername,
+                  hoTen: hoTen,
+                  lop: lop,
+                  gioiTinh: gioiTinh,
+                  ngaySinh: ngaySinh,
+                  password: password,
+                  truong: truong,
+                  usernameGV: curGV,
+                  _t: Date.now()
+                });
+                await fetch(`${DEFAULT_GAS_API_URL}?${hubParams.toString()}`);
+              }
+            } catch (eHub) {
+              console.warn("Lỗi đồng bộ sửa HS lên Trạm Trung Tâm:", eHub);
+            }
+          }
+
+          // 3. Cập nhật danh sách trong bộ nhớ
+          const stIdx = currentTeacherStudents.findIndex(s => (s.username || "").toUpperCase() === oldUsername.toUpperCase());
+          if (stIdx !== -1) {
+            currentTeacherStudents[stIdx] = {
+              ...currentTeacherStudents[stIdx],
+              username: newUsername,
+              hoTen: hoTen,
+              lop: lop,
+              gioiTinh: gioiTinh,
+              ngaySinh: ngaySinh,
+              truong: truong,
+              password: password || currentTeacherStudents[stIdx].password
+            };
+          }
+
+          // Cập nhật lại danh sách lớp nếu có lớp mới
+          if (lop && !teacherAllClassesList.includes(lop)) {
+            teacherAllClassesList.push(lop);
+            if (typeof buildGradeAndClassFilters === "function") {
+              buildGradeAndClassFilters(teacherAllClassesList);
+            }
+          }
+
+          // Lưu vào bộ nhớ đệm
+          saveCachedTeacherStudents(currentTeacherStudents, teacherAllClassesList);
+
+          // Render lại bảng học sinh
+          applyStudentFilters();
+
+          // Đóng modal & hiển thị thông báo thành công
+          closeEditStudentModal();
+          showToast("Thành công ✅", `Đã cập nhật thông tin học sinh "${hoTen}" lên Google Sheets và Trạm Trung Tâm!`, "success", 4000);
+        } else {
+          showAlert(res ? res.message : "Không thể cập nhật học sinh lên Google Sheets! Vui lòng kiểm tra lại.");
+        }
+      } catch (err) {
+        console.error("Lỗi khi chỉnh sửa học sinh:", err);
+        showAlert("Lỗi kết nối máy chủ Google Sheets: " + err.message);
+      } finally {
+        btnConfirm.disabled = false;
+        if (btnText) btnText.textContent = "Lưu Thay Đổi";
+        if (spinner) spinner.style.display = "none";
+      }
+    });
+  }
 }
 
 
@@ -10096,6 +10393,9 @@ function initTeacherDashboard() {
 
     // Khởi tạo tính năng Thêm mới học sinh thủ công
     try { initAddStudentModal(); } catch (e) { console.warn("Add student modal warning:", e); }
+
+    // Khởi tạo tính năng Chỉnh sửa thông tin học sinh
+    try { initEditStudentModal(); } catch (e) { console.warn("Edit student modal warning:", e); }
 
     // Khởi tạo tính năng Chia sẻ đề thi cho Giáo viên
     try { initShareExamModal(); } catch (e) { console.warn("Share exam modal warning:", e); }

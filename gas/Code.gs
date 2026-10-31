@@ -689,6 +689,9 @@ function doGet(e) {
         case "deleteStudent":
         case "deleteStudentFromHub":
           return handleDeleteStudent(payload);
+        case "updateStudent":
+        case "editStudent":
+          return handleUpdateStudent(payload);
         case "addStudent":
           return handleAddStudent(payload);
         case "ensureDeThiColumns":
@@ -857,6 +860,10 @@ function doPost(e) {
       case "deleteStudent":
       case "deleteStudentFromHub":
         return handleDeleteStudent(payload);
+
+      case "updateStudent":
+      case "editStudent":
+        return handleUpdateStudent(payload);
 
       case "addStudent":
         return handleAddStudent(payload);
@@ -3567,6 +3574,154 @@ function handleDeleteStudent(payload) {
     return createJsonResponse({
       success: false,
       message: "Lỗi xóa học sinh: " + err.toString()
+    });
+  }
+}
+
+/**
+ * Chỉnh sửa thông tin học sinh trong Sheet DATA_HOCSINH và Sheet HUB_STUDENTS (Trạm Trung Tâm)
+ * Payload: { action: "updateStudent", oldUsername, username, hoTen, lop, ngaySinh, gioiTinh, truong, password, usernameGV }
+ */
+function handleUpdateStudent(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+    const sheetHubStudents = ss.getSheetByName(SHEETS.HUB_STUDENTS || "HUB_STUDENTS");
+
+    const oldUsername = String(payload.oldUsername || payload.username || "").trim();
+    const newUsername = String(payload.username || payload.newUsername || oldUsername).trim();
+    const hoTen = String(payload.hoTen || "").trim();
+    const lop = formatClassValue(payload.lop || "").trim().toUpperCase();
+    const ngaySinh = formatBirthDateValue(payload.ngaySinh || "");
+    const gioiTinh = String(payload.gioiTinh || "").trim();
+    const truong = String(payload.truong || "").trim();
+    const password = String(payload.password || "").trim();
+    const usernameGV = String(payload.usernameGV || "").trim();
+
+    if (!oldUsername) {
+      return createJsonResponse({ success: false, message: "Thiếu mã tài khoản học sinh cần chỉnh sửa!" });
+    }
+    if (!newUsername) {
+      return createJsonResponse({ success: false, message: "Mã tài khoản học sinh mới không được để trống!" });
+    }
+    if (!hoTen) {
+      return createJsonResponse({ success: false, message: "Họ và tên học sinh không được để trống!" });
+    }
+    if (!lop) {
+      return createJsonResponse({ success: false, message: "Lớp học không được để trống!" });
+    }
+
+    const lopToSave = lop.includes("/") ? "'" + lop : lop;
+    const nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
+    let updatedInHS = false;
+    let updatedInHub = false;
+
+    // 1. Cập nhật trên Sheet DATA_HOCSINH (nếu có trên Sheet này)
+    if (sheetHS) {
+      const cols = getHocSinhColMap(sheetHS);
+      const dataHS = sheetHS.getDataRange().getValues();
+      let targetRowIdx = -1;
+
+      for (let i = 1; i < dataHS.length; i++) {
+        const u = String(dataHS[i][cols.colUser] || "").trim();
+        if (u.toUpperCase() === oldUsername.toUpperCase()) {
+          targetRowIdx = i + 1;
+        } else if (newUsername.toUpperCase() !== oldUsername.toUpperCase() && u.toUpperCase() === newUsername.toUpperCase()) {
+          return createJsonResponse({
+            success: false,
+            message: "Mã tài khoản mới \"" + newUsername + "\" đã được sử dụng bởi học sinh khác!"
+          });
+        }
+      }
+
+      if (targetRowIdx > 0) {
+        if (cols.colUser >= 0) sheetHS.getRange(targetRowIdx, cols.colUser + 1).setValue(newUsername);
+        if (password && cols.colPass >= 0) sheetHS.getRange(targetRowIdx, cols.colPass + 1).setValue(password);
+        if (cols.colClass >= 0) sheetHS.getRange(targetRowIdx, cols.colClass + 1).setValue(lopToSave);
+        if (cols.colName >= 0) sheetHS.getRange(targetRowIdx, cols.colName + 1).setValue(hoTen);
+        if (cols.colDob >= 0) sheetHS.getRange(targetRowIdx, cols.colDob + 1).setValue(ngaySinh);
+        if (cols.colGender >= 0) sheetHS.getRange(targetRowIdx, cols.colGender + 1).setValue(gioiTinh || "Nam");
+        if (cols.colSchool >= 0) sheetHS.getRange(targetRowIdx, cols.colSchool + 1).setValue(truong);
+        updatedInHS = true;
+      }
+    }
+
+    // 2. Cập nhật trên Sheet HUB_STUDENTS (Trạm Trung Tâm)
+    if (sheetHubStudents) {
+      const hubData = sheetHubStudents.getDataRange().getValues();
+      for (let i = 1; i < hubData.length; i++) {
+        const rowHS = String(hubData[i][0] || "").trim().toUpperCase();
+        const rowGV = String(hubData[i][4] || "").trim();
+        const matchUser = (rowHS === oldUsername.toUpperCase());
+        const matchGV = !usernameGV || isSameTeacherAccount(rowGV, usernameGV);
+        if (matchUser && matchGV) {
+          const r = i + 1;
+          sheetHubStudents.getRange(r, 1).setValue(newUsername);
+          sheetHubStudents.getRange(r, 2).setValue(hoTen);
+          sheetHubStudents.getRange(r, 3).setValue(lopToSave);
+          if (truong) sheetHubStudents.getRange(r, 4).setValue(truong);
+          sheetHubStudents.getRange(r, 7).setValue(nowStr);
+          updatedInHub = true;
+          break;
+        }
+      }
+    }
+
+    // 3. Nếu đổi mã tài khoản, cập nhật cả kết quả thi cũ trong DATA_KETQUA & DATA_TULUAN
+    if (newUsername.toUpperCase() !== oldUsername.toUpperCase()) {
+      try {
+        const sheetKQ = ss.getSheetByName(SHEETS.KETQUA);
+        if (sheetKQ) {
+          const kqData = sheetKQ.getDataRange().getValues();
+          for (let r = 1; r < kqData.length; r++) {
+            if (String(kqData[r][1] || "").trim().toUpperCase() === oldUsername.toUpperCase()) {
+              sheetKQ.getRange(r + 1, 2).setValue(newUsername);
+              if (hoTen) sheetKQ.getRange(r + 1, 3).setValue(hoTen);
+              if (lopToSave) sheetKQ.getRange(r + 1, 4).setValue(lopToSave);
+            }
+          }
+        }
+      } catch (eKQ) {}
+
+      try {
+        const sheetTL = ss.getSheetByName(SHEETS.TULUAN);
+        if (sheetTL) {
+          const tlData = sheetTL.getDataRange().getValues();
+          for (let r = 1; r < tlData.length; r++) {
+            if (String(tlData[r][1] || "").trim().toUpperCase() === oldUsername.toUpperCase()) {
+              sheetTL.getRange(r + 1, 2).setValue(newUsername);
+              if (hoTen) sheetTL.getRange(r + 1, 3).setValue(hoTen);
+              if (lopToSave) sheetTL.getRange(r + 1, 4).setValue(lopToSave);
+            }
+          }
+        }
+      } catch (eTL) {}
+    }
+
+    const whereMsg = (updatedInHS && updatedInHub)
+      ? "Sheet DATA_HOCSINH và HUB_STUDENTS (Trạm Trung Tâm)"
+      : (updatedInHub ? "Sheet HUB_STUDENTS (Trạm Trung Tâm)" : "Sheet DATA_HOCSINH");
+
+    return createJsonResponse({
+      success: true,
+      message: "Đã cập nhật thông tin học sinh \"" + hoTen + "\" (" + newUsername + ") trên " + whereMsg + " thành công!",
+      student: {
+        username: newUsername,
+        oldUsername: oldUsername,
+        hoTen: hoTen,
+        lop: lop,
+        ngaySinh: ngaySinh,
+        gioiTinh: gioiTinh,
+        truong: truong,
+        password: password
+      },
+      updatedInHS: updatedInHS,
+      updatedInHub: updatedInHub
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi cập nhật học sinh: " + err.toString()
     });
   }
 }

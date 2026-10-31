@@ -1782,7 +1782,101 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <!-- ====================================================================
+    <!-- MODAL CHỈNH SỬA THÔNG TIN HỌC SINH -->
+  <div class="modal-backdrop" id="modalEditStudent" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 999999; align-items: center; justify-content: center; padding: 1.25rem; box-sizing: border-box;" aria-hidden="true">
+    <div class="modal-card" style="width: 100%; max-width: 560px; background: #ffffff; border-radius: var(--radius-lg); box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+      
+      <!-- Header Modal -->
+      <div style="padding: 1.25rem 1.5rem; background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Chỉnh Sửa Thông Tin Học Sinh</h3>
+            <span style="font-size: 0.76rem; color: #bfdbfe;">Cập nhật trực tiếp lên Google Sheets và Trạm Trung Tâm</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseEditStudentModal" style="background: none; border: none; font-size: 1.4rem; color: #bfdbfe; cursor: pointer;">✕</button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="formEditStudent" style="padding: 1.5rem; display: flex; flex-direction: column; gap: 0.95rem; max-height: calc(85vh - 120px); overflow-y: auto;">
+        <input type="hidden" id="editStudentOldUsername">
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;">
+          <!-- Họ và tên -->
+          <div class="form-group" style="margin: 0; grid-column: span 2;">
+            <label class="form-label required" for="editStudentFullName" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Họ và tên học sinh</label>
+            <input type="text" id="editStudentFullName" class="form-input" placeholder="Ví dụ: Nguyễn Văn An" required autocomplete="off">
+          </div>
+
+          <!-- Lớp học -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="editStudentClass" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Lớp học</label>
+            <input type="text" id="editStudentClass" class="form-input" placeholder="Ví dụ: 9A1" required style="text-transform: uppercase;">
+          </div>
+
+          <!-- Giới tính -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="editStudentGender" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Giới tính</label>
+            <select id="editStudentGender" class="form-input" style="padding: 0.55rem 0.75rem;">
+              <option value="Nam">Nam</option>
+              <option value="Nữ">Nữ</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;">
+          <!-- Ngày sinh -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="editStudentDob" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Ngày sinh</label>
+            <input type="text" id="editStudentDob" class="form-input" placeholder="DD/MM/YYYY (VD: 15/05/2010)" autocomplete="off">
+            <span style="font-size: 0.72rem; color: #64748b; margin-top: 3px; display: block;">Định dạng ngày/tháng/năm</span>
+          </div>
+
+          <!-- Mật khẩu -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="editStudentPassword" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Mật khẩu</label>
+            <input type="text" id="editStudentPassword" class="form-input" placeholder="Mật khẩu học sinh..." required style="font-family: monospace;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem;">
+          <!-- Tài khoản (Mã HS) -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label required" for="editStudentUsername" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Tài khoản (Mã HS)</label>
+            <input type="text" id="editStudentUsername" class="form-input" placeholder="Ví dụ: HS005" required autocomplete="off" style="font-family: monospace; font-weight: 600;">
+          </div>
+
+          <!-- Trường học -->
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="editStudentSchool" style="font-weight: 700; font-size: 0.85rem; color: #1e293b;">Trường học</label>
+            <input type="text" id="editStudentSchool" class="form-input" placeholder="Tên trường học..." autocomplete="off">
+          </div>
+        </div>
+
+        <!-- Alert Error Box -->
+        <div id="editStudentAlertBox" style="display: none; background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; padding: 0.65rem 0.85rem; border-radius: 8px; font-size: 0.82rem; font-weight: 600;"></div>
+
+      </form>
+
+      <!-- Footer Buttons -->
+      <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button type="button" class="btn-cancel" id="btnCancelEditStudent" style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Hủy bỏ</button>
+        <button type="button" id="btnConfirmEditStudent" style="padding: 0.55rem 1.45rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(37,99,235,0.25);">
+          <span id="btnConfirmEditStudentText">Lưu Thay Đổi</span>
+          <div id="editStudentSpinner" style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+<!-- ====================================================================
        MODAL TRẠM TRUNG TÂM (CENTRAL HUB REGISTRY)
        ==================================================================== -->
   <div class="modal-backdrop" id="centralHubModal" style="display: none;" aria-hidden="true">
@@ -2004,7 +2098,7 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   </div>
 
   <!-- Dữ liệu mã nguồn Teacher_Code.gs chuẩn 5 Sheet hỗ trợ sao chép 1 chạm -->
-  <script src="js/gas_code_content.js?v=4.1"></script>
+  <script src="js/gas_code_content.js?v=4.2"></script>
   <!-- Background Music (Love Story & Sealed With a Kiss 30%) -->
   <script src="js/bg_music.js?v=2.4"></script>
   <!-- Script đồng bộ thanh Bottom Navigation Tabs mượt mà trên mobile -->
@@ -2238,6 +2332,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <script src="js/teacher.js?v=11.5"></script>
+  <script src="js/teacher.js?v=11.6"></script>
 </body>
 </html>
