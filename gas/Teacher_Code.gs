@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = ""; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const TEACHER_BACKEND_VERSION = "2.4"; 
+const TEACHER_BACKEND_VERSION = "2.5"; 
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -1110,6 +1110,21 @@ function handleGetStudentsForTeacher(payload) {
       uniqueClasses.push(s.lop);
     }
   });
+
+  let allowedClassesStr = "";
+  if (sheetGV) {
+    const gvCols = getGiaoVienColMap(sheetGV);
+    const dataGV = sheetGV.getDataRange().getValues();
+    for (let i = 1; i < dataGV.length; i++) {
+      if (isSameTeacherAccount(dataGV[i][gvCols.colUser], usernameGV)) {
+        allowedClassesStr = String(dataGV[i][gvCols.colClass] || "").trim();
+        break;
+      }
+    }
+  }
+  if (!allowedClassesStr && uniqueClasses.length > 0) {
+    allowedClassesStr = uniqueClasses.join(", ");
+  }
 
   return createJsonResponse({
     success: true,
