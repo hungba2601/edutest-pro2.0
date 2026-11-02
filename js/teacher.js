@@ -1012,6 +1012,46 @@ if (modalModelSelectEl) {
   });
 }
 
+/**
+ * Gắn sự kiện đóng modal an toàn khi click vào vùng nền (backdrop)
+ * Chống triệt để lỗi: Khi người dùng kéo rê chuột tô khối văn bản trong ô input rồi nhả chuột ra ngoài
+ * khiến trình duyệt kích hoạt sự kiện click trên backdrop làm modal tự đóng mất dữ liệu.
+ * Modal CHỈ ĐÓNG khi CẢ HAI thao tác: mousedown VÀ mouseup đều bắt đầu VÀ kết thúc trực tiếp trên backdrop.
+ */
+function setupSafeModalBackdropClose(modalEl, closeCallback) {
+  if (!modalEl || typeof closeCallback !== "function") return;
+  if (modalEl._hasSafeBackdropClose) return;
+  modalEl._hasSafeBackdropClose = true;
+
+  let isBackdropMousedown = false;
+
+  modalEl.addEventListener("mousedown", (e) => {
+    // Chỉ bật cờ khi mousedown bắt đầu trực tiếp trên vùng nền backdrop (không phải bên trong card hay input)
+    isBackdropMousedown = (e.target === modalEl);
+  });
+
+  modalEl.addEventListener("mouseup", (e) => {
+    // Chỉ đóng modal khi mousedown bắt đầu từ backdrop VÀ mouseup cũng thả ngay trên backdrop
+    if (isBackdropMousedown && e.target === modalEl) {
+      closeCallback();
+    }
+    isBackdropMousedown = false;
+  });
+
+  // Chặn mousedown bên trong modal-card để đảm bảo cờ luôn là false khi rê chuột từ trong ra ngoài
+  const card = modalEl.querySelector(".modal-card, .modal-dialog, [class*='modal-box'], [class*='modal-content']");
+  if (card) {
+    card.addEventListener("mousedown", () => {
+      isBackdropMousedown = false;
+    });
+  }
+
+  // Khi nhả chuột ở bất kỳ đâu ngoài cửa sổ, luôn reset cờ an toàn
+  window.addEventListener("mouseup", () => {
+    isBackdropMousedown = false;
+  });
+}
+
 // Mở & Đóng Modal Cấu hình
 const geminiConfigModal = document.getElementById("geminiConfigModal");
 const btnOpenGeminiModal = document.getElementById("btnOpenGeminiModal");
@@ -1037,11 +1077,11 @@ if (btnCancelConfigModal) {
   });
 }
 
-window.addEventListener("click", (e) => {
-  if (e.target === geminiConfigModal) {
+if (geminiConfigModal) {
+  setupSafeModalBackdropClose(geminiConfigModal, () => {
     geminiConfigModal.style.display = "none";
-  }
-});
+  });
+}
 
 // Toggle hiện / ẩn Key
 const btnToggleShowKey = document.getElementById("btnToggleShowKey");
@@ -6468,9 +6508,11 @@ btnCloseModal.addEventListener("click", () => {
   detailModal.style.display = "none";
 });
 
-detailModal.addEventListener("click", (e) => {
-  if (e.target === detailModal) detailModal.style.display = "none";
-});
+if (detailModal) {
+  setupSafeModalBackdropClose(detailModal, () => {
+    detailModal.style.display = "none";
+  });
+}
 
 function openStudentDetailModal(record) {
   // Tìm dữ liệu đề thi gốc từ currentExamsList
@@ -7824,9 +7866,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const modalOverlay = document.getElementById("changePasswordModal");
   if (modalOverlay) {
-    modalOverlay.addEventListener("click", (e) => {
-      if (e.target === modalOverlay) closeChangePasswordModal();
-    });
+    setupSafeModalBackdropClose(modalOverlay, closeChangePasswordModal);
   }
 
   // 6. Nút Random Mật khẩu
@@ -7930,9 +7970,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   const batchModalOverlay = document.getElementById("batchChangePasswordModal");
   if (batchModalOverlay) {
-    batchModalOverlay.addEventListener("click", (e) => {
-      if (e.target === batchModalOverlay) closeBatchChangePasswordModal();
-    });
+    setupSafeModalBackdropClose(batchModalOverlay, closeBatchChangePasswordModal);
   }
 
   const btnBatchSelectAll = document.getElementById("btnBatchSelectAllClasses");
@@ -8188,9 +8226,7 @@ function initTeacherAccountDropdownAndModals() {
   if (btnCloseProfile) btnCloseProfile.addEventListener("click", closeTeacherProfile);
   if (btnCloseProfileBottom) btnCloseProfileBottom.addEventListener("click", closeTeacherProfile);
   if (modalProfile) {
-    modalProfile.addEventListener("click", (e) => {
-      if (e.target === modalProfile) closeTeacherProfile();
-    });
+    setupSafeModalBackdropClose(modalProfile, closeTeacherProfile);
   }
 
   // 3. Modal Đổi Mật Khẩu Giáo viên
@@ -8230,9 +8266,7 @@ function initTeacherAccountDropdownAndModals() {
   if (btnCloseChangePwd) btnCloseChangePwd.addEventListener("click", closeTeacherChangePwd);
   if (btnCancelChangePwd) btnCancelChangePwd.addEventListener("click", closeTeacherChangePwd);
   if (modalChangePwd) {
-    modalChangePwd.addEventListener("click", (e) => {
-      if (e.target === modalChangePwd) closeTeacherChangePwd();
-    });
+    setupSafeModalBackdropClose(modalChangePwd, closeTeacherChangePwd);
   }
 
   // 4. Toggle Eye cho ô mật khẩu
@@ -8367,9 +8401,14 @@ function initTeacherAccountDropdownAndModals() {
 // ============================================================================
 // KHỞI TẠO TÍNH NĂNG THÊM MỚI HỌC SINH THỦ CÔNG
 // ============================================================================
+let isAddStudentModalInited = false;
 function initAddStudentModal() {
-  const btnOpen = document.getElementById("btnOpenAddStudentModal");
+  if (isAddStudentModalInited) return;
   const modal = document.getElementById("modalAddStudent");
+  if (!modal) return;
+  isAddStudentModalInited = true;
+
+  const btnOpen = document.getElementById("btnOpenAddStudentModal");
   const btnClose = document.getElementById("btnCloseAddStudentModal");
   const btnCancel = document.getElementById("btnCancelAddStudent");
   const btnConfirm = document.getElementById("btnConfirmAddStudent");
@@ -8513,9 +8552,8 @@ function initAddStudentModal() {
     };
   }
   if (modal) {
-    modal.onclick = (e) => {
-      if (e.target === modal) closeModal();
-    };
+    modal.onclick = null;
+    setupSafeModalBackdropClose(modal, closeModal);
   }
 
   // Xử lý gửi form thêm học sinh
@@ -8770,8 +8808,12 @@ function closeEditStudentModal() {
   }
 }
 
+let isEditStudentModalInited = false;
 function initEditStudentModal() {
+  if (isEditStudentModalInited) return;
   const modal = document.getElementById("modalEditStudent");
+  if (!modal) return;
+  isEditStudentModalInited = true;
   const btnClose = document.getElementById("btnCloseEditStudentModal");
   const btnCancel = document.getElementById("btnCancelEditStudent");
   const btnConfirm = document.getElementById("btnConfirmEditStudent");
@@ -8807,9 +8849,7 @@ function initEditStudentModal() {
   if (btnClose) btnClose.addEventListener("click", closeEditStudentModal);
   if (btnCancel) btnCancel.addEventListener("click", closeEditStudentModal);
   if (modal) {
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) closeEditStudentModal();
-    });
+    setupSafeModalBackdropClose(modal, closeEditStudentModal);
   }
 
   if (btnConfirm) {
@@ -9284,6 +9324,7 @@ function initCentralHubModal() {
   if (btnOpenHubModal) btnOpenHubModal.addEventListener("click", openModal);
   if (btnCloseHubModal) btnCloseHubModal.addEventListener("click", closeModal);
   if (btnCancelHubModal) btnCancelHubModal.addEventListener("click", closeModal);
+  if (centralHubModal) setupSafeModalBackdropClose(centralHubModal, closeModal);
 
   // Nút X màu đỏ: Xóa nhanh URL
   if (btnClearHubServerUrl) {
@@ -9740,12 +9781,8 @@ function initShareExamModal() {
   if (btnClose) btnClose.addEventListener("click", closeShareExamModal);
   if (btnCancel) btnCancel.addEventListener("click", closeShareExamModal);
 
-  // Click ra vùng nền ngoài để đóng
-  shareModal.addEventListener("click", (e) => {
-    if (e.target === shareModal) {
-      closeShareExamModal();
-    }
-  });
+  // Đóng an toàn khi click vùng nền ngoài (chống lỗi quét chữ đóng modal)
+  setupSafeModalBackdropClose(shareModal, closeShareExamModal);
 
   // Xác nhận chia sẻ
   if (btnConfirm) {
