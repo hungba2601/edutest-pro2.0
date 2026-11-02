@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = ""; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const TEACHER_BACKEND_VERSION = "2.5"; 
+const TEACHER_BACKEND_VERSION = "2.6"; 
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -1113,13 +1113,17 @@ function handleGetStudentsForTeacher(payload) {
 
   let allowedClassesStr = "";
   if (sheetGV) {
-    const gvCols = getGiaoVienColMap(sheetGV);
-    const dataGV = sheetGV.getDataRange().getValues();
-    for (let i = 1; i < dataGV.length; i++) {
-      if (isSameTeacherAccount(dataGV[i][gvCols.colUser], usernameGV)) {
-        allowedClassesStr = String(dataGV[i][gvCols.colClass] || "").trim();
-        break;
+    try {
+      const gvCols = getGiaoVienColMap(sheetGV);
+      const dataGV = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < dataGV.length; i++) {
+        if (isSameTeacherAccount(dataGV[i][gvCols.colUser], usernameGV)) {
+          allowedClassesStr = String(dataGV[i][gvCols.colClass] || "").trim();
+          break;
+        }
       }
+    } catch (eGv) {
+      Logger.log("Lỗi đọc lớp từ sheetGV: " + eGv);
     }
   }
   if (!allowedClassesStr && uniqueClasses.length > 0) {
@@ -1904,6 +1908,43 @@ function formatBirthDateValue(val) {
  * Tự động dò tìm chính xác index các cột của Sheet DATA_HOCSINH linh hoạt
  * Hỗ trợ nhận diện thông minh ngay cả khi giáo viên chèn thêm cột STT ở cột A hoặc thay đổi vị trí cột
  */
+/**
+ * Hàm lấy bản đồ các cột trong Sheet DATA_GIAOVIEN
+ * Nhận diện tự động cột Tài khoản, Mật khẩu, Họ tên, Lớp giảng dạy, Trường
+ */
+function getGiaoVienColMap(sheetGV) {
+  const map = {
+    colUser: 0,
+    colPass: 1,
+    colName: 2,
+    colClass: 3,
+    colSchool: 4
+  };
+  try {
+    if (!sheetGV) return map;
+    const lastCol = Math.max(sheetGV.getLastColumn(), 5);
+    const headers = sheetGV.getRange(1, 1, 1, Math.min(lastCol, 20)).getValues()[0];
+    for (let c = 0; c < headers.length; c++) {
+      const h = String(headers[c] || "").trim().toLowerCase();
+      if (!h) continue;
+      if (h.includes("tài khoản") || h.includes("mã gv") || h.includes("username") || h === "tk gv") {
+        map.colUser = c;
+      } else if (h.includes("mật khẩu") || h.includes("password") || h === "pass" || h === "mk") {
+        map.colPass = c;
+      } else if (h.includes("họ tên") || h.includes("tên gv") || h.includes("hoten")) {
+        map.colName = c;
+      } else if (h.includes("lớp") || h.includes("lop")) {
+        map.colClass = c;
+      } else if (h.includes("trường") || h.includes("truong") || h.includes("đơn vị")) {
+        map.colSchool = c;
+      }
+    }
+  } catch (e) {
+    Logger.log("Lỗi getGiaoVienColMap: " + e.toString());
+  }
+  return map;
+}
+
 function getHocSinhColMap(sheetHS) {
   const map = {
     colUser: 0,
