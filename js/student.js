@@ -258,11 +258,21 @@ window.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Nút bắn lại pháo hoa giấy màu trên màn hình kết quả thi (Khung h2)
+  // Nút bắn lại pháo hoa giấy màu trên màn hình kết quả thi (Khung h2) - Giới hạn tối đa 3 lần
   const btnReplayConfetti = document.getElementById("btnResultReplayConfetti");
   if (btnReplayConfetti) {
+    updateReplayConfettiButtonUI();
     btnReplayConfetti.addEventListener("click", () => {
+      if (confettiReplayRemaining <= 0) {
+        showToast("Hết lượt bắn", "Bạn đã dùng hết 3 lượt bắn pháo hoa giấy!", "info", 2500);
+        return;
+      }
+      confettiReplayRemaining--;
+      updateReplayConfettiButtonUI();
       triggerSubmitCelebrationConfetti();
+      if (confettiReplayRemaining === 0) {
+        showToast("Pháo hoa 🎉", "Đã bắn pháo hoa lần cuối (3/3)!", "info", 2500);
+      }
     });
   }
 
@@ -2401,7 +2411,11 @@ function showExamResultScreen(result) {
 
   // ==========================================================================
   // HIỆU ỨNG PHÁO HOA GIẤY MÀU CHÚC MỪNG HOÀN THÀNH BÀI THI (KHUNG H2)
+  // Đặt lại số lượt bắn pháo giấy (tối đa 3 lần) cho mỗi lần hoàn thành bài thi
   // ==========================================================================
+  confettiReplayRemaining = MAX_CONFETTI_REPLAY_COUNT;
+  updateReplayConfettiButtonUI();
+
   setTimeout(() => {
     triggerSubmitCelebrationConfetti();
   }, 150);
@@ -2411,6 +2425,23 @@ function showExamResultScreen(result) {
 // HỘP THOẠI THÔNG BÁO NỘP BÀI THÀNH CÔNG & HIỆU ỨNG NÉM GIẤY MÀU (CONFETTI)
 // ============================================================================
 let confettiCelebrationInstance = null;
+const MAX_CONFETTI_REPLAY_COUNT = 3;
+let confettiReplayRemaining = MAX_CONFETTI_REPLAY_COUNT;
+
+function updateReplayConfettiButtonUI() {
+  const btn = document.getElementById("btnResultReplayConfetti");
+  if (!btn) return;
+
+  if (confettiReplayRemaining > 0) {
+    btn.disabled = false;
+    btn.title = `Bắn lại pháo hoa giấy màu chúc mừng (còn ${confettiReplayRemaining} lần)`;
+    btn.innerHTML = `<span>🎊 Bắn Pháo Giấy (${confettiReplayRemaining})</span>`;
+  } else {
+    btn.disabled = true;
+    btn.title = "Bạn đã dùng hết 3 lượt bắn pháo giấy";
+    btn.innerHTML = `<span>🎊 Đã hết lượt bắn</span>`;
+  }
+}
 
 function triggerSubmitCelebrationConfetti() {
   try {
