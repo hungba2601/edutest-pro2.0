@@ -690,12 +690,29 @@ function updateTfScoringModeDisplay(isChiaDeu) {
 function initTfScoringModeSelector() {
   const radioBoGddt = document.getElementById("radioTfScoreBoGddt");
   const radioChiaDeu = document.getElementById("radioTfScoreChiaDeu");
+  const optBoGddt = document.getElementById("optTfScoreBoGddt");
+  const optChiaDeu = document.getElementById("optTfScoreChiaDeu");
 
   if (radioBoGddt) {
     radioBoGddt.addEventListener("change", () => updateTfScoringModeDisplay(false));
   }
   if (radioChiaDeu) {
     radioChiaDeu.addEventListener("change", () => updateTfScoringModeDisplay(true));
+  }
+
+  if (optBoGddt) {
+    optBoGddt.addEventListener("click", () => {
+      if (radioBoGddt) radioBoGddt.checked = true;
+      if (radioChiaDeu) radioChiaDeu.checked = false;
+      updateTfScoringModeDisplay(false);
+    });
+  }
+  if (optChiaDeu) {
+    optChiaDeu.addEventListener("click", () => {
+      if (radioChiaDeu) radioChiaDeu.checked = true;
+      if (radioBoGddt) radioBoGddt.checked = false;
+      updateTfScoringModeDisplay(true);
+    });
   }
 }
 
@@ -10524,6 +10541,9 @@ function initTeacherDashboard() {
 
     // Khởi tạo sự kiện chuyển chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
     try { initScoreModeSelector(); } catch (e) { console.warn("Score mode selector warning:", e); }
+
+    // Khởi tạo sự kiện cấu hình tính điểm câu hỏi Đúng/Sai (Thang Bộ GD&ĐT vs Chia đều các ý)
+    try { initTfScoringModeSelector(); } catch (e) { console.warn("TF scoring selector warning:", e); }
 
     // Khởi tạo tính năng Thông tin cá nhân & Đổi mật khẩu cho Giáo viên
     try { initTeacherAccountDropdownAndModals(); } catch (e) { console.warn("Account dropdown warning:", e); }
