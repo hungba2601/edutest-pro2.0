@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1MCOXMDiLbh_Nifk1RxkI0jk8YIJ0hHndvz2dp7Ip5Y/edit"; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const CURRENT_BACKEND_VERSION = "2.4";
+const CURRENT_BACKEND_VERSION = "2.5";
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {

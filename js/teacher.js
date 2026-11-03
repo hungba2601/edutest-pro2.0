@@ -186,6 +186,8 @@ function isBGHAccount() {
     if (currentTeacher.quyen) quyen = String(currentTeacher.quyen).trim().toUpperCase();
     if (quyen.includes("BGH")) return true;
   }
+  const role = localStorage.getItem("userRole");
+  if (role && String(role).toUpperCase() === "BGH") return true;
   return false;
 }
 
@@ -10206,8 +10208,8 @@ function initTeacherDashboard() {
     const rawUser = localStorage.getItem("currentUser");
     const role = localStorage.getItem("userRole");
 
-    if (!rawUser || (role !== "GV" && role !== "ADMIN")) {
-      alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Giáo viên / Quản trị viên.");
+    if (!rawUser || (role !== "GV" && role !== "ADMIN" && role !== "BGH")) {
+      alert("Phiên đăng nhập không hợp lệ hoặc bạn không có quyền Giáo viên / Quản trị viên / Ban Giám Hiệu.");
       window.location.href = "index.html";
       return;
     }
