@@ -2123,6 +2123,14 @@ function parseBooleanVal(val) {
  */
 function handleDeleteStudentResult(payload) {
   try {
+    const requesterRole = String(payload.requesterRole || payload.quyen || "").trim().toLowerCase();
+    if (requesterRole.includes("bgh") || payload.isBGH === true) {
+      return createJsonResponse({
+        success: false,
+        message: "Tài khoản Ban Giám Hiệu chỉ có quyền xem dữ liệu, không được phép xóa kết quả thi!"
+      });
+    }
+
     const ss = getSpreadsheet();
     const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
     if (!sheetKetQua) {

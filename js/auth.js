@@ -464,20 +464,21 @@ loginForm.addEventListener("submit", async (e) => {
         if (result.data.password) delete result.data.password;
       }
       const rawUser = String(username || result.data?.username || "").trim().toLowerCase();
-      const isBGH = (rawUser === "admin");
-      const quyenVal = String(result.data?.quyen || "").trim().toLowerCase();
-      // Phân quyền:
-      // - isTeacherMgmtAdmin: Tài khoản có Cột D là 'admin' (quản lý thêm, sửa, xóa, đổi pass GV)
-      // - isBGH: Tài khoản 'admin' là Ban Giám Hiệu (chỉ xem 1 tab thống kê điểm số all GV)
-      const isTeacherMgmtAdmin = (quyenVal === "admin");
-      const isUserAdmin = (isTeacherMgmtAdmin || isBGH || result.role === "ADMIN");
-      const savedRole = isUserAdmin ? "ADMIN" : (result.role || effectiveRole || "GV");
+      const quyenVal = String(result.data?.quyen || result.data?.rawQuyen || "").trim().toLowerCase();
+      // Phân quyền mới:
+      // - isBGH: Cột D (Quyền) có chứa 'bgh' (Ban Giám Hiệu - chỉ xem 1 tab thống kê điểm số all GV, không sửa xóa)
+      // - isTeacherMgmtAdmin: Cột D (Quyền) là 'admin' (Quản trị viên - quản lý giáo viên & toàn bộ hệ thống)
+      // - Tài khoản tên 'admin' nếu cột quyền không có 'bgh' thì KHÔNG có quyền BGH
+      const isBGH = quyenVal.includes("bgh") || (result.data?.isBGH === true) || (result.role === "BGH");
+      const isTeacherMgmtAdmin = (quyenVal === "admin") && !isBGH;
+      const isUserAdmin = (isTeacherMgmtAdmin || isBGH || result.role === "ADMIN" || result.role === "BGH");
+      const savedRole = isBGH ? "BGH" : (isTeacherMgmtAdmin ? "ADMIN" : (result.role || effectiveRole || "GV"));
       if (result.data) {
         result.data.isAdmin = isUserAdmin;
         result.data.isBGH = isBGH;
         result.data.hasTeacherMgmt = isTeacherMgmtAdmin;
         result.data.role = savedRole;
-        result.data.quyen = quyenVal || (isTeacherMgmtAdmin ? "admin" : "gv");
+        result.data.quyen = quyenVal || (isBGH ? "bgh" : (isTeacherMgmtAdmin ? "admin" : "gv"));
       }
       localStorage.setItem("currentUser", JSON.stringify(result.data));
       localStorage.setItem("userRole", savedRole);
@@ -497,7 +498,7 @@ loginForm.addEventListener("submit", async (e) => {
 
       // Chuyển hướng theo phân quyền
       setTimeout(() => {
-        if (savedRole === "GV" || savedRole === "ADMIN") {
+        if (savedRole === "GV" || savedRole === "ADMIN" || savedRole === "BGH") {
           const gvUser = (result.data?.username || "").trim();
           if (result.data && result.data.serverUrl && result.data.serverUrl !== DEFAULT_GAS_API_URL) {
             localStorage.setItem("custom_gas_api_url", result.data.serverUrl);

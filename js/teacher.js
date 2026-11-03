@@ -168,19 +168,30 @@ let targetChangePwdStudent = null; // Học sinh đang được chọn để đ�
 // Lấy API_URL từ cấu hình (Đảm bảo mỗi giáo viên CHỈ LƯU VÀO GOOGLE SHEET CÁ NHÂN RIÊNG, KHÔNG LƯU VÀO ADMIN)
 const DEFAULT_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw0WKZ9KjlMud7nEof6Kwqe6XYDRDeht4gHWVH_WsS2h48j_dzSvriiT9I4RT9t6zIG/exec";
 
-// Kiểm tra tài khoản Ban Giám Hiệu ('admin')
+// Kiểm tra tài khoản Ban Giám Hiệu (Cột D - Quyền có chữ 'BGH')
 function isBGHAccount() {
-  let username = "";
+  let quyen = "";
   try {
     const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
-    if (u && u.username) username = String(u.username).trim().toLowerCase();
+    if (u) {
+      if (u.isBGH === true) return true;
+      if (u.role && String(u.role).toUpperCase() === "BGH") return true;
+      if (u.quyen) quyen = String(u.quyen).trim().toUpperCase();
+      if (quyen.includes("BGH")) return true;
+    }
   } catch (e) {}
-  if (currentTeacher?.username) username = String(currentTeacher.username).trim().toLowerCase();
-  return username === "admin";
+  if (currentTeacher) {
+    if (currentTeacher.isBGH === true) return true;
+    if (currentTeacher.role && String(currentTeacher.role).toUpperCase() === "BGH") return true;
+    if (currentTeacher.quyen) quyen = String(currentTeacher.quyen).trim().toUpperCase();
+    if (quyen.includes("BGH")) return true;
+  }
+  return false;
 }
 
 // Kiểm tra quyền Quản lý Giáo viên (Cột D trên Sheet DATA_GIAOVIEN là 'admin')
 function hasTeacherManagementPermission() {
+  if (isBGHAccount()) return false;
   let quyen = "";
   try {
     const u = JSON.parse(localStorage.getItem("currentUser") || "{}");
@@ -190,7 +201,7 @@ function hasTeacherManagementPermission() {
   return quyen === "admin";
 }
 
-// 1. Kiểm tra tài khoản Admin hệ thống (gồm tài khoản "admin" BGH và tài khoản có Cột D - Quyền là "admin")
+// 1. Kiểm tra tài khoản Admin hệ thống (gồm tài khoản có Cột D là 'BGH' và tài khoản có Cột D là 'admin')
 function isCurrentUserAdmin() {
   return isBGHAccount() || hasTeacherManagementPermission();
 }
@@ -199,7 +210,7 @@ function isAdminRole() {
   return isCurrentUserAdmin();
 }
 
-// Kiểm tra tài khoản dùng chung Sheet Trung Tâm (0938750424 và admin)
+// Kiểm tra tài khoản dùng chung Sheet Trung Tâm (0938750424 và BGH / Admin)
 function isCentralAccount(targetUser) {
   let u = String(targetUser || currentTeacher?.username || "").trim().toLowerCase();
   if (!u) {
@@ -209,7 +220,7 @@ function isCentralAccount(targetUser) {
     } catch (e) {}
   }
   const cleanUser = u.replace(/^0+/, "");
-  return (u === "admin" || u === "0938750424" || cleanUser === "938750424");
+  return (isBGHAccount() || hasTeacherManagementPermission() || cleanUser === "938750424" || u === "0938750424");
 }
 
 let adminActiveApiUrl = null;
@@ -6091,16 +6102,23 @@ function renderResultsTable(results, keepPage = false) {
       scoreBadgeHtml = `<span class="score-badge ${badgeClass}">${displayScore}</span>`;
       dungSaiHtml = `<span style="font-weight: 600; color: #1e293b;">${row.soCauDungSai || "--"}</span>`;
       thoiGianNopHtml = `<span style="font-size: 0.8rem; color: #64748b;">${row.thoiGianNop}</span>`;
+
+      // Ban Giám Hiệu (BGH): CHỈ ĐƯỢC XEM, KHÔNG CHO XÓA/SỬA
+      const isBGH = isBGHAccount();
+      const deleteBtnHtml = isBGH ? "" : `
+        <button type="button" class="btn-delete-result" data-index="${idx}" title="Xóa kết quả này khỏi Google Sheets" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #fecaca; background: #fef2f2; color: #dc2626; cursor: pointer; transition: all 0.2s ease;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
+        </button>
+      `;
+
       actionButtonsHtml = `
         <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
           <button type="button" class="btn-secondary-sm btn-view-detail" data-index="${idx}">
             Xem bài làm
           </button>
-          <button type="button" class="btn-delete-result" data-index="${idx}" title="Xóa kết quả này khỏi Google Sheets" style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid #fecaca; background: #fef2f2; color: #dc2626; cursor: pointer; transition: all 0.2s ease;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-          </button>
+          ${deleteBtnHtml}
         </div>
       `;
     } else {
@@ -6148,6 +6166,10 @@ function renderResultsTable(results, keepPage = false) {
   // Gắn sự kiện xóa kết quả
   tbody.querySelectorAll(".btn-delete-result").forEach(btn => {
     btn.addEventListener("click", async (e) => {
+      if (isBGHAccount()) {
+        alert("Tài khoản Ban Giám Hiệu chỉ có quyền xem thống kê, không được phép xóa kết quả thi!");
+        return;
+      }
       const idx = parseInt(btn.dataset.index);
       const item = pageItems[idx];
       if (!item) return;
@@ -10255,7 +10277,7 @@ function initTeacherDashboard() {
       if (dropdownBadge) dropdownBadge.textContent = isBGH ? "Ban Giám Hiệu" : "Quản Trị Viên";
 
       if (isBGH) {
-        // TÀI KHOẢN TÊN 'admin': LÀ BAN GIÁM HIỆU
+        // TÀI KHOẢN CÓ CỘT D (QUYỀN) CHỨA 'BGH': LÀ BAN GIÁM HIỆU
         // CHỈ HIỆN DUY NHẤT 1 TAB: "Xem Thống Kê & Điểm Số" của ALL giáo viên
         if (tabBtnCreate) tabBtnCreate.style.display = "none";
         if (tabBtnStudents) tabBtnStudents.style.display = "none";
@@ -10268,7 +10290,7 @@ function initTeacherDashboard() {
           tabStudents.classList.remove("active");
         }
 
-        // Ẩn tab Quản lý Giáo viên (vì tk tên admin không phải là quyền admin quản lý GV)
+        // Ẩn tab Quản lý Giáo viên (BGH không can thiệp danh sách giáo viên)
         if (tabBtnAdminTeachers) tabBtnAdminTeachers.style.display = "none";
         if (tabAdminTeachers) tabAdminTeachers.style.display = "none";
 
@@ -10283,6 +10305,14 @@ function initTeacherDashboard() {
           tabResults.style.display = "block";
           tabResults.classList.add("active");
         }
+
+        // Đổi tiêu đề cột 'Chi tiết & Xóa' thành 'Xem bài làm' (vì BGH chỉ xem, không xóa)
+        const thActions = document.getElementById("thResultActions");
+        if (thActions) thActions.textContent = "Xem bài làm";
+
+        // Hiển thị banner thông báo chế độ giám sát BGH (Chỉ xem)
+        const bghBanner = document.getElementById("bghReadOnlyBanner");
+        if (bghBanner) bghBanner.style.display = "flex";
       } else {
         // TÀI KHOẢN GIÁO VIÊN CÓ QUYỀN ADMIN (CỘT D LÀ 'admin'):
         // HIỆN ĐẦY ĐỦ CẢ 4 TAB: Tạo Đề, Xem Kết Quả, Quản Lý Học Sinh, VÀ Quản Lý Giáo Viên
@@ -10742,14 +10772,14 @@ function renderAdminTeachersTable() {
   tbody.innerHTML = filtered.map((t, idx) => {
     const rawUser = String(t.username || "");
     const cleanUser = rawUser.replace(/^'+/, "");
-    const q = String(t.quyen || "").toLowerCase();
+    const q = String(t.quyen || "").trim().toLowerCase();
     const isAdmin = (q === "admin");
-    const isBGH = (cleanUser.toLowerCase() === "admin");
+    const isBGH = q.includes("bgh");
     let roleBadge = '<span class="badge-role-gv">👨‍🏫 Giáo viên</span>';
-    if (isAdmin) {
+    if (isBGH) {
+      roleBadge = '<span class="badge-role-bgh" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 9999px; font-size: 0.82rem; font-weight: 700;">🏛️ Ban Giám Hiệu (BGH)</span>';
+    } else if (isAdmin) {
       roleBadge = '<span class="badge-role-admin">🛡️ Quản trị viên (Admin)</span>';
-    } else if (isBGH) {
-      roleBadge = '<span class="badge-role-bgh" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 4px 10px; border-radius: 9999px; font-size: 0.82rem; font-weight: 700;">🏛️ Ban Giám Hiệu</span>';
     }
 
     const isPassVisible = !!adminTeacherPasswordMaskMap[cleanUser];
@@ -11158,7 +11188,14 @@ window.openEditTeacherModal = function(cleanUser) {
   document.getElementById("teacherInputFullName").value = t.hoTenGV || "";
   document.getElementById("teacherInputPassword").value = t.password || "";
   document.getElementById("teacherPasswordGroup").style.display = "block";
-  document.getElementById("teacherInputRole").value = (String(t.quyen || "").toLowerCase() === "admin") ? "admin" : "gv";
+  const qEdit = String(t.quyen || "").trim().toLowerCase();
+    if (qEdit.includes("bgh")) {
+      document.getElementById("teacherInputRole").value = "bgh";
+    } else if (qEdit === "admin") {
+      document.getElementById("teacherInputRole").value = "admin";
+    } else {
+      document.getElementById("teacherInputRole").value = "gv";
+    }
   document.getElementById("teacherInputClasses").value = t.lopGiangDay || "";
   document.getElementById("teacherInputSchool").value = t.truong || "";
   document.getElementById("btnSaveTeacherText").textContent = "Cập Nhật Vào Sheet";

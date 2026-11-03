@@ -953,11 +953,25 @@ function handleLogin(payload) {
             }
           } catch (eHub) {}
 
-          // Phân quyền: Tài khoản 'admin' là Ban Giám Hiệu (BGH). Tài khoản có Cột D là 'admin' là Quản trị viên (Admin)
-          const roleVal = gvCols.colRole >= 0 ? String(row[gvCols.colRole] || "").trim().toLowerCase() : "";
-          const isBGH = (gvUser.toLowerCase() === "admin" || username.toLowerCase() === "admin");
-          const hasAdminTeacherMgmt = (roleVal === "admin");
+          // Phân quyền mới:
+          // - isBGH: Cột D (Quyền) có chứa 'bgh' (Ban Giám Hiệu - chỉ xem tab thống kê điểm số all GV, không sửa xóa)
+          // - hasAdminTeacherMgmt: Cột D (Quyền) là 'admin' (Quản trị viên - quản lý giáo viên & toàn bộ hệ thống)
+          // - Tài khoản tên 'admin' nếu cột quyền không có 'bgh' thì KHÔNG có quyền BGH
+          const rawRole = gvCols.colRole >= 0 ? String(row[gvCols.colRole] || "").trim() : "";
+          const roleLower = rawRole.toLowerCase();
+          const isBGH = roleLower.includes("bgh");
+          const hasAdminTeacherMgmt = (roleLower === "admin");
           const isAdmin = (isBGH || hasAdminTeacherMgmt);
+
+          let displayRole = "GV";
+          let loginMessage = "Đăng nhập Giáo viên thành công!";
+          if (isBGH) {
+            displayRole = "BGH";
+            loginMessage = "Đăng nhập Ban Giám Hiệu (BGH) thành công!";
+          } else if (hasAdminTeacherMgmt) {
+            displayRole = "ADMIN";
+            loginMessage = "Đăng nhập Quản trị viên (Admin) thành công!";
+          }
 
           const verColIdx = gvCols.colVer >= 0 ? gvCols.colVer : ensureGiaoVienSheetColumns(sheetGV);
           const reqVer = getCentralBackendVersion(sheetGV);
@@ -965,14 +979,15 @@ function handleLogin(payload) {
 
           return createJsonResponse({
             success: true,
-            message: isBGH ? "Đăng nhập Ban Giám Hiệu (BGH) thành công!" : (isAdmin ? "Đăng nhập Quản trị viên (Admin) thành công!" : "Đăng nhập Giáo viên thành công!"),
-            role: isAdmin ? "ADMIN" : "GV",
+            message: loginMessage,
+            role: displayRole,
             requiredBackendVersion: reqVer,
             teacherBackendVersion: teacherCurrentVer,
             data: {
               username: gvUser,
               hoTenGV: String(row[gvCols.colName] || (isBGH ? "Ban Giám Hiệu" : "")),
-              quyen: roleVal || (hasAdminTeacherMgmt ? "admin" : "gv"),
+              quyen: isBGH ? "bgh" : (hasAdminTeacherMgmt ? "admin" : "gv"),
+              rawQuyen: rawRole,
               lopGiangDay: String(row[gvCols.colClass] || (isBGH ? "BGH" : "")),
               truong: String(row[gvCols.colSchool] || ""),
               ngaySinh: "",
@@ -982,7 +997,7 @@ function handleLogin(payload) {
               isAdmin: isAdmin,
               isBGH: isBGH,
               hasAdminTeacherMgmt: hasAdminTeacherMgmt,
-              role: isAdmin ? "ADMIN" : "GV"
+              role: displayRole
             }
           });
         } else {
@@ -1985,11 +2000,46 @@ function isAdminAccount(username) {
   return !!(map[s] || map[s.replace(/^0+/, "")]);
 }
 
-// Kiểm tra quyền xem dữ liệu của toàn bộ giáo viên (dành cho Ban Giám Hiệu 'admin' hoặc Quản trị viên Cột D là 'admin')
+// Kiểm tra quyền xem dữ liệu của toàn bộ giáo viên (dành cho Ban Giám Hiệu Cột D có 'bgh' hoặc Quản trị viên Cột D là 'admin')
 function canViewAllTeachersData(username) {
   var s = String(username || "").trim().toLowerCase();
-  if (!s || s === "all" || s === "admin") return true;
-  return isAdminAccount(s);
+  if (!s || s === "all") return true;
+  return isBGHAccountBackend(s) || isAdminAccount(s);
+}
+
+function isBGHAccountBackend(username) {
+  var s = String(username || "").trim().toLowerCase();
+  if (!s) return false;
+  var map = getBGHAccountsMap();
+  return !!(map[s] || map[s.replace(/^0+/, "")]);
+}
+
+var _bghAccountsCache = null;
+function getBGHAccountsMap() {
+  if (_bghAccountsCache) return _bghAccountsCache;
+  var map = {};
+  try {
+    const ss = getSpreadsheet();
+    if (ss) {
+      const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+      if (sheetGV) {
+        const gvCols = getGiaoVienColMap(sheetGV);
+        if (gvCols.colRole >= 0) {
+          const data = sheetGV.getDataRange().getValues();
+          for (let i = 1; i < data.length; i++) {
+            var u = String(data[i][gvCols.colUser] || "").trim().toLowerCase();
+            var r = String(data[i][gvCols.colRole] || "").trim().toLowerCase();
+            if (r.includes("bgh")) {
+              map[u] = true;
+              map[u.replace(/^0+/, "")] = true;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
+  _bghAccountsCache = map;
+  return map;
 }
 
 function handleSaveExam(payload) {
@@ -3390,6 +3440,14 @@ function parseBooleanVal(val) {
  */
 function handleDeleteStudentResult(payload) {
   try {
+    const requesterRole = String(payload.requesterRole || payload.quyen || "").trim().toLowerCase();
+    if (requesterRole.includes("bgh") || payload.isBGH === true) {
+      return createJsonResponse({
+        success: false,
+        message: "Tài khoản Ban Giám Hiệu chỉ có quyền xem dữ liệu, không được phép xóa kết quả thi!"
+      });
+    }
+
     const ss = getSpreadsheet();
     const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
     if (!sheetKetQua) {
@@ -3896,13 +3954,14 @@ function handleGetAdminTeachers(payload) {
         }
       }
 
+      const isBghUser = (quyenVal || "").includes("bgh");
       teachers.push({
         username: rawUser,
         password: rawPass,
         hoTenGV: String(row[cols.colName] || ""),
         quyen: quyenVal || "gv",
-        isAdmin: isAdmin,
-        isBGH: (rawUser.toLowerCase() === "admin"),
+        isAdmin: isAdmin || isBghUser,
+        isBGH: isBghUser,
         lopGiangDay: lopVal,
         truong: String(row[cols.colSchool] || ""),
         backendVersion: formatBackendVersion(row[cols.colVer], "2.0")
