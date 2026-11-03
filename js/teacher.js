@@ -716,6 +716,105 @@ function initTfScoringModeSelector() {
   }
 }
 
+/**
+ * Tổng hợp toàn bộ danh sách lớp của giáo viên hiện tại từ:
+ * 1. teacherAllClassesList (từ bộ lọc Quản lý học sinh)
+ * 2. currentTeacherStudents (danh sách học sinh trong RAM)
+ * 3. Bộ nhớ đệm localStorage (edutest_students_cache)
+ * 4. currentTeacher.lopGiangDay (từ hồ sơ đăng nhập)
+ * 5. additionalClasses (lớp của đề thi đang sửa)
+ */
+function getTeacherAllAvailableClasses(additionalClasses = "") {
+  const classSet = new Set();
+
+  // 1. Từ mảng filter teacherAllClassesList
+  if (typeof teacherAllClassesList !== "undefined" && Array.isArray(teacherAllClassesList) && teacherAllClassesList.length > 0) {
+    teacherAllClassesList.forEach(c => {
+      const nc = normalizeClassName(c);
+      if (nc && !["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(nc.toUpperCase())) {
+        classSet.add(nc);
+      }
+    });
+  }
+
+  // 2. Từ danh sách học sinh hiện hành trong RAM (currentTeacherStudents)
+  if (typeof currentTeacherStudents !== "undefined" && Array.isArray(currentTeacherStudents) && currentTeacherStudents.length > 0) {
+    currentTeacherStudents.forEach(st => {
+      if (st && st.lop) {
+        const nc = normalizeClassName(st.lop);
+        if (nc && !["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(nc.toUpperCase())) {
+          classSet.add(nc);
+        }
+      }
+    });
+  }
+
+  // 3. Từ cache học sinh trong localStorage
+  try {
+    const u = currentTeacher?.username || "";
+    let cached = null;
+    if (typeof getCachedTeacherStudents === "function") {
+      cached = getCachedTeacherStudents();
+    }
+    if (!cached && u) {
+      const raw = localStorage.getItem("edutest_students_cache_" + u);
+      if (raw) cached = JSON.parse(raw);
+    }
+    if (cached) {
+      if (Array.isArray(cached.classes)) {
+        cached.classes.forEach(c => {
+          const nc = normalizeClassName(c);
+          if (nc && !["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(nc.toUpperCase())) {
+            classSet.add(nc);
+          }
+        });
+      }
+      if (Array.isArray(cached.students)) {
+        cached.students.forEach(st => {
+          if (st && st.lop) {
+            const nc = normalizeClassName(st.lop);
+            if (nc && !["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(nc.toUpperCase())) {
+              classSet.add(nc);
+            }
+          }
+        });
+      }
+    }
+  } catch (eCache) {}
+
+  // 4. Từ currentTeacher.lopGiangDay trong thông tin tài khoản
+  if (currentTeacher && currentTeacher.lopGiangDay) {
+    const gvClasses = String(currentTeacher.lopGiangDay).split(/[,;\s]+/).map(normalizeClassName).filter(Boolean);
+    gvClasses.forEach(c => {
+      const cu = c.toUpperCase();
+      if (!["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(cu)) {
+        classSet.add(c);
+      }
+    });
+  }
+
+  // 5. Từ tham số additionalClasses (ví dụ exam.lopChoPhep khi mở sửa đề)
+  if (additionalClasses) {
+    const addArr = String(additionalClasses).split(/[,;\s]+/).map(normalizeClassName).filter(Boolean);
+    addArr.forEach(c => {
+      const cu = c.toUpperCase();
+      if (!["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(cu)) {
+        classSet.add(c);
+      }
+    });
+  }
+
+  // Sắp xếp các lớp tự nhiên (VD: 8A1..8A12, 9A1..9A13)
+  const sorted = Array.from(classSet).filter(Boolean).sort((a, b) => {
+    const ga = parseInt(getGradeFromClass(a)) || 0;
+    const gb = parseInt(getGradeFromClass(b)) || 0;
+    if (ga !== gb) return ga - gb;
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  });
+
+  return sorted.length > 0 ? sorted : ["9A1", "9A2"];
+}
+
 // Render danh sách checkbox chọn Khối và Lớp cho đề thi (đồng bộ giống tab Quản lý học sinh)
 function initClassSelector(classesString) {
   const classContainer = document.getElementById("classSelectorContainer");
@@ -725,15 +824,7 @@ function initClassSelector(classesString) {
   classContainer.innerHTML = "";
   if (gradeContainer) gradeContainer.innerHTML = "";
 
-  const rawClasses = classesString ? classesString.split(/[,;\s]+/).filter(Boolean) : ["9A1", "9A2"];
-  
-  // Sắp xếp các lớp theo khối và tên theo thứ tự tự nhiên (VD: 8A1, 8A2, ..., 8A10, ..., 9A1)
-  const classes = Array.from(new Set(rawClasses)).sort((a, b) => {
-    const ga = parseInt(getGradeFromClass(a)) || 0;
-    const gb = parseInt(getGradeFromClass(b)) || 0;
-    if (ga !== gb) return ga - gb;
-    return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
-  });
+  const classes = getTeacherAllAvailableClasses(classesString);
 
   // Tập hợp các khối duy nhất
   const gradeSet = new Set();
@@ -3728,7 +3819,9 @@ function openExamForEditing(maDe) {
   if (isOpening) statusDisplay.classList.remove("closed");
   else statusDisplay.classList.add("closed");
 
-  // 3. Tích chọn lại các lớp và đồng bộ khối
+  // 3. Render lại toàn bộ danh sách lớp của GV và tích chọn lại các lớp theo đề thi
+  initClassSelector(exam.lopChoPhep || "");
+
   const allowedUpper = (exam.lopChoPhep || "").toUpperCase();
   const isAll = allowedUpper.includes("ALL") || allowedUpper.includes("TẤT CẢ");
   const allowedArr = allowedUpper.split(/[,;\s]+/).map(s => s.trim());
@@ -3744,6 +3837,7 @@ function openExamForEditing(maDe) {
   });
 
   syncExamGradeAndClassUI();
+  updateSelectedClassCountBadge();
 
   // 4. Điền phần tự luận
   const tuLuan = exam.duLieuDe?.tuLuan || {};
@@ -3913,10 +4007,8 @@ function cancelEditingMode() {
   parsedQuestions = [];
   renderQuestionsPreview([]);
 
-  // Reset lại chọn lớp và khối về tất cả được chọn
-  const allExamCbs = document.querySelectorAll("#classSelectorContainer input[type='checkbox'], #examGradeCheckboxesList input[type='checkbox']");
-  allExamCbs.forEach(cb => cb.checked = true);
-  updateSelectedClassCountBadge();
+  // Reset lại chọn lớp và khối về tất cả được chọn (tự động nạp đủ toàn bộ lớp GV)
+  initClassSelector();
 }
 
 /**
@@ -6934,11 +7026,23 @@ function buildGradeAndClassFilters(apiClasses) {
     return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
   });
 
-  // Đồng bộ cho Tab 1 nếu chưa chỉnh sửa đề và danh sách lớp có sự thay đổi
-  if (teacherAllClassesList.length > 0 && !editingExamCode) {
+  // Đồng bộ cho Tab 1 đề thi với toàn bộ danh sách lớp mới nhất
+  if (teacherAllClassesList.length > 0) {
     const currentExamClasses = Array.from(document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)")).map(cb => cb.value);
     if (currentExamClasses.length === 0 || teacherAllClassesList.some(c => !currentExamClasses.includes(c))) {
-      initClassSelector(teacherAllClassesList.join(","));
+      if (!editingExamCode) {
+        initClassSelector(teacherAllClassesList.join(","));
+      } else {
+        // Đang sửa đề: giữ nguyên các lớp đang được tích chọn, nhưng bổ sung thêm các chip lớp còn thiếu
+        const currentlyChecked = Array.from(document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL):checked")).map(cb => cb.value.toUpperCase());
+        initClassSelector(teacherAllClassesList.join(","));
+        const newCbs = document.querySelectorAll("#classSelectorContainer .exam-class-cb:not(#class_ALL)");
+        newCbs.forEach(cb => {
+          cb.checked = currentlyChecked.includes(cb.value.toUpperCase());
+        });
+        syncExamGradeAndClassUI();
+        updateSelectedClassCountBadge();
+      }
     }
   }
 
@@ -7049,7 +7153,6 @@ function normalizeClassName(val) {
 
 /**
  * Lấy dữ liệu học sinh đã lưu trong bộ nhớ đệm trình duyệt (LocalStorage Cache)
- * Tự động vô hiệu hóa cache nếu lớp giảng dạy của giáo viên thay đổi
  */
 function getCachedTeacherStudents() {
   if (!currentTeacher || !currentTeacher.username) return null;
@@ -7058,14 +7161,18 @@ function getCachedTeacherStudents() {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
-    const currentClasses = String(currentTeacher.lopGiangDay || "").trim().toUpperCase();
-    const cachedClasses = String(parsed.lopGiangDay || "").trim().toUpperCase();
-
-    // Tự động kiểm tra: Nếu lớp giảng dạy thay đổi -> Xóa cache cũ để cập nhật lại từ Google Sheets
-    if (currentClasses !== cachedClasses) {
-      console.log("Lớp giảng dạy của giáo viên đã thay đổi (" + cachedClasses + " -> " + currentClasses + "). Bỏ qua cache để tải mới từ Google Sheets.");
-      localStorage.removeItem("edutest_students_cache_" + currentTeacher.username);
+    if (!parsed || !Array.isArray(parsed.students) || parsed.students.length === 0) {
       return null;
+    }
+
+    // Nếu trong cache có danh sách lớp đầy đủ hơn, đồng bộ vào currentTeacher.lopGiangDay
+    if (Array.isArray(parsed.classes) && parsed.classes.length > 0) {
+      const cachedClassesStr = parsed.classes.join(", ");
+      const currentClassesStr = String(currentTeacher.lopGiangDay || "").trim();
+      const currentCount = currentClassesStr ? currentClassesStr.split(/[,;\s]+/).filter(Boolean).length : 0;
+      if (parsed.classes.length > currentCount) {
+        currentTeacher.lopGiangDay = cachedClassesStr;
+      }
     }
 
     return parsed;
@@ -7087,14 +7194,25 @@ function saveCachedTeacherStudents(students, classes) {
     }));
     const cleanClasses = (classes || []).map(normalizeClassName).filter(Boolean);
     const uniqueClasses = [...new Set(cleanClasses)];
+    const classStr = uniqueClasses.join(", ");
 
     const cacheData = {
       timestamp: Date.now(),
-      lopGiangDay: String(currentTeacher.lopGiangDay || "").trim().toUpperCase(),
+      lopGiangDay: classStr,
       classes: uniqueClasses,
       students: cleanStudents
     };
     localStorage.setItem("edutest_students_cache_" + currentTeacher.username, JSON.stringify(cacheData));
+
+    // Đồng bộ vào tài khoản giáo viên hiện hành
+    if (uniqueClasses.length > 0 && currentTeacher) {
+      currentTeacher.lopGiangDay = classStr;
+      try {
+        const curUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
+        curUser.lopGiangDay = classStr;
+        localStorage.setItem("currentUser", JSON.stringify(curUser));
+      } catch (eCur) {}
+    }
   } catch (e) {
     console.warn("Không thể lưu cache học sinh vào localStorage:", e);
   }

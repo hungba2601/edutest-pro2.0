@@ -2437,10 +2437,18 @@ function handleGetStudentsForTeacher(payload) {
     }
   }
 
+  const uniqueClasses = [];
+  students.forEach(s => {
+    if (s.lop && !uniqueClasses.includes(s.lop)) {
+      uniqueClasses.push(s.lop);
+    }
+  });
+
   return createJsonResponse({
     success: true,
     students: students,
-    allowedClasses: allowedClassesStr
+    classes: uniqueClasses,
+    allowedClasses: allowedClassesStr || uniqueClasses.join(", ")
   });
 }
 

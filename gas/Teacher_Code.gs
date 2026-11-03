@@ -373,16 +373,16 @@ function handleLogin(payload) {
       });
     }
 
+    const gvCols = getGiaoVienColMap(sheetGV);
     const data = sheetGV.getDataRange().getValues();
-    // Cột: 0: Tài khoản GV | 1: Mật khẩu | 2: Họ tên GV | 3: Lớp giảng dạy | 4: Trường
     let userFound = false;
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
-      if (!row[0] && !row[1]) continue; // Bỏ qua dòng trống
+      if (!row[gvCols.colUser] && !row[gvCols.colPass]) continue; // Bỏ qua dòng trống
 
-      const gvUser = String(row[0] !== null && row[0] !== undefined ? row[0] : "").trim().replace(/\u00A0/g, "");
-      const gvPass = String(row[1] !== null && row[1] !== undefined ? row[1] : "").trim().replace(/\u00A0/g, "");
+      const gvUser = String(row[gvCols.colUser] !== null && row[gvCols.colUser] !== undefined ? row[gvCols.colUser] : "").trim().replace(/\u00A0/g, "");
+      const gvPass = String(row[gvCols.colPass] !== null && row[gvCols.colPass] !== undefined ? row[gvCols.colPass] : "").trim().replace(/\u00A0/g, "");
 
       if (gvUser.toLowerCase() === username.toLowerCase()) {
         userFound = true;
@@ -400,9 +400,9 @@ function handleLogin(payload) {
             role: "GV",
             data: {
               username: gvUser,
-              hoTenGV: String(row[2] || ""),
-              lopGiangDay: String(row[3] || ""),
-              truong: String(row[4] || ""),
+              hoTenGV: String(row[gvCols.colName] || ""),
+              lopGiangDay: String(row[gvCols.colClass] || ""),
+              truong: String(row[gvCols.colSchool] || ""),
               ngaySinh: row[5] ? formatBirthDateValue(row[5]) : "",
               serverUrl: personalServerUrl || ""
             }
