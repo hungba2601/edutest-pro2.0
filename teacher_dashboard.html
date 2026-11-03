@@ -327,6 +327,42 @@
               </div>
             </div>
 
+            
+            <!-- CẤU HÌNH TÍNH ĐIỂM CÂU HỎI ĐÚNG / SAI (DÀNH CHO CÂU ĐÚNG / SAI NHIỀU Ý) -->
+            <div class="form-group tf-scoring-group" style="margin-top: 1rem; margin-bottom: 1.25rem;">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span style="display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #1e293b;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  Cấu hình điểm câu hỏi Đúng / Sai
+                </span>
+                <span class="badge-review-mode-active" id="badgeTfScoringMode" style="background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe;">📋 THANG ĐIỂM BỘ GD&ĐT</span>
+              </label>
+
+              <div class="exam-mode-cards-grid">
+                <label class="mode-card-option selected" id="optTfScoreBoGddt">
+                  <input type="radio" name="examTfScoringMode" id="radioTfScoreBoGddt" value="bo_gddt" checked>
+                  <div class="mode-card-inner">
+                    <div class="mode-icon-title">
+                      <span class="mode-emoji">📋</span>
+                      <strong>Thang điểm Bộ GD&ĐT</strong>
+                    </div>
+                    <p class="mode-explanation">Quy tắc <strong>10% - 25% - 50% - 100%</strong>: Đúng 1 ý: 10% • Đúng 2 ý: 25% • Đúng 3 ý: 50% • Đúng 4 ý: 100% điểm câu.</p>
+                  </div>
+                </label>
+
+                <label class="mode-card-option" id="optTfScoreChiaDeu">
+                  <input type="radio" name="examTfScoringMode" id="radioTfScoreChiaDeu" value="chia_deu">
+                  <div class="mode-card-inner">
+                    <div class="mode-icon-title">
+                      <span class="mode-emoji">⚖️</span>
+                      <strong>Chia đều điểm các ý</strong>
+                    </div>
+                    <p class="mode-explanation">Chia đều điểm câu hỏi cho các ý. Ví dụ: Câu 1 điểm có 4 ý thì <strong>mỗi ý đúng được 0,25 điểm</strong>.</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <div class="form-group" style="margin-bottom: 1.25rem;">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.45rem;">
                 <label class="form-label required" style="margin-bottom: 0;">Lớp được phép thi</label>
@@ -2340,6 +2376,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <script src="js/teacher.js?v=11.9"></script>
+  <script src="js/teacher.js?v=12.0"></script>
 </body>
 </html>

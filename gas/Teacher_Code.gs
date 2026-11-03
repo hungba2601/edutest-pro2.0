@@ -773,6 +773,7 @@ function handleSaveExam(payload) {
   const trangThai = String(payload.trangThai || "Mở").trim();
   const choXemLaiBai = (payload.choXemLaiBai !== false);
   const choXemDiem = (payload.choXemDiem !== false);
+  const cauHinhDiemDungSai = (payload.cauHinhDiemDungSai === "chia_deu" || payload.duLieuDe?.cauHinhDiemDungSai === "chia_deu") ? "chia_deu" : "bo_gddt";
   const cheDoXemText = choXemLaiBai ? "Cho xem lại bài" : "Khóa xem lại bài";
   const cheDoXemDiemText = choXemDiem ? "Cho xem điểm" : "Khóa xem điểm";
 
@@ -782,6 +783,7 @@ function handleSaveExam(payload) {
   }
   duLieuDeObj.choXemLaiBai = choXemLaiBai;
   duLieuDeObj.choXemDiem = choXemDiem;
+  duLieuDeObj.cauHinhDiemDungSai = cauHinhDiemDungSai;
   duLieuDeObj.soLanViPhamChoPhep = (!choXemLaiBai) ? (Number(payload.soLanViPhamChoPhep) > 0 ? Number(payload.soLanViPhamChoPhep) : 5) : 0;
   if (payload.hoTenGV) {
     duLieuDeObj.hoTenGV = String(payload.hoTenGV).trim();
@@ -923,6 +925,7 @@ function handleGetTeacherExams(payload) {
         trangThai: String(row[5] || "Mở"),
         choXemLaiBai: choXemLaiBai,
         choXemDiem: choXemDiem,
+        cauHinhDiemDungSai: duLieuDeParsed.cauHinhDiemDungSai || "bo_gddt",
         soLanViPhamChoPhep: (!choXemLaiBai ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
         soCauHoi: (duLieuDeParsed.cauHoi || []).length,
         soCauTuLuan: soCauTuLuan,
@@ -1558,6 +1561,7 @@ function handleGetStudentExams(payload) {
           cauHoi: safeQuestions,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
+          cauHinhDiemDungSai: duLieuDeParsed.cauHinhDiemDungSai || "bo_gddt",
           soLanViPhamChoPhep: (!choXemLaiBai ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
           tuLuan: safeTuLuan,
           daLam: daLam,
@@ -1663,12 +1667,18 @@ function handleSubmitExam(payload) {
         });
       });
 
-      // Quy tắc tính tỉ lệ điểm Đúng/Sai:
+      // Quy tắc tính tỉ lệ điểm Đúng/Sai (1. Thang điểm Bộ GD&ĐT 10%-25%-50%-100%, 2. Chia đều điểm cho các ý):
+      const scoringMethod = originalExamData.cauHinhDiemDungSai || originalExamData.cheDoDiemDungSai || "bo_gddt";
       let ratio = 0;
-      if (correctSubCount === 1) ratio = 0.10;
-      else if (correctSubCount === 2) ratio = 0.25;
-      else if (correctSubCount === 3) ratio = 0.50;
-      else if (correctSubCount >= 4) ratio = 1.00;
+      if (scoringMethod === "chia_deu") {
+        const totalSubs = subItems.length || 4;
+        ratio = totalSubs > 0 ? (correctSubCount / totalSubs) : 0;
+      } else {
+        if (correctSubCount === 1) ratio = 0.10;
+        else if (correctSubCount === 2) ratio = 0.25;
+        else if (correctSubCount === 3) ratio = 0.50;
+        else if (correctSubCount >= 4) ratio = 1.00;
+      }
 
       const earnedPoints = qPoints * ratio;
       totalScore += earnedPoints;

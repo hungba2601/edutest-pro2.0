@@ -1314,7 +1314,7 @@ function renderExamQuestions(questions, essayData) {
     p2Hdr.innerHTML = `
       <div class="section-hdr-left">
         <div class="section-hdr-title">PHẦN II: CÂU HỎI TRẮC NGHIỆM ĐÚNG / SAI</div>
-        <div class="section-hdr-desc">Thí sinh trả lời Đúng hoặc Sai cho từng ý a), b), c), d) theo thang điểm Bộ GD&ĐT</div>
+        ${(activeExam?.cauHinhDiemDungSai === "chia_deu" || activeExam?.duLieuDe?.cauHinhDiemDungSai === "chia_deu") ? '<div class="section-hdr-desc">Thí sinh trả lời Đúng hoặc Sai cho từng ý (Điểm câu hỏi được chia đều cho các ý)</div>' : '<div class="section-hdr-desc">Thí sinh trả lời Đúng hoặc Sai cho từng ý a), b), c), d) theo thang điểm Bộ GD&ĐT</div>'}
       </div>
       <div class="section-hdr-badge">${part2Questions.length} câu</div>
     `;
@@ -2237,11 +2237,18 @@ function gradeExamLocally(exam, userAnswers) {
         });
       });
 
+      // Quy tắc tính tỉ lệ điểm Đúng/Sai (1. Thang điểm Bộ GD&ĐT hoặc 2. Chia đều điểm các ý):
+      const scoringMethod = exam.cauHinhDiemDungSai || exam.duLieuDe?.cauHinhDiemDungSai || "bo_gddt";
       let ratio = 0;
-      if (correctSubCount === 1) ratio = 0.10;
-      else if (correctSubCount === 2) ratio = 0.25;
-      else if (correctSubCount === 3) ratio = 0.50;
-      else if (correctSubCount >= 4) ratio = 1.00;
+      if (scoringMethod === "chia_deu") {
+        const totalSubs = subItems.length || 4;
+        ratio = totalSubs > 0 ? (correctSubCount / totalSubs) : 0;
+      } else {
+        if (correctSubCount === 1) ratio = 0.10;
+        else if (correctSubCount === 2) ratio = 0.25;
+        else if (correctSubCount === 3) ratio = 0.50;
+        else if (correctSubCount >= 4) ratio = 1.00;
+      }
 
       const earnedPoints = qPoints * ratio;
       totalScore += earnedPoints;

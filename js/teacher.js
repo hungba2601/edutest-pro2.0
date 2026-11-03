@@ -660,6 +660,45 @@ function initScoreModeSelector() {
   }
 }
 
+// Cập nhật giao diện chuyển chế độ Tính điểm câu hỏi Đúng/Sai
+function updateTfScoringModeDisplay(isChiaDeu) {
+  const optBoGddt = document.getElementById("optTfScoreBoGddt");
+  const optChiaDeu = document.getElementById("optTfScoreChiaDeu");
+  const badgeMode = document.getElementById("badgeTfScoringMode");
+
+  if (isChiaDeu) {
+    if (optBoGddt) optBoGddt.classList.remove("selected");
+    if (optChiaDeu) optChiaDeu.classList.add("selected");
+    if (badgeMode) {
+      badgeMode.textContent = "⚖️ CHIA ĐỀU ĐIỂM CÁC Ý";
+      badgeMode.style.background = "#eff6ff";
+      badgeMode.style.color = "#1d4ed8";
+      badgeMode.style.borderColor = "#bfdbfe";
+    }
+  } else {
+    if (optBoGddt) optBoGddt.classList.add("selected");
+    if (optChiaDeu) optChiaDeu.classList.remove("selected");
+    if (badgeMode) {
+      badgeMode.textContent = "📋 THANG ĐIỂM BỘ GD&ĐT";
+      badgeMode.style.background = "#f5f3ff";
+      badgeMode.style.color = "#6d28d9";
+      badgeMode.style.borderColor = "#ddd6fe";
+    }
+  }
+}
+
+function initTfScoringModeSelector() {
+  const radioBoGddt = document.getElementById("radioTfScoreBoGddt");
+  const radioChiaDeu = document.getElementById("radioTfScoreChiaDeu");
+
+  if (radioBoGddt) {
+    radioBoGddt.addEventListener("change", () => updateTfScoringModeDisplay(false));
+  }
+  if (radioChiaDeu) {
+    radioChiaDeu.addEventListener("change", () => updateTfScoringModeDisplay(true));
+  }
+}
+
 // Render danh sách checkbox chọn Khối và Lớp cho đề thi (đồng bộ giống tab Quản lý học sinh)
 function initClassSelector(classesString) {
   const classContainer = document.getElementById("classSelectorContainer");
@@ -3481,6 +3520,10 @@ btnSaveExam.addEventListener("click", async () => {
   const radioAllowScore = document.getElementById("radioAllowViewScore");
   const choXemDiem = radioAllowScore ? radioAllowScore.checked : true;
 
+  // Lấy cấu hình Điểm câu hỏi Đúng / Sai (Thang Bộ GD&ĐT vs Chia đều các ý)
+  const radioTfChiaDeu = document.getElementById("radioTfScoreChiaDeu");
+  const cauHinhDiemDungSai = (radioTfChiaDeu && radioTfChiaDeu.checked) ? "chia_deu" : "bo_gddt";
+
   const teacherFullName = currentTeacher.hoTenGV || currentTeacher.hoTen || currentTeacher.tenGV || "";
 
   // Đóng gói cấu trúc đề thi
@@ -3494,11 +3537,13 @@ btnSaveExam.addEventListener("click", async () => {
     lopChoPhep: selectedClasses,
     choXemLaiBai: choXemLaiBai,
     choXemDiem: choXemDiem,
+    cauHinhDiemDungSai: cauHinhDiemDungSai,
     soLanViPhamChoPhep: soLanViPhamChoPhep,
     duLieuDe: {
       cauHoi: parsedQuestions,
       choXemLaiBai: choXemLaiBai,
       choXemDiem: choXemDiem,
+      cauHinhDiemDungSai: cauHinhDiemDungSai,
       soLanViPhamChoPhep: soLanViPhamChoPhep,
       hoTenGV: teacherFullName,
       tuLuan: {
@@ -3548,6 +3593,7 @@ btnSaveExam.addEventListener("click", async () => {
     hasTuLuan: !!(parsedEssayQuestions.length > 0 || essayFormLink),
     choXemLaiBai: choXemLaiBai,
     choXemDiem: choXemDiem,
+    cauHinhDiemDungSai: cauHinhDiemDungSai,
     soLanViPhamChoPhep: soLanViPhamChoPhep,
     trangThai: trangThai,
     duLieuDe: examDataPayload.duLieuDe
@@ -3725,6 +3771,16 @@ function openExamForEditing(maDe) {
     updateScoreModeDisplay(isAllowScore);
   }
 
+  // 5.1.b. Điền lại cấu hình tính điểm Đúng / Sai (Thang Bộ vs Chia đều)
+  const isTfChiaDeuSaved = (exam.cauHinhDiemDungSai === "chia_deu" || exam.duLieuDe?.cauHinhDiemDungSai === "chia_deu");
+  const radioTfBoSaved = document.getElementById("radioTfScoreBoGddt");
+  const radioTfChiaSaved = document.getElementById("radioTfScoreChiaDeu");
+  if (radioTfBoSaved && radioTfChiaSaved) {
+    radioTfBoSaved.checked = !isTfChiaDeuSaved;
+    radioTfChiaSaved.checked = isTfChiaDeuSaved;
+    updateTfScoringModeDisplay(isTfChiaDeuSaved);
+  }
+
   // 5.2. Điền lại số lần vi phạm cho phép (Giám sát toàn màn hình)
   const maxViolationsInput = document.getElementById("examMaxViolations");
   if (maxViolationsInput) {
@@ -3819,6 +3875,15 @@ function cancelEditingMode() {
     rAllowScore.checked = true;
     rDisallowScore.checked = false;
     updateScoreModeDisplay(true);
+  }
+
+  // Reset cấu hình tính điểm Đúng/Sai về mặc định Thang Bộ GD&ĐT
+  const rResetTfBo = document.getElementById("radioTfScoreBoGddt");
+  const rResetTfChia = document.getElementById("radioTfScoreChiaDeu");
+  if (rResetTfBo && rResetTfChia) {
+    rResetTfBo.checked = true;
+    rResetTfChia.checked = false;
+    updateTfScoringModeDisplay(false);
   }
 
   document.getElementById("examDuration").value = "45";
@@ -4483,7 +4548,7 @@ async function generateDocxWithLibrary(examData, rawQuestions, essayQuestions) {
             }),
             new TableCell({
               borders: tableBorders,
-              children: [new Paragraph({ children: [new TextRun({ text: subIdx === 0 ? "Đúng 1 ý: 0.1đ | Đúng 2 ý: 0.25đ | Đúng 3 ý: 0.5đ | Đúng 4 ý: 1.0đ" : "", italic: true, font: fontName, size: fontSizeSmall })] })]
+              children: [new Paragraph({ children: [new TextRun({ text: subIdx === 0 ? ((exam.cauHinhDiemDungSai === "chia_deu" || exam.duLieuDe?.cauHinhDiemDungSai === "chia_deu") ? "Chia đều điểm câu cho các ý (Ví dụ: 4 ý = 0.25đ/ý với câu 1.0đ)" : "Đúng 1 ý: 0.1đ | Đúng 2 ý: 0.25đ | Đúng 3 ý: 0.5đ | Đúng 4 ý: 1.0đ") : "", italic: true, font: fontName, size: fontSizeSmall })] })]
             })
           ]
         }));
@@ -4952,6 +5017,7 @@ function renderTeacherExamsTable(examsList, isFromCache) {
     const isOpening = exam.trangThai === "Mở";
     const isReviewAllowed = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
     const isScoreAllowed = (exam.choXemDiem !== false && exam.duLieuDe?.choXemDiem !== false);
+    const isTfChiaDeu = (exam.cauHinhDiemDungSai === "chia_deu" || exam.duLieuDe?.cauHinhDiemDungSai === "chia_deu");
     const essayCount = getExamEssayCount(exam);
 
     let tuLuanBadge = '<span style="color: #94a3b8; font-weight: 500;">Không</span>';
@@ -4997,6 +5063,7 @@ function renderTeacherExamsTable(examsList, isFromCache) {
           ${isScoreAllowed
             ? '<span class="badge-table-review" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;" title="Học sinh xem được điểm số ngay sau khi nộp bài">👁️ Cho xem điểm</span>'
             : '<span class="badge-table-review" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;" title="Khóa hiển thị điểm số khi nộp bài">🔒 Khóa xem điểm</span>'}
+          ${isTfChiaDeu ? '<span class="badge-table-review" style="background: #f5f3ff; color: #7c3aed; border: 1px solid #ddd6fe;" title="Câu hỏi Đúng/Sai: Chia đều điểm cho các ý">⚖️ Đ/S: Chia đều</span>' : '<span class="badge-table-review" style="background: #f8fafc; color: #475569; border: 1px solid #e2e8f0;" title="Câu hỏi Đúng/Sai: Thang điểm Bộ GD&ĐT (10% - 25% - 50% - 100%)">📋 Đ/S: Thang Bộ</span>'}
         </div>
       </td>
       <td>
@@ -9856,6 +9923,7 @@ function initShareExamModal() {
           trangThai: "Đóng", // Mặc định Đóng để GV nhận chủ động kiểm tra trước khi mở
           choXemLaiBai: (currentExamToShare.choXemLaiBai !== false),
           choXemDiem: (currentExamToShare.choXemDiem !== false),
+          cauHinhDiemDungSai: (currentExamToShare.cauHinhDiemDungSai || currentExamToShare.duLieuDe?.cauHinhDiemDungSai || "bo_gddt"),
           usernameGV: recipient.maGV,
           hoTenGV: recipient.hoTenGV || recipient.maGV,
           duLieuDe: duLieuDeObj
