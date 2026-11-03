@@ -673,6 +673,9 @@ function updateTfScoringModeDisplay(isChiaDeu) {
   const optBoGddt = document.getElementById("optTfScoreBoGddt");
   const optChiaDeu = document.getElementById("optTfScoreChiaDeu");
   const badgeMode = document.getElementById("badgeTfScoringMode");
+  const rulesCard = document.getElementById("rulesCardTfScoring");
+  const rulesHeader = document.getElementById("rulesCardHeaderTitle");
+  const rulesChips = document.getElementById("rulesCardChipsList");
 
   if (isChiaDeu) {
     if (optBoGddt) optBoGddt.classList.remove("selected");
@@ -684,6 +687,22 @@ function updateTfScoringModeDisplay(isChiaDeu) {
       badgeMode.style.color = "#c2410c";
       badgeMode.style.borderColor = "#fed7aa";
     }
+    // Cập nhật bảng thông báo theo chế độ Chia đều điểm
+    if (rulesCard) {
+      rulesCard.className = "rules-card rules-orange";
+    }
+    if (rulesHeader) {
+      rulesHeader.textContent = "Quy tắc chấm trắc nghiệm Đúng/Sai (Chia đều điểm các ý):";
+    }
+    if (rulesChips) {
+      rulesChips.innerHTML = `
+        <span class="rule-chip">Mỗi ý đúng = <strong>Điểm câu ÷ Số ý</strong></span>
+        <span class="rule-chip">Đúng 1 ý = <strong>25%</strong> (VD: 0,25đ)</span>
+        <span class="rule-chip">Đúng 2 ý = <strong>50%</strong> (VD: 0,50đ)</span>
+        <span class="rule-chip">Đúng 3 ý = <strong>75%</strong> (VD: 0,75đ)</span>
+        <span class="rule-chip highlight">Đúng 4 ý = <strong>100%</strong> (VD: 1,00đ)</span>
+      `;
+    }
   } else {
     if (optBoGddt) optBoGddt.classList.add("selected");
     if (optChiaDeu) optChiaDeu.classList.remove("selected");
@@ -693,6 +712,21 @@ function updateTfScoringModeDisplay(isChiaDeu) {
       badgeMode.style.background = "#eff6ff";
       badgeMode.style.color = "#1d4ed8";
       badgeMode.style.borderColor = "#bfdbfe";
+    }
+    // Cập nhật bảng thông báo theo chuẩn Bộ GD&ĐT
+    if (rulesCard) {
+      rulesCard.className = "rules-card rules-blue";
+    }
+    if (rulesHeader) {
+      rulesHeader.textContent = "Quy tắc chấm trắc nghiệm Đúng/Sai (chuẩn GDĐT):";
+    }
+    if (rulesChips) {
+      rulesChips.innerHTML = `
+        <span class="rule-chip">Đúng 1 ý = <strong>10%</strong></span>
+        <span class="rule-chip">Đúng 2 ý = <strong>25%</strong></span>
+        <span class="rule-chip">Đúng 3 ý = <strong>50%</strong></span>
+        <span class="rule-chip highlight">Đúng 4 ý = <strong>100%</strong></span>
+      `;
     }
   }
 }

@@ -705,6 +705,7 @@ input:checked + .slider:before { transform: translateX(22px); }
   border-radius: var(--radius-md);
   font-size: 0.825rem;
   color: #166534;
+  transition: all var(--transition-fast);
 }
 .rules-header {
   display: flex;
@@ -732,6 +733,54 @@ input:checked + .slider:before { transform: translateX(22px); }
   color: #166534;
   font-weight: 700;
   border: 1.5px solid #4ade80;
+}
+
+/* Rules Banner Theme Xanh Dương (Chuẩn Bộ GD&ĐT) */
+.rules-card.rules-blue {
+  background: #eff6ff;
+  border: 1px dashed #93c5fd;
+  color: #1e40af;
+}
+.rules-card.rules-blue .rules-header {
+  color: #1d4ed8;
+}
+.rules-card.rules-blue .rules-header svg {
+  stroke: #2563eb;
+}
+.rules-card.rules-blue .rule-chip {
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+.rules-card.rules-blue .rule-chip.highlight {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1.5px solid #3b82f6;
+  font-weight: 700;
+}
+
+/* Rules Banner Theme Màu Cam (Chia đều điểm) */
+.rules-card.rules-orange {
+  background: #fff7ed;
+  border: 1px dashed #fdba74;
+  color: #9a3412;
+}
+.rules-card.rules-orange .rules-header {
+  color: #c2410c;
+}
+.rules-card.rules-orange .rules-header svg {
+  stroke: #ea580c;
+}
+.rules-card.rules-orange .rule-chip {
+  background: #ffffff;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+.rules-card.rules-orange .rule-chip.highlight {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1.5px solid #f97316;
+  font-weight: 700;
 }
 
 /* SUBMIT BUTTON BAR */

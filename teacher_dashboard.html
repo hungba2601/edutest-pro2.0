@@ -28,7 +28,7 @@
 
   <!-- Style CSS -->
   <link rel="stylesheet" href="css/style.css?v=2.2">
-  <link rel="stylesheet" href="css/teacher.css?v=9.0">
+  <link rel="stylesheet" href="css/teacher.css?v=9.1">
   <link rel="stylesheet" href="css/bg_music.css?v=2.0">
 </head>
 <body>
@@ -469,15 +469,15 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
               </button>
             </div>
 
-            <!-- Rules Banner Đúng/Sai -->
-            <div class="rules-card">
+            <!-- Rules Banner Đúng/Sai (Tự động cập nhật theo cấu hình Thang điểm Bộ GD&ĐT hoặc Chia đều điểm) -->
+            <div class="rules-card rules-blue" id="rulesCardTfScoring">
               <div class="rules-header">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
                 </svg>
-                <strong>Quy tắc chấm trắc nghiệm Đúng/Sai (chuẩn GDĐT):</strong>
+                <strong id="rulesCardHeaderTitle">Quy tắc chấm trắc nghiệm Đúng/Sai (chuẩn GDĐT):</strong>
               </div>
-              <div class="rules-chips">
+              <div class="rules-chips" id="rulesCardChipsList">
                 <span class="rule-chip">Đúng 1 ý = <strong>10%</strong></span>
                 <span class="rule-chip">Đúng 2 ý = <strong>25%</strong></span>
                 <span class="rule-chip">Đúng 3 ý = <strong>50%</strong></span>
@@ -2376,6 +2376,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <script src="js/teacher.js?v=12.3"></script>
+  <script src="js/teacher.js?v=12.4"></script>
 </body>
 </html>
