@@ -568,7 +568,10 @@ function updateReviewModeDisplay(isAllow) {
     if (optExam) optExam.classList.remove("selected");
     if (badgeMode) {
       badgeMode.textContent = "📖 ÔN TẬP (ĐƯỢC XEM BÀI)";
-      badgeMode.classList.remove("locked");
+      badgeMode.classList.remove("locked", "badge-orange");
+      badgeMode.style.background = "#eff6ff";
+      badgeMode.style.color = "#1d4ed8";
+      badgeMode.style.borderColor = "#bfdbfe";
     }
     if (antiCheatGroup) {
       antiCheatGroup.style.display = "none";
@@ -578,7 +581,10 @@ function updateReviewModeDisplay(isAllow) {
     if (optExam) optExam.classList.add("selected");
     if (badgeMode) {
       badgeMode.textContent = "🔒 THI (KHÓA XEM BÀI)";
-      badgeMode.classList.add("locked");
+      badgeMode.classList.add("locked", "badge-orange");
+      badgeMode.style.background = "#fff7ed";
+      badgeMode.style.color = "#c2410c";
+      badgeMode.style.borderColor = "#fed7aa";
     }
     if (antiCheatGroup) {
       antiCheatGroup.style.display = "block";
@@ -632,18 +638,20 @@ function updateScoreModeDisplay(isAllow) {
     if (optDisallow) optDisallow.classList.remove("selected");
     if (badgeMode) {
       badgeMode.textContent = "👁️ CHO XEM ĐIỂM";
-      badgeMode.style.background = "#ecfdf5";
-      badgeMode.style.color = "#047857";
-      badgeMode.style.borderColor = "#a7f3d0";
+      badgeMode.classList.remove("locked", "badge-orange");
+      badgeMode.style.background = "#eff6ff";
+      badgeMode.style.color = "#1d4ed8";
+      badgeMode.style.borderColor = "#bfdbfe";
     }
   } else {
     if (optAllow) optAllow.classList.remove("selected");
     if (optDisallow) optDisallow.classList.add("selected");
     if (badgeMode) {
       badgeMode.textContent = "🔒 KHÓA XEM ĐIỂM";
-      badgeMode.style.background = "#fef2f2";
-      badgeMode.style.color = "#dc2626";
-      badgeMode.style.borderColor = "#fecaca";
+      badgeMode.classList.add("locked", "badge-orange");
+      badgeMode.style.background = "#fff7ed";
+      badgeMode.style.color = "#c2410c";
+      badgeMode.style.borderColor = "#fed7aa";
     }
   }
 }
@@ -671,18 +679,20 @@ function updateTfScoringModeDisplay(isChiaDeu) {
     if (optChiaDeu) optChiaDeu.classList.add("selected");
     if (badgeMode) {
       badgeMode.textContent = "⚖️ CHIA ĐỀU ĐIỂM CÁC Ý";
-      badgeMode.style.background = "#eff6ff";
-      badgeMode.style.color = "#1d4ed8";
-      badgeMode.style.borderColor = "#bfdbfe";
+      badgeMode.classList.add("badge-orange");
+      badgeMode.style.background = "#fff7ed";
+      badgeMode.style.color = "#c2410c";
+      badgeMode.style.borderColor = "#fed7aa";
     }
   } else {
     if (optBoGddt) optBoGddt.classList.add("selected");
     if (optChiaDeu) optChiaDeu.classList.remove("selected");
     if (badgeMode) {
       badgeMode.textContent = "📋 THANG ĐIỂM BỘ GD&ĐT";
-      badgeMode.style.background = "#f5f3ff";
-      badgeMode.style.color = "#6d28d9";
-      badgeMode.style.borderColor = "#ddd6fe";
+      badgeMode.classList.remove("badge-orange");
+      badgeMode.style.background = "#eff6ff";
+      badgeMode.style.color = "#1d4ed8";
+      badgeMode.style.borderColor = "#bfdbfe";
     }
   }
 }

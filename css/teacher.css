@@ -2258,6 +2258,79 @@ input:checked + .slider:before { transform: translateX(22px); }
   color: #1e40af;
 }
 
+/* ==========================================================================
+   2 MÀU PHÂN BIỆT RÕ RÀNG: XANH DƯƠNG (CỘT TRÁI) & CAM (CỘT PHẢI)
+   ========================================================================== */
+/* 1. MỤC MÀU XANH DƯƠNG (BLUE) - NỔI BẬT */
+.mode-card-option.mode-card-blue {
+  border: 1.5px solid #bfdbfe;
+  background: #f0f7ff;
+}
+.mode-card-option.mode-card-blue:hover:not(.selected) {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+.mode-card-option.mode-card-blue .mode-icon-title strong {
+  color: #1e40af;
+}
+.mode-card-option.mode-card-blue .mode-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #dbeafe;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.mode-card-option.mode-card-blue.selected {
+  border: 2px solid #2563eb !important;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.22) !important;
+}
+.mode-card-option.mode-card-blue.selected .mode-icon-title strong {
+  color: #1d4ed8 !important;
+}
+.mode-card-option.mode-card-blue.selected .mode-explanation {
+  color: #1e3a8a !important;
+}
+
+/* 2. MỤC MÀU CAM (ORANGE) - NỔI BẬT */
+.mode-card-option.mode-card-orange {
+  border: 1.5px solid #fed7aa;
+  background: #fffaf5;
+}
+.mode-card-option.mode-card-orange:hover:not(.selected) {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+.mode-card-option.mode-card-orange .mode-icon-title strong {
+  color: #c2410c;
+}
+.mode-card-option.mode-card-orange .mode-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: #ffedd5;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.mode-card-option.mode-card-orange.selected {
+  border: 2px solid #ea580c !important;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.22) !important;
+}
+.mode-card-option.mode-card-orange.selected .mode-icon-title strong {
+  color: #c2410c !important;
+}
+.mode-card-option.mode-card-orange.selected .mode-explanation {
+  color: #9a3412 !important;
+}
+
 .badge-review-mode-active {
   font-size: 0.72rem;
   padding: 3px 8px;
@@ -2267,10 +2340,11 @@ input:checked + .slider:before { transform: translateX(22px); }
   font-weight: 700;
   border: 1px solid #bfdbfe;
 }
+.badge-review-mode-active.badge-orange,
 .badge-review-mode-active.locked {
-  background: #fef2f2;
-  color: #dc2626;
-  border-color: #fecaca;
+  background: #fff7ed !important;
+  color: #c2410c !important;
+  border-color: #fed7aa !important;
 }
 
 /* HUY HIỆU TRONG BẢNG ĐỀ THI */
