@@ -72,7 +72,13 @@
       </div>
 
       <!-- Login Form (Không ghi nhớ tài khoản / mật khẩu trên trình duyệt) -->
-      <form id="loginForm" autocomplete="off" novalidate>
+      <form id="loginForm" autocomplete="off" novalidate onsubmit="return false;">
+        
+        <!-- Bẫy chống tự động điền để trình duyệt không điền vào ô thật và không hỏi lưu mật khẩu -->
+        <div style="position: absolute; left: -9999px; top: -9999px; width: 0; height: 0; opacity: 0; pointer-events: none;" aria-hidden="true">
+          <input type="text" name="fake_user_trap" tabindex="-1" autocomplete="username">
+          <input type="password" name="fake_pwd_trap" tabindex="-1" autocomplete="current-password">
+        </div>
         
         <!-- Teacher Selection Field (Dành riêng cho Học sinh - CẢNH BÁO BẮT BUỘC) -->
         <div class="form-group urgent-teacher-box" id="teacherSelectGroup">
@@ -144,7 +150,7 @@
             <input 
               type="text" 
               id="usernameInput" 
-              name="user_account_no_save" 
+              name="edutest_user_no_autofill" 
               class="form-input" 
               placeholder="Nhập mã học sinh (VD: HS001)" 
               required
@@ -152,6 +158,10 @@
               autocorrect="off"
               autocapitalize="off"
               spellcheck="false"
+              data-lpignore="true"
+              data-form-type="other"
+              readonly
+              onfocus="this.removeAttribute('readonly');"
             >
           </div>
         </div>
@@ -171,7 +181,7 @@
             <input 
               type="password" 
               id="passwordInput" 
-              name="user_password_no_save" 
+              name="edutest_pwd_no_autofill" 
               class="form-input" 
               placeholder="Nhập mật khẩu" 
               required
@@ -179,6 +189,10 @@
               autocorrect="off"
               autocapitalize="off"
               spellcheck="false"
+              data-lpignore="true"
+              data-form-type="other"
+              readonly
+              onfocus="this.removeAttribute('readonly');"
             >
             <button 
               type="button" 
@@ -249,6 +263,6 @@
   </footer>
 
   <!-- Login Logic Script -->
-  <script src="js/auth.js?v=3.5"></script>
+  <script src="js/auth.js?v=3.6"></script>
 </body>
 </html>

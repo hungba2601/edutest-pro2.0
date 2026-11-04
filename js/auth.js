@@ -233,6 +233,7 @@ roleRadios.forEach((radio) => {
     const role = e.target.value;
     document.body.setAttribute("data-role", role);
     hideLoginAlert();
+    clearLoginFormInputs(true);
 
     const teacherSelectGroup = document.getElementById("teacherSelectGroup");
 
@@ -250,7 +251,6 @@ roleRadios.forEach((radio) => {
     }
 
     updateServerStatusBadge();
-    usernameInput.focus();
   });
 });
 
@@ -484,10 +484,34 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("userRole", savedRole);
       localStorage.setItem("loginTime", new Date().toISOString());
 
-      // Xóa trắng mật khẩu và reset form ngay lập tức để trình duyệt không hỏi "Lưu mật khẩu"
-      if (passwordInput) passwordInput.value = "";
-      if (usernameInput) usernameInput.value = "";
-      if (loginForm) loginForm.reset();
+      // NGĂN TUYỆT ĐỐI TRÌNH DUYỆT HỎI "LƯU MẬT KHẨU" & GHI NHỚ TÀI KHOẢN
+      if (passwordInput) {
+        passwordInput.value = "";
+        passwordInput.type = "text";
+        passwordInput.setAttribute("readonly", "readonly");
+        passwordInput.removeAttribute("name");
+        passwordInput.blur();
+      }
+      if (usernameInput) {
+        usernameInput.value = "";
+        usernameInput.setAttribute("readonly", "readonly");
+        usernameInput.removeAttribute("name");
+        usernameInput.blur();
+      }
+      if (loginForm) {
+        try { loginForm.reset(); } catch (e) {}
+      }
+
+      // Xóa hẳn thẻ input mật khẩu khỏi DOM trước khi redirect để trình duyệt không phát hiện mật khẩu cần lưu
+      try {
+        if (passwordInput && passwordInput.parentNode) {
+          const dummy = document.createElement("input");
+          dummy.type = "text";
+          dummy.style.display = "none";
+          dummy.value = "";
+          passwordInput.parentNode.replaceChild(dummy, passwordInput);
+        }
+      } catch (eDummy) {}
 
       if (result.requiredBackendVersion || result.data?.requiredBackendVersion) {
         localStorage.setItem("required_backend_version", String(result.requiredBackendVersion || result.data.requiredBackendVersion).trim());
@@ -790,19 +814,45 @@ function initTeacherDirectoryDropdown() {
 }
 
 // Ngăn trình duyệt tự động điền và KHÔNG ghi nhớ tài khoản / mật khẩu
-function clearLoginFormInputs() {
+function clearLoginFormInputs(force = true) {
   const u = document.getElementById("usernameInput");
   const p = document.getElementById("passwordInput");
-  if (u && document.activeElement !== u) u.value = "";
-  if (p && document.activeElement !== p) p.value = "";
+  if (u) {
+    u.value = "";
+    u.setAttribute("readonly", "readonly");
+  }
+  if (p) {
+    p.value = "";
+    p.setAttribute("readonly", "readonly");
+  }
 }
 
-window.addEventListener("pageshow", clearLoginFormInputs);
-[50, 150, 300, 600, 1200].forEach(delay => setTimeout(clearLoginFormInputs, delay));
+function setupAntiAutofillListeners() {
+  const u = document.getElementById("usernameInput");
+  const p = document.getElementById("passwordInput");
+  [u, p].forEach(inp => {
+    if (inp) {
+      inp.addEventListener("focus", function() {
+        this.removeAttribute("readonly");
+      });
+      inp.addEventListener("click", function() {
+        this.removeAttribute("readonly");
+      });
+      inp.addEventListener("touchstart", function() {
+        this.removeAttribute("readonly");
+      }, { passive: true });
+    }
+  });
+}
+
+window.addEventListener("pageshow", () => clearLoginFormInputs(true));
+window.addEventListener("focus", () => clearLoginFormInputs(true));
+[0, 50, 100, 200, 400, 800, 1500].forEach(delay => setTimeout(() => clearLoginFormInputs(true), delay));
 
 // Khi tải trang đăng nhập: Xóa sạch phiên đăng nhập cũ và cập nhật thông tin máy chủ
 window.addEventListener("DOMContentLoaded", () => {
-  clearLoginFormInputs();
+  clearLoginFormInputs(true);
+  setupAntiAutofillListeners();
   localStorage.removeItem("currentUser");
   localStorage.removeItem("userRole");
 
@@ -818,5 +868,4 @@ window.addEventListener("DOMContentLoaded", () => {
 
   hideLoginAlert();
   updateServerStatusBadge();
-  if (usernameInput) usernameInput.focus();
 });
