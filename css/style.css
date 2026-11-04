@@ -284,6 +284,26 @@ body {
   padding-right: 2.85rem;
 }
 
+/* Ngăn trình duyệt nhận diện input là password nhưng người dùng vẫn thấy dấu chấm tròn bảo mật */
+.form-input.mask-password {
+  -webkit-text-security: disc !important;
+  text-security: disc !important;
+  font-family: inherit;
+  letter-spacing: 0.12em;
+}
+
+.form-input.mask-password.revealed {
+  -webkit-text-security: none !important;
+  text-security: none !important;
+  letter-spacing: normal;
+}
+
+.form-input.mask-password::placeholder {
+  -webkit-text-security: none !important;
+  text-security: none !important;
+  letter-spacing: normal;
+}
+
 .btn-toggle-pwd {
   position: absolute;
   right: 0.75rem;

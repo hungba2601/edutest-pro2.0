@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=3.5">
+  <link rel="stylesheet" href="css/style.css?v=3.6">
 </head>
 <body data-role="HS">
 
@@ -73,12 +73,6 @@
 
       <!-- Login Form (Không ghi nhớ tài khoản / mật khẩu trên trình duyệt) -->
       <form id="loginForm" autocomplete="off" novalidate onsubmit="return false;">
-        
-        <!-- Bẫy chống tự động điền để trình duyệt không điền vào ô thật và không hỏi lưu mật khẩu -->
-        <div style="position: absolute; left: -9999px; top: -9999px; width: 0; height: 0; opacity: 0; pointer-events: none;" aria-hidden="true">
-          <input type="text" name="fake_user_trap" tabindex="-1" autocomplete="username">
-          <input type="password" name="fake_pwd_trap" tabindex="-1" autocomplete="current-password">
-        </div>
         
         <!-- Teacher Selection Field (Dành riêng cho Học sinh - CẢNH BÁO BẮT BUỘC) -->
         <div class="form-group urgent-teacher-box" id="teacherSelectGroup">
@@ -150,7 +144,7 @@
             <input 
               type="text" 
               id="usernameInput" 
-              name="edutest_user_no_autofill" 
+              name="edutest_account_id" 
               class="form-input" 
               placeholder="Nhập mã học sinh (VD: HS001)" 
               required
@@ -160,8 +154,6 @@
               spellcheck="false"
               data-lpignore="true"
               data-form-type="other"
-              readonly
-              onfocus="this.removeAttribute('readonly');"
             >
           </div>
         </div>
@@ -179,20 +171,18 @@
               </svg>
             </span>
             <input 
-              type="password" 
+              type="text" 
               id="passwordInput" 
-              name="edutest_pwd_no_autofill" 
-              class="form-input" 
+              name="edutest_security_token" 
+              class="form-input mask-password" 
               placeholder="Nhập mật khẩu" 
               required
-              autocomplete="new-password"
+              autocomplete="off"
               autocorrect="off"
               autocapitalize="off"
               spellcheck="false"
               data-lpignore="true"
               data-form-type="other"
-              readonly
-              onfocus="this.removeAttribute('readonly');"
             >
             <button 
               type="button" 
@@ -263,6 +253,6 @@
   </footer>
 
   <!-- Login Logic Script -->
-  <script src="js/auth.js?v=3.6"></script>
+  <script src="js/auth.js?v=3.7"></script>
 </body>
 </html>

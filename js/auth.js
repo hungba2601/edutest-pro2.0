@@ -254,15 +254,15 @@ roleRadios.forEach((radio) => {
   });
 });
 
-// 5. TOGGLE PASSWORD VISIBILITY
+// 5. TOGGLE PASSWORD VISIBILITY (Dùng CSS mask để trình duyệt không nhận diện mật khẩu)
 btnTogglePassword.addEventListener("click", () => {
-  const isPassword = passwordInput.getAttribute("type") === "password";
-  if (isPassword) {
-    passwordInput.setAttribute("type", "text");
+  const isMasked = passwordInput.classList.contains("mask-password") && !passwordInput.classList.contains("revealed");
+  if (isMasked) {
+    passwordInput.classList.add("revealed");
     eyeIconOpen.style.display = "none";
     eyeIconClosed.style.display = "block";
   } else {
-    passwordInput.setAttribute("type", "password");
+    passwordInput.classList.remove("revealed");
     eyeIconOpen.style.display = "block";
     eyeIconClosed.style.display = "none";
   }
@@ -484,34 +484,18 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("userRole", savedRole);
       localStorage.setItem("loginTime", new Date().toISOString());
 
-      // NGĂN TUYỆT ĐỐI TRÌNH DUYỆT HỎI "LƯU MẬT KHẨU" & GHI NHỚ TÀI KHOẢN
+      // Xóa trắng trường đăng nhập ngay khi có kết quả
       if (passwordInput) {
         passwordInput.value = "";
-        passwordInput.type = "text";
-        passwordInput.setAttribute("readonly", "readonly");
-        passwordInput.removeAttribute("name");
         passwordInput.blur();
       }
       if (usernameInput) {
         usernameInput.value = "";
-        usernameInput.setAttribute("readonly", "readonly");
-        usernameInput.removeAttribute("name");
         usernameInput.blur();
       }
       if (loginForm) {
         try { loginForm.reset(); } catch (e) {}
       }
-
-      // Xóa hẳn thẻ input mật khẩu khỏi DOM trước khi redirect để trình duyệt không phát hiện mật khẩu cần lưu
-      try {
-        if (passwordInput && passwordInput.parentNode) {
-          const dummy = document.createElement("input");
-          dummy.type = "text";
-          dummy.style.display = "none";
-          dummy.value = "";
-          passwordInput.parentNode.replaceChild(dummy, passwordInput);
-        }
-      } catch (eDummy) {}
 
       if (result.requiredBackendVersion || result.data?.requiredBackendVersion) {
         localStorage.setItem("required_backend_version", String(result.requiredBackendVersion || result.data.requiredBackendVersion).trim());
@@ -814,45 +798,28 @@ function initTeacherDirectoryDropdown() {
 }
 
 // Ngăn trình duyệt tự động điền và KHÔNG ghi nhớ tài khoản / mật khẩu
-function clearLoginFormInputs(force = true) {
+function clearLoginFormInputs() {
   const u = document.getElementById("usernameInput");
   const p = document.getElementById("passwordInput");
-  if (u) {
-    u.value = "";
-    u.setAttribute("readonly", "readonly");
-  }
+  if (u) u.value = "";
   if (p) {
     p.value = "";
-    p.setAttribute("readonly", "readonly");
+    p.classList.add("mask-password");
+    p.classList.remove("revealed");
+    const eyeOpen = document.getElementById("eyeIconOpen");
+    const eyeClosed = document.getElementById("eyeIconClosed");
+    if (eyeOpen) eyeOpen.style.display = "block";
+    if (eyeClosed) eyeClosed.style.display = "none";
   }
 }
 
-function setupAntiAutofillListeners() {
-  const u = document.getElementById("usernameInput");
-  const p = document.getElementById("passwordInput");
-  [u, p].forEach(inp => {
-    if (inp) {
-      inp.addEventListener("focus", function() {
-        this.removeAttribute("readonly");
-      });
-      inp.addEventListener("click", function() {
-        this.removeAttribute("readonly");
-      });
-      inp.addEventListener("touchstart", function() {
-        this.removeAttribute("readonly");
-      }, { passive: true });
-    }
-  });
-}
-
-window.addEventListener("pageshow", () => clearLoginFormInputs(true));
-window.addEventListener("focus", () => clearLoginFormInputs(true));
-[0, 50, 100, 200, 400, 800, 1500].forEach(delay => setTimeout(() => clearLoginFormInputs(true), delay));
+window.addEventListener("pageshow", clearLoginFormInputs);
+window.addEventListener("focus", clearLoginFormInputs);
+[0, 50, 100, 200, 400, 800].forEach(delay => setTimeout(clearLoginFormInputs, delay));
 
 // Khi tải trang đăng nhập: Xóa sạch phiên đăng nhập cũ và cập nhật thông tin máy chủ
 window.addEventListener("DOMContentLoaded", () => {
-  clearLoginFormInputs(true);
-  setupAntiAutofillListeners();
+  clearLoginFormInputs();
   localStorage.removeItem("currentUser");
   localStorage.removeItem("userRole");
 
