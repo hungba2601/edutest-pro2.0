@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1MCOXMDiLbh_Nifk1RxkI0jk8YIJ0hHndvz2dp7Ip5Y/edit"; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const CURRENT_BACKEND_VERSION = "2.5";
+const CURRENT_BACKEND_VERSION = "2.6";
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -535,7 +535,7 @@ function getCentralBackendVersion(sheetGV) {
       } catch (eG1) {}
     }
   } catch (e) {}
-  return CURRENT_BACKEND_VERSION || "2.4";
+  return CURRENT_BACKEND_VERSION || "2.6";
 }
 
 /**
@@ -623,7 +623,7 @@ function ensureGiaoVienSheetColumns(sheetGV) {
       const verCellCol = (verColIdx >= 0 ? verColIdx + 2 : 8);
       const verRange = sheetGV.getRange(1, verCellCol);
       verRange.setNumberFormat("@");
-      verRange.setValue(CURRENT_BACKEND_VERSION || "2.4");
+      verRange.setValue(CURRENT_BACKEND_VERSION || "2.6");
       verRange.setBackground("#dc2626"); // Đỏ nổi bật
       verRange.setFontColor("#ffffff");
       verRange.setFontWeight("bold");
@@ -696,7 +696,7 @@ function handleSetCentralBackendVersion(payload) {
     let sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
     if (!sheetGV) return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_GIAOVIEN!" });
 
-    const newVer = formatBackendVersion(payload.version || CURRENT_BACKEND_VERSION || "2.4", "2.4");
+    const newVer = formatBackendVersion(payload.version || CURRENT_BACKEND_VERSION || "2.6", "2.6");
     ensureGiaoVienSheetColumns(sheetGV);
     const cols = getGiaoVienColMap(sheetGV);
 

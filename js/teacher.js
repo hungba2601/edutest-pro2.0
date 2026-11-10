@@ -10695,7 +10695,7 @@ async function checkTeacherBackendVersionUpdate() {
   }
 
   // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2, 2.3, 2.4,...)
-  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.4").trim();
+  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.6").trim();
   try {
     const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
     if (hubRes.ok) {
@@ -10707,7 +10707,7 @@ async function checkTeacherBackendVersionUpdate() {
     }
   } catch (e) {}
 
-  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.4");
+  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.6");
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
@@ -12246,7 +12246,7 @@ async function handleAdminSyncTeacherClasses() {
  * Admin cập nhật phiên bản backend hệ thống trung tâm (ghi trực tiếp vào Ô H1 Sheet DATA_GIAOVIEN)
  */
 async function handleAdminEditCentralVersion() {
-  const currentVer = (localStorage.getItem("required_backend_version") || "2.4").trim();
+  const currentVer = (localStorage.getItem("required_backend_version") || "2.6").trim();
   const inputVer = prompt(`Nhập phiên bản Backend hệ thống trung tâm mới:\n(Hệ thống sẽ cập nhật trực tiếp vào Ô H1 của Sheet DATA_GIAOVIEN)\nVí dụ: 2.3, 2.4, 3.0...`, currentVer);
   if (!inputVer || inputVer.trim() === "" || inputVer.trim() === currentVer) return;
 
