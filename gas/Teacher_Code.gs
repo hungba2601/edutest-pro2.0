@@ -94,10 +94,13 @@ function initDatabase() {
     const headers = [
       "Tài khoản HS", "Lớp", "Họ tên", "Ngày sinh", "Giới tính", "Trường",
       "Thời gian đăng nhập", "Mã đề thi", "Tài khoản GV của đề thi",
-      "Điểm tổng", "Số câu đúng/sai", "Thời gian nộp bài", "Chi tiết trả lời"
+      "Điểm tổng", "Điểm tự luận", "Tổng điểm",
+      "Số câu đúng/sai", "Thời gian nộp bài", "Chi tiết trả lời"
     ];
     sheetKetQua.appendRow(headers);
     formatHeaderRow(sheetKetQua);
+  } else {
+    ensureKetQuaSheetColumns(sheetKetQua);
   }
 
   // 5. Cấu trúc Sheet DATA_TULUAN (Lưu kết quả làm bài tự luận của học sinh để GV chấm thủ công)
@@ -187,6 +190,100 @@ function formatHeaderRow(sheet, bgColor) {
 }
 
 /**
+ * Đảm bảo Sheet DATA_KETQUA có đủ cột "Điểm tự luận" và "Tổng điểm" (nằm cạnh cột J Điểm tổng)
+ */
+function ensureKetQuaSheetColumns(sheetKetQua) {
+  if (!sheetKetQua) return;
+  const lastCol = sheetKetQua.getLastColumn();
+  if (lastCol === 0) return;
+
+  const headerRow = sheetKetQua.getRange(1, 1, 1, lastCol).getValues()[0];
+  let hasDiemTL = false;
+  let hasTongDiem = false;
+  let colDiemTongIdx = 9; // Mặc định Cột J (index 9, cột 10)
+
+  for (let c = 0; c < headerRow.length; c++) {
+    const h = String(headerRow[c] || "").trim().toLowerCase();
+    if (h.includes("tự luận") || h.includes("điểm tl")) hasDiemTL = true;
+    if (h.includes("tổng điểm") || h.includes("điểm tổng cộng") || h.includes("tn+tl")) hasTongDiem = true;
+    if (h === "điểm tổng" || h.includes("điểm trắc nghiệm")) colDiemTongIdx = c;
+  }
+
+  // Nếu chưa có cột Điểm tự luận hoặc Tổng điểm, tiến hành chèn 2 cột ngay cạnh cột Điểm tổng (Cột J)
+  if (!hasDiemTL || !hasTongDiem) {
+    const insertAfterCol = colDiemTongIdx + 1; // 1-based index của cột J
+    sheetKetQua.insertColumnsAfter(insertAfterCol, 2);
+
+    // Đặt tên tiêu đề
+    sheetKetQua.getRange(1, insertAfterCol + 1).setValue("Điểm tự luận");
+    sheetKetQua.getRange(1, insertAfterCol + 2).setValue("Tổng điểm");
+
+    // Định dạng tiêu đề đẹp mắt chuẩn màu của sheet
+    const headerRange = sheetKetQua.getRange(1, insertAfterCol + 1, 1, 2);
+    headerRange.setBackground("#1e293b");
+    headerRange.setFontColor("#ffffff");
+    headerRange.setFontWeight("bold");
+    headerRange.setHorizontalAlignment("center");
+
+    // Điền dữ liệu mặc định cho các dòng hiện có: Tổng điểm = Điểm TN
+    const lastRow = sheetKetQua.getLastRow();
+    if (lastRow > 1) {
+      const numRows = lastRow - 1;
+      const diemTongValues = sheetKetQua.getRange(2, insertAfterCol, numRows, 1).getValues();
+      const newTongDiemVals = diemTongValues.map(r => [r[0]]);
+      sheetKetQua.getRange(2, insertAfterCol + 2, numRows, 1).setValues(newTongDiemVals);
+    }
+  }
+}
+
+/**
+ * Bản đồ ánh xạ chỉ số các cột của Sheet DATA_KETQUA
+ */
+function getKetQuaColMap(sheetKetQua) {
+  ensureKetQuaSheetColumns(sheetKetQua);
+  const lastCol = Math.max(sheetKetQua.getLastColumn(), 15);
+  const headers = sheetKetQua.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  const colMap = {
+    colHS: 0,
+    colLop: 1,
+    colHoTen: 2,
+    colNgaySinh: 3,
+    colGioiTinh: 4,
+    colTruong: 5,
+    colDangNhap: 6,
+    colMaDe: 7,
+    colGV: 8,
+    colDiemTN: 9,       // Cột J: Điểm tổng / Điểm trắc nghiệm
+    colDiemTL: 10,      // Cột K: Điểm tự luận
+    colTongDiem: 11,    // Cột L: Tổng điểm
+    colSoCau: 12,       // Cột M: Số câu đúng/sai
+    colThoiGianNop: 13, // Cột N: Thời gian nộp bài
+    colChiTiet: 14      // Cột O: Chi tiết trả lời
+  };
+
+  for (let c = 0; c < headers.length; c++) {
+    const h = String(headers[c] || "").trim().toLowerCase();
+    if (!h) continue;
+    if (h.includes("tự luận") || h.includes("điểm tl")) colMap.colDiemTL = c;
+    else if ((h.includes("tổng") && !h.includes("trắc nghiệm")) || h.includes("tn+tl")) {
+      if (c > colMap.colDiemTN) colMap.colTongDiem = c;
+    }
+    else if (h.includes("số câu") || h.includes("đúng/sai")) colMap.colSoCau = c;
+    else if (h.includes("thời gian nộp") || h.includes("giờ nộp")) colMap.colThoiGianNop = c;
+    else if (h.includes("chi tiết")) colMap.colChiTiet = c;
+    else if (h.includes("tài khoản hs") || h.includes("mã hs")) colMap.colHS = c;
+    else if (h.includes("họ tên") || h.includes("họ và tên")) colMap.colHoTen = c;
+    else if (h.includes("lớp")) colMap.colLop = c;
+    else if (h.includes("mã đề")) colMap.colMaDe = c;
+    else if (h.includes("tài khoản gv") || h.includes("mã gv")) colMap.colGV = c;
+    else if (h === "điểm tổng" || h.includes("trắc nghiệm")) colMap.colDiemTN = c;
+  }
+
+  return colMap;
+}
+
+/**
  * Xử lý yêu cầu GET (vừa kiểm tra trạng thái, vừa hỗ trợ fallback truy vấn dữ liệu)
  */
 function doGet(e) {
@@ -208,6 +305,9 @@ function doGet(e) {
           return handleGetTeacherExams(payload);
         case "getTeacherResults":
           return handleGetTeacherResults(payload);
+        case "importEssayScores":
+        case "saveEssayScoresBulk":
+          return handleImportEssayScores(payload);
         case "getStudentExams":
           return handleGetStudentExams(payload);
         case "login":
@@ -293,6 +393,10 @@ function doPost(e) {
 
       case "getTeacherResults":
         return handleGetTeacherResults(payload);
+
+      case "importEssayScores":
+      case "saveEssayScoresBulk":
+        return handleImportEssayScores(payload);
 
       case "getStudentsForTeacher":
         return handleGetStudentsForTeacher(payload);
@@ -1006,27 +1110,26 @@ function handleGetTeacherResults(payload) {
     return createJsonResponse({ success: true, results: [] });
   }
 
+  ensureKetQuaSheetColumns(sheetKetQua);
+  const colMap = getKetQuaColMap(sheetKetQua);
+
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
   const maDeFilter = String(payload.maDe || "").trim();
 
   const data = sheetKetQua.getDataRange().getValues();
   const results = [];
 
-  // DATA_KETQUA Columns:
-  // 0: Tài khoản HS | 1: Lớp | 2: Họ tên | 3: Ngày sinh | 4: Giới tính | 5: Trường
-  // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
-  // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const rowGV = String(row[8]).trim().toLowerCase();
-    const rowMaDe = String(row[7]).trim();
+    const rowGV = String(row[colMap.colGV]).trim().toLowerCase();
+    const rowMaDe = String(row[colMap.colMaDe]).trim();
 
     if (!usernameGV || usernameGV === "all" || isSameTeacherAccount(rowGV, usernameGV) || !rowGV) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
         try {
-          const rawDetail = JSON.parse(row[12] || "[]");
+          const rawDetail = JSON.parse(row[colMap.colChiTiet] || "[]");
           if (rawDetail && typeof rawDetail === "object" && !Array.isArray(rawDetail)) {
             chiTietParsed = rawDetail.tracNghiem || [];
             baiLamTuLuan = rawDetail.tuLuan || [];
@@ -1038,19 +1141,50 @@ function handleGetTeacherResults(payload) {
           baiLamTuLuan = [];
         }
 
+        const rawDiemTN = row[colMap.colDiemTN];
+        let diemTN = 0;
+        if (rawDiemTN !== "" && rawDiemTN !== null && rawDiemTN !== undefined) {
+          const parsedTN = parseFloat(String(rawDiemTN).replace(",", "."));
+          if (!isNaN(parsedTN)) diemTN = Math.round(parsedTN * 100) / 100;
+        }
+
+        let diemTL = null;
+        if (colMap.colDiemTL !== -1) {
+          const rawTL = row[colMap.colDiemTL];
+          if (rawTL !== "" && rawTL !== null && rawTL !== undefined) {
+            const parsedTL = parseFloat(String(rawTL).replace(",", "."));
+            if (!isNaN(parsedTL)) diemTL = Math.round(parsedTL * 100) / 100;
+          }
+        }
+
+        let tongDiem = null;
+        if (colMap.colTongDiem !== -1) {
+          const rawTD = row[colMap.colTongDiem];
+          if (rawTD !== "" && rawTD !== null && rawTD !== undefined) {
+            const parsedTD = parseFloat(String(rawTD).replace(",", "."));
+            if (!isNaN(parsedTD)) tongDiem = Math.round(parsedTD * 100) / 100;
+          }
+        }
+        if (tongDiem === null) {
+          tongDiem = (diemTL !== null) ? Math.round((diemTN + diemTL) * 100) / 100 : diemTN;
+        }
+
         results.push({
-          usernameHS: String(row[0]),
-          lop: formatClassValue(row[1]),
-          hoTen: String(row[2]),
-          ngaySinh: formatBirthDateValue(row[3]),
-          gioiTinh: String(row[4]),
-          truong: String(row[5]),
-          thoiGianDangNhap: formatDateValue(row[6]),
+          usernameHS: String(row[colMap.colHS]),
+          lop: formatClassValue(row[colMap.colLop]),
+          hoTen: String(row[colMap.colHoTen]),
+          ngaySinh: formatBirthDateValue(row[colMap.colNgaySinh]),
+          gioiTinh: String(row[colMap.colGioiTinh]),
+          truong: String(row[colMap.colTruong]),
+          thoiGianDangNhap: formatDateValue(row[colMap.colDangNhap]),
           maDe: rowMaDe,
-          usernameGV: String(row[8]),
-          diemTong: Number(row[9]) || 0,
-          soCauDungSai: String(row[10] || ""),
-          thoiGianNop: formatDateValue(row[11]),
+          usernameGV: String(row[colMap.colGV]),
+          diemTong: diemTN,
+          diemTracNghiem: diemTN,
+          diemTuLuan: diemTL,
+          tongDiem: tongDiem,
+          soCauDungSai: String(row[colMap.colSoCau] || ""),
+          thoiGianNop: formatDateValue(row[colMap.colThoiGianNop]),
           chiTietTraLoi: JSON.stringify(chiTietParsed),
           baiLamTuLuan: baiLamTuLuan
         });
@@ -1061,6 +1195,157 @@ function handleGetTeacherResults(payload) {
   return createJsonResponse({
     success: true,
     results: results
+  });
+}
+
+/**
+ * Nhập điểm tự luận từ file Excel tải lên và gắn vào Sheet DATA_KETQUA (và DATA_TULUAN)
+ * Dò tìm theo: Mã đề thi, Tài khoản HS (hoặc Họ tên), Tài khoản GV
+ */
+function handleImportEssayScores(payload) {
+  const ss = getSpreadsheet();
+  const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
+  if (!sheetKetQua) {
+    return createJsonResponse({ success: false, message: "Không tìm thấy Sheet DATA_KETQUA!" });
+  }
+
+  ensureKetQuaSheetColumns(sheetKetQua);
+  const colMap = getKetQuaColMap(sheetKetQua);
+
+  const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
+  const maDeFilter = String(payload.maDe || "").trim().toLowerCase();
+  const scoresList = Array.isArray(payload.scores) ? payload.scores : [];
+
+  if (scoresList.length === 0) {
+    return createJsonResponse({ success: false, message: "Danh sách điểm tự luận trong file trống!" });
+  }
+
+  const data = sheetKetQua.getDataRange().getValues();
+  let updatedCount = 0;
+  const updatedRecords = [];
+
+  scoresList.forEach(item => {
+    const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null && item.diemTuLuan !== "") ? item.diemTuLuan : item.diem;
+    if (rawScore === undefined || rawScore === null || String(rawScore).trim() === "") return;
+
+    const parsedScore = parseFloat(String(rawScore).replace(",", "."));
+    if (isNaN(parsedScore)) return;
+
+    const scoreTL = Math.round(parsedScore * 100) / 100;
+    const itemHS = String(item.usernameHS || item.taiKhoanHS || item.maHS || item.username || "").trim().toLowerCase();
+    const itemName = String(item.hoTen || item.name || "").trim().toLowerCase();
+    const itemClass = String(item.lop || "").trim().toUpperCase();
+    const itemMaDe = String(item.maDe || maDeFilter || "").trim().toLowerCase();
+
+    for (let i = data.length - 1; i >= 1; i--) {
+      const row = data[i];
+      const rowMaDe = String(row[colMap.colMaDe] || "").trim().toLowerCase();
+      const rowHS = String(row[colMap.colHS] || "").trim().toLowerCase();
+      const rowName = String(row[colMap.colHoTen] || "").trim().toLowerCase();
+      const rowClass = String(row[colMap.colLop] || "").trim().toUpperCase();
+      const rowGV = String(row[colMap.colGV] || "").trim().toLowerCase();
+
+      // 1. So khớp Mã đề thi
+      if (itemMaDe && itemMaDe !== "all" && rowMaDe && rowMaDe !== itemMaDe) {
+        continue;
+      }
+
+      // 2. So khớp Giáo viên
+      if (usernameGV && usernameGV !== "all" && rowGV && !isSameTeacherAccount(rowGV, usernameGV)) {
+        continue;
+      }
+
+      // 3. So khớp Học sinh (ưu tiên mã tài khoản, fallback họ tên + lớp)
+      let isMatchStudent = false;
+      if (itemHS && rowHS && (itemHS === rowHS || isSameStudentAccount(rowHS, itemHS))) {
+        isMatchStudent = true;
+      } else if (itemName && rowName && itemName === rowName) {
+        if (!itemClass || !rowClass || itemClass === rowClass) {
+          isMatchStudent = true;
+        }
+      }
+
+      if (isMatchStudent) {
+        const rowIdx = i + 1; // 1-based index in Sheet
+        const rawDiemTN = row[colMap.colDiemTN];
+        let diemTN = 0;
+        if (rawDiemTN !== "" && rawDiemTN !== null && rawDiemTN !== undefined) {
+          const parsedTN = parseFloat(String(rawDiemTN).replace(",", "."));
+          if (!isNaN(parsedTN)) diemTN = parsedTN;
+        }
+
+        const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+
+        // Ghi điểm tự luận vào cột K và tổng điểm vào cột L
+        sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue(scoreTL);
+        sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(tongDiem);
+
+        data[i][colMap.colDiemTL] = scoreTL;
+        data[i][colMap.colTongDiem] = tongDiem;
+
+        updatedCount++;
+        updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: scoreTL, tongDiem: tongDiem });
+        break;
+      }
+    }
+  });
+
+  // Đồng thời cập nhật vào Sheet DATA_TULUAN nếu có
+  try {
+    const sheetTuLuan = ss.getSheetByName(SHEETS.TULUAN);
+    if (sheetTuLuan) {
+      const dataTL = sheetTuLuan.getDataRange().getValues();
+      const headerTL = dataTL[0] || [];
+      let colDiemTL_InTuLuan = -1;
+      let colNhanXet_InTuLuan = -1;
+      let colMaDe_TL = 7;
+      let colHS_TL = 0;
+
+      for (let c = 0; c < headerTL.length; c++) {
+        const h = String(headerTL[c] || "").trim().toLowerCase();
+        if (h.includes("điểm tự luận") || h.includes("gv chấm")) colDiemTL_InTuLuan = c;
+        if (h.includes("nhận xét")) colNhanXet_InTuLuan = c;
+        if (h.includes("mã đề")) colMaDe_TL = c;
+        if (h.includes("tài khoản hs") || h.includes("mã hs")) colHS_TL = c;
+      }
+
+      if (colDiemTL_InTuLuan !== -1) {
+        scoresList.forEach(item => {
+          const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null && item.diemTuLuan !== "") ? item.diemTuLuan : item.diem;
+          if (rawScore === undefined || rawScore === null || String(rawScore).trim() === "") return;
+          const parsedScore = parseFloat(String(rawScore).replace(",", "."));
+          if (isNaN(parsedScore)) return;
+          const scoreTL = Math.round(parsedScore * 100) / 100;
+          const itemHS = String(item.usernameHS || item.taiKhoanHS || item.maHS || "").trim().toLowerCase();
+          const itemMaDe = String(item.maDe || maDeFilter || "").trim().toLowerCase();
+          const itemNhanXet = String(item.nhanXet || "").trim();
+
+          for (let i = dataTL.length - 1; i >= 1; i--) {
+            const row = dataTL[i];
+            const rHS = String(row[colHS_TL] || "").trim().toLowerCase();
+            const rMaDe = String(row[colMaDe_TL] || "").trim().toLowerCase();
+            if (rHS === itemHS && (!itemMaDe || itemMaDe === "all" || rMaDe === itemMaDe)) {
+              sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue(scoreTL);
+              if (colNhanXet_InTuLuan !== -1 && itemNhanXet) {
+                sheetTuLuan.getRange(i + 1, colNhanXet_InTuLuan + 1).setValue(itemNhanXet);
+              }
+              break;
+            }
+          }
+        });
+      }
+    }
+  } catch (eTL) {
+    Logger.log("Lỗi đồng bộ DATA_TULUAN: " + eTL);
+  }
+
+  SpreadsheetApp.flush();
+
+  return createJsonResponse({
+    success: true,
+    message: `Đã cập nhật điểm tự luận thành công cho ${updatedCount} học sinh vào Sheet DATA_KETQUA!`,
+    updatedCount: updatedCount,
+    totalRecords: scoresList.length
   });
 }
 
@@ -1385,28 +1670,34 @@ function handleGetStudentExams(payload) {
   const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
   if (sheetKetQua && usernameHS) {
     try {
+      ensureKetQuaSheetColumns(sheetKetQua);
+      const colMap = getKetQuaColMap(sheetKetQua);
       const kqData = sheetKetQua.getDataRange().getValues();
-      // DATA_KETQUA Columns:
-      // 0: Tài khoản HS | 1: Lớp | 2: Họ tên | 3: Ngày sinh | 4: Giới tính | 5: Trường
-      // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
-      // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời
+
       for (let r = 1; r < kqData.length; r++) {
-        const rHs = String(kqData[r][0] !== null && kqData[r][0] !== undefined ? kqData[r][0] : "").trim();
-        const rMaDe = String(kqData[r][7] || "").trim();
+        const rHs = String(kqData[r][colMap.colHS] !== null && kqData[r][colMap.colHS] !== undefined ? kqData[r][colMap.colHS] : "").trim();
+        const rMaDe = String(kqData[r][colMap.colMaDe] || "").trim();
         if (isSameStudentAccount(rHs, usernameHS) && rMaDe) {
-          const rawDiem = kqData[r][9];
+          let rawDiem = kqData[r][colMap.colDiemTN];
+          if (colMap.colTongDiem !== -1) {
+            const rawTD = kqData[r][colMap.colTongDiem];
+            if (rawTD !== "" && rawTD !== null && rawTD !== undefined) {
+              rawDiem = rawTD;
+            }
+          }
+
           let parsedDiem = rawDiem;
           if (rawDiem !== "" && rawDiem !== null && rawDiem !== undefined) {
             const numVal = parseFloat(String(rawDiem).replace(",", "."));
             if (!isNaN(numVal)) {
-              parsedDiem = numVal;
+              parsedDiem = Math.round(numVal * 100) / 100;
             }
           }
           submittedExamsMap[rMaDe] = {
             daLam: true,
             diemTong: parsedDiem,
-            soCauDungSai: kqData[r][10],
-            thoiGianNop: kqData[r][11]
+            soCauDungSai: String(kqData[r][colMap.colSoCau] || ""),
+            thoiGianNop: formatDateValue(kqData[r][colMap.colThoiGianNop])
           };
         }
       }
@@ -1838,9 +2129,9 @@ function handleSubmitExam(payload) {
   }
 
   // 4. Ghi vào DATA_KETQUA
-  // 0: Tài khoản HS | 1: Lớp | 2: Họ tên | 3: Ngày sinh | 4: Giới tính | 5: Trường
-  // 6: Thời gian đăng nhập | 7: Mã đề thi | 8: Tài khoản GV của đề thi | 9: Điểm tổng
-  // 10: Số câu đúng/sai | 11: Thời gian nộp bài | 12: Chi tiết trả lời (gồm trắc nghiệm + tự luận)
+  ensureKetQuaSheetColumns(sheetKetQua);
+  const colMap = getKetQuaColMap(sheetKetQua);
+
   const fullDetailObject = {
     tracNghiem: detailedResults,
     tuLuan: essayDetailsForStudent
@@ -1848,15 +2139,26 @@ function handleSubmitExam(payload) {
 
   if (choXemLaiBai && existingKqRowIndex !== -1) {
     const targetRow = existingKqRowIndex + 1;
-    sheetKetQua.getRange(targetRow, 7, 1, 7).setValues([[
-      thoiGianVaoThi || thoiGianNop,
-      maDe,
-      usernameGV,
-      diemTracNghiem,
-      soCauDungSaiText,
-      thoiGianNop,
-      JSON.stringify(fullDetailObject)
-    ]]);
+    sheetKetQua.getRange(targetRow, colMap.colDangNhap + 1).setValue(thoiGianVaoThi || thoiGianNop);
+    sheetKetQua.getRange(targetRow, colMap.colMaDe + 1).setValue(maDe);
+    sheetKetQua.getRange(targetRow, colMap.colGV + 1).setValue(usernameGV);
+    sheetKetQua.getRange(targetRow, colMap.colDiemTN + 1).setValue(diemTracNghiem);
+
+    let oldTL = "";
+    if (colMap.colDiemTL !== -1) {
+      oldTL = sheetKetQua.getRange(targetRow, colMap.colDiemTL + 1).getValue();
+    }
+    let updatedTong = diemTracNghiem;
+    if (oldTL !== "" && oldTL !== null && !isNaN(parseFloat(oldTL))) {
+      updatedTong = Math.round((diemTracNghiem + parseFloat(oldTL)) * 100) / 100;
+    }
+    if (colMap.colTongDiem !== -1) {
+      sheetKetQua.getRange(targetRow, colMap.colTongDiem + 1).setValue(updatedTong);
+    }
+
+    sheetKetQua.getRange(targetRow, colMap.colSoCau + 1).setValue(soCauDungSaiText);
+    sheetKetQua.getRange(targetRow, colMap.colThoiGianNop + 1).setValue(thoiGianNop);
+    sheetKetQua.getRange(targetRow, colMap.colChiTiet + 1).setValue(JSON.stringify(fullDetailObject));
   } else {
     sheetKetQua.appendRow([
       usernameHS,
@@ -1869,6 +2171,8 @@ function handleSubmitExam(payload) {
       maDe,
       usernameGV,
       diemTracNghiem,
+      "", // Điểm tự luận (chờ GV chấm)
+      diemTracNghiem, // Tổng điểm tạm thời (bằng điểm TN)
       soCauDungSaiText,
       thoiGianNop,
       JSON.stringify(fullDetailObject)

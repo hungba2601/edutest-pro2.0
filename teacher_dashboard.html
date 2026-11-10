@@ -71,6 +71,15 @@
         </svg>
         <span>Xem Kết Quả & Thống Kê</span>
       </button>
+      <button class="nav-tab-btn" id="tabBtnSummaryScores" data-tab="tabSummaryScores" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+          <line x1="12" y1="12" x2="12" y2="18"/>
+        </svg>
+        <span>Tổng Hợp Điểm</span>
+      </button>
       <button class="nav-tab-btn" id="tabBtnStudents" data-tab="tabStudents" role="tab" aria-selected="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
@@ -857,6 +866,204 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </section>
 
     <!-- ====================================================================
+         TAB MỚI: TỔNG HỢP ĐIỂM (TRẮC NGHIỆM + TỰ LUẬN)
+         ==================================================================== -->
+    <section class="tab-content" id="tabSummaryScores" role="tabpanel" style="display: none;">
+      
+      <!-- BANNER CHẾ ĐỘ GIÁM SÁT BAN GIÁM HIỆU -->
+      <div id="bghReadOnlyBannerSummary" style="display: none; align-items: center; gap: 12px; background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 1.5px solid #5eead4; color: #0f766e; padding: 0.75rem 1.15rem; border-radius: 12px; font-weight: 600; font-size: 0.88rem; margin-bottom: 1rem; box-shadow: 0 2px 8px rgba(13,148,136,0.08);">
+        <span style="font-size: 1.35rem; line-height: 1;">🏛️</span>
+        <div>
+          <strong style="color: #115e59;">Cổng Giám Sát Ban Giám Hiệu:</strong> Báo cáo Tổng hợp điểm số (Trắc nghiệm + Tự luận) toàn trường <span style="background: #99f6e4; color: #115e59; padding: 2px 8px; border-radius: 9999px; font-size: 0.76rem; font-weight: 800; margin-left: 4px;">Chỉ xem (Read-only)</span>. Dữ liệu được bảo vệ an toàn.
+        </div>
+      </div>
+
+      <!-- HƯỚNG DẪN NHANH DÀNH CHO GIÁO VIÊN & NÚT THAO TÁC FILE -->
+      <div class="summary-guide-card" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border: 1.5px solid #cbd5e1; border-radius: 14px; padding: 0.95rem 1.35rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; box-shadow: 0 3px 8px rgba(13,148,136,0.35);">
+            📊
+          </div>
+          <div>
+            <div style="font-weight: 800; color: #0f172a; font-size: 1rem;">Bảng Điểm Tổng Hợp: Trắc Nghiệm &amp; Tự Luận</div>
+            <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">
+              Tải file mẫu tự luận về chấm → Nhập điểm tự luận và Tải file lên → Hệ thống tự động so khớp, cộng Tổng điểm và đồng bộ lên Google Sheets.
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <!-- Nút Tải File Mẫu Tự Luận -->
+          <button type="button" id="btnSummaryDownloadSample" class="btn-summary-action btn-summary-download" style="background: #ffffff; border: 1.5px solid #0d9488; color: #0f766e; font-weight: 700; font-size: 0.84rem; padding: 0.5rem 0.95rem; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s;" title="Xuất file Excel danh sách bài làm tự luận có sẵn cột Điểm Tự Luận để giáo viên chấm">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Tải File Mẫu Tự Luận (.xlsx)</span>
+          </button>
+          <!-- Nút Nhập Điểm Tự Luận (Upload) -->
+          <button type="button" id="btnSummaryUploadScores" class="btn-summary-action btn-summary-upload" style="background: linear-gradient(135deg, #0d9488 0%, #059669 100%); border: 1.5px solid #059669; color: #ffffff; font-weight: 700; font-size: 0.84rem; padding: 0.5rem 1.05rem; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(13,148,136,0.35); transition: all 0.2s;" title="Tải file Excel đã chấm điểm tự luận để hệ thống tự động ghi nhận vào sổ điểm">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Nhập Điểm Tự Luận (Upload File)</span>
+          </button>
+          <input type="file" id="inputSummaryEssayFile" accept=".xlsx, .xls" style="display: none;">
+          <!-- Nút Xuất Bảng Điểm Tổng Hợp Excel -->
+          <button type="button" id="btnSummaryExportExcel" class="btn-summary-action btn-summary-export" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); border: 1.5px solid #1d4ed8; color: #ffffff; font-weight: 700; font-size: 0.84rem; padding: 0.5rem 1.05rem; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 3px 10px rgba(37,99,235,0.3); transition: all 0.2s;" title="Xuất toàn bộ bảng điểm tổng hợp (Trắc nghiệm + Tự luận + Tổng điểm)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <span>Xuất Excel Bảng Tổng Hợp (.xlsx)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="results-filter-card" style="display: flex; flex-direction: column; gap: 0.9rem; padding: 1.15rem 1.4rem;">
+        <div class="filter-left" style="display: flex; gap: 0.75rem; align-items: center; width: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px;">
+          <!-- MỤC CHỌN GIÁO VIÊN (DÀNH CHO BGH / ADMIN) -->
+          <div id="adminTeacherFilterGroupSummary" style="display: none; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); padding: 0.38rem 0.75rem; border-radius: 9px; border: 1.5px solid #5eead4; box-shadow: 0 2px 6px rgba(13,148,136,0.1); flex: 1.3; min-width: 320px;">
+            <label for="selectFilterTeacherSummary" class="filter-label" style="margin: 0; white-space: nowrap; font-weight: 800; color: #0f766e; display: flex; align-items: center; gap: 4px; font-size: 0.85rem;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>Giáo viên:</span>
+            </label>
+            <select id="selectFilterTeacherSummary" class="form-select" style="flex: 1; width: 100%; min-width: 180px; font-weight: 700; color: #134e4a; border-color: #0d9488; background-color: #ffffff; cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 0.85rem; padding: 0.42rem 0.6rem;">
+              <option value="ALL">-- Tất cả Giáo viên (Toàn trường) --</option>
+            </select>
+            <button type="button" id="btnRefreshTeacherListSummary" class="btn-secondary-sm" title="Tải lại danh sách Giáo viên" style="padding: 0.35rem 0.55rem; background: #ffffff; border-color: #5eead4; color: #0f766e; border-radius: 6px; cursor: pointer; flex-shrink: 0;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            </button>
+          </div>
+
+          <!-- BÀI KIỂM TRA -->
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex: 1.3; min-width: 260px;">
+            <label for="selectFilterExamSummary" class="filter-label" style="margin: 0; white-space: nowrap; font-size: 0.85rem;">Bài kiểm tra:</label>
+            <select id="selectFilterExamSummary" class="form-select" style="flex: 1; width: 100%; min-width: 170px; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 0.85rem; padding: 0.42rem 0.6rem;">
+              <option value="ALL">-- Tất cả bài kiểm tra --</option>
+            </select>
+          </div>
+
+          <!-- LỚP HỌC -->
+          <div style="display: flex; align-items: center; gap: 0.4rem; flex: 1; min-width: 190px;">
+            <label for="selectFilterClassSummary" class="filter-label" style="margin: 0; white-space: nowrap; font-size: 0.85rem;">Lớp học:</label>
+            <select id="selectFilterClassSummary" class="form-select" style="flex: 1; width: 100%; min-width: 120px; font-size: 0.85rem; padding: 0.42rem 0.6rem;">
+              <option value="ALL">-- Tất cả các lớp --</option>
+            </select>
+          </div>
+
+          <!-- CHECKBOX HIỆN ĐỦ DANH SÁCH LỚP -->
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 600; color: #0f766e; cursor: pointer; background: #f0fdfa; padding: 0.42rem 0.75rem; border-radius: 8px; border: 1px solid #99f6e4; user-select: none; white-space: nowrap; flex-shrink: 0;">
+            <input type="checkbox" id="chkIncludeNotSubmittedSummary" checked style="width: 15px; height: 15px; cursor: pointer; accent-color: #0d9488;">
+            <span>Hiện đủ danh sách lớp</span>
+          </label>
+
+          <!-- NÚT LỌC KẾT QUẢ -->
+          <button type="button" id="btnFilterSummary" class="btn-secondary-sm" style="padding: 0.42rem 1.05rem; font-size: 0.84rem; font-weight: 700; background: #f8fafc; border-color: #cbd5e1; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; border-radius: 8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>Lọc kết quả</span>
+          </button>
+        </div>
+
+        <!-- HÀNG 2: 3 NÚT LỌC TRẠNG THÁI & NÚT LÀM MỚI -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; width: 100%; padding-top: 0.75rem; border-top: 1px dashed #e2e8f0; flex-wrap: wrap;">
+          <div style="display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
+            <div class="submission-filter-group" id="summarySubmissionFilterGroup" title="Lọc theo trạng thái làm bài">
+              <button type="button" class="btn-sub-filter active" data-filter="ALL" id="btnSummaryFilterAll">
+                <span>Tất cả</span>
+                <span class="sub-filter-badge" id="badgeSummaryCountAll">0</span>
+              </button>
+              <button type="button" class="btn-sub-filter" data-filter="SUBMITTED" id="btnSummaryFilterSubmitted">
+                <span class="sub-dot-green"></span>
+                <span>Đã làm</span>
+                <span class="sub-filter-badge badge-green" id="badgeSummaryCountSubmitted">0</span>
+              </button>
+              <button type="button" class="btn-sub-filter" data-filter="NOT_SUBMITTED" id="btnSummaryFilterNotSubmitted">
+                <span class="sub-dot-red"></span>
+                <span>Chưa làm</span>
+                <span class="sub-filter-badge badge-red" id="badgeSummaryCountNotSubmitted">0</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-start; align-items: center; flex: 1; min-width: 170px; padding-left: 0.5rem;">
+            <button type="button" id="btnRefreshSummary" class="btn-secondary-sm" title="Tải lại kết quả mới nhất từ Google Sheets" style="display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 0.95rem; border-radius: 9px; font-weight: 700; font-size: 0.85rem; background: #ffffff; border: 1.5px solid #cbd5e1; color: #334155; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              <span>Làm mới danh sách</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Summary Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-title">Số bài thi đã nộp</span>
+          <span class="metric-val" id="metricSummaryTotalSubs">0</span>
+          <span class="metric-desc">Thí sinh hoàn thành</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Điểm Trắc Nghiệm TB</span>
+          <span class="metric-val" id="metricSummaryAvgTN">0.0</span>
+          <span class="metric-desc">Trung bình phần TN</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Điểm Tự Luận TB</span>
+          <span class="metric-val" id="metricSummaryAvgTL" style="color: #0d9488;">0.0</span>
+          <span class="metric-desc" id="metricSummaryGradedTLCount">0 bài đã có điểm TL</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Tổng Điểm Trung Bình</span>
+          <span class="metric-val highlight" id="metricSummaryAvgTotal">0.0</span>
+          <span class="metric-desc">TN + TL (Thang 10)</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-title">Tỉ lệ đạt (Tổng &gt;= 5.0)</span>
+          <span class="metric-val highlight" id="metricSummaryPassRate">0%</span>
+          <span class="metric-desc">Đạt chuẩn năng lực</span>
+        </div>
+      </div>
+
+      <!-- Bảng Điểm Chi Tiết Tổng Hợp -->
+      <div class="panel-card" id="summaryScoresTableCard">
+        <div class="section-header-flex" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <h3 class="panel-title" style="margin: 0; white-space: nowrap;">Bảng Điểm Tổng Hợp Thí Sinh (Trắc Nghiệm + Tự Luận)</h3>
+          
+          <div id="summaryPaginationTop" class="header-pagination-box" style="display: none;"></div>
+
+          <div style="position: relative; display: flex; align-items: center; min-width: 240px; max-width: 340px; flex: 1;">
+            <input type="search" id="searchSummaryStudentInput" class="form-input search-box" placeholder="Tìm tên học sinh, lớp, mã đề..." autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" readonly onfocus="this.removeAttribute('readonly');" onblur="this.setAttribute('readonly', 'readonly');" style="width: 100%; padding-right: 2.2rem;">
+            <button type="button" id="btnClearSearchSummary" title="Xóa tìm kiếm" style="display: none; position: absolute; right: 8px; background: #e2e8f0; border: none; color: #475569; width: 22px; height: 22px; border-radius: 50%; font-size: 13px; font-weight: bold; cursor: pointer; align-items: center; justify-content: center; line-height: 1;">✕</button>
+          </div>
+        </div>
+
+        <div class="mobile-table-hint">
+          <span>👉 Vuốt ngang bảng để xem đầy đủ cột điểm &amp; thao tác</span>
+        </div>
+        <div class="table-responsive">
+          <table class="exam-table" id="summaryScoresTable">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Lớp</th>
+                <th>Họ và Tên</th>
+                <th>Ngày sinh</th>
+                <th>Giới tính</th>
+                <th style="background: #eff6ff; color: #1e40af; text-align: center; font-weight: 800;">Điểm TN</th>
+                <th style="background: #f0fdfa; color: #0f766e; text-align: center; font-weight: 800;">Điểm TL</th>
+                <th style="background: #fefce8; color: #854d0e; text-align: center; font-weight: 800;">Tổng Điểm</th>
+                <th>Số câu đúng</th>
+                <th>Thời gian nộp</th>
+                <th style="text-align: center;">Bài làm</th>
+              </tr>
+            </thead>
+            <tbody id="summaryScoresTableBody">
+              <tr>
+                <td colspan="11" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                  Chọn kỳ kiểm tra và bấm "Lọc kết quả" để tải bảng điểm tổng hợp.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-pagination-bar" id="summaryPaginationBar" style="display: none;"></div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
          TAB 4: QUẢN LÝ GIÁO VIÊN & KẾT NỐI MÁY CHỦ (DÀNH CHO QUẢN TRỊ VIÊN ADMIN)
          ==================================================================== -->
 
@@ -1273,8 +1480,75 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
   </div>
 
   <!-- =========================================================================
-       MODAL CẤU HÌNH TRỢ LÝ AI GEMINI
+       MODAL: XEM TRƯỚC & XÁC NHẬN NHẬP ĐIỂM TỰ LUẬN
        ========================================================================= -->
+  <div class="modal-backdrop" id="modalConfirmEssayScores" style="display: none; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.7) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;">
+    <div class="modal-dialog" style="background: #ffffff !important; color: #0f172a !important; border: 1.5px solid #cbd5e1 !important; border-radius: 16px !important; width: 100% !important; max-width: 900px !important; max-height: 90vh !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.45) !important; margin: auto !important;">
+      <div class="modal-header" style="display: flex !important; align-items: center !important; justify-content: space-between !important; padding: 1.15rem 1.5rem !important; background: #f0fdfa !important; border-bottom: 1.5px solid #ccfbf1 !important;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div style="width: 38px; height: 38px; border-radius: 10px; background: #0d9488; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+            📝
+          </div>
+          <div>
+            <h3 style="margin: 0 !important; font-size: 1.15rem !important; font-weight: 800 !important; color: #0f766e !important;">Xem Trước &amp; Xác Nhận Nhập Điểm Tự Luận</h3>
+            <p style="margin: 0 !important; font-size: 0.78rem !important; color: #64748b !important;">Kiểm tra danh sách học sinh khớp dữ liệu trước khi lưu vào Google Sheets</p>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseConfirmEssayScoresModal" style="width: 34px !important; height: 34px !important; border-radius: 8px !important; border: 1.5px solid #cbd5e1 !important; background: #ffffff !important; color: #64748b !important; font-size: 1.1rem !important; cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important; font-weight: bold !important;">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem 1.5rem !important; overflow-y: auto !important; flex: 1 !important; max-height: calc(90vh - 145px) !important; background: #ffffff !important;">
+        <!-- Thống kê khớp file -->
+        <div id="essayImportSummaryAlert" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 0.85rem 1.15rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <div style="font-size: 0.82rem; color: #64748b;">Kỳ thi: <strong id="essayImportExamTitle" style="color: #0f172a;">--</strong></div>
+            <div style="font-size: 0.82rem; color: #64748b; margin-top: 2px;">File tải lên: <span id="essayImportFileName" style="color: #0d9488; font-weight: 700;">--</span></div>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <span style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.82rem;">
+              Khớp thành công: <span id="essayImportMatchedCount">0</span>
+            </span>
+            <span style="background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.82rem;">
+              Bỏ qua / Không khớp: <span id="essayImportUnmatchedCount">0</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Bảng danh sách xem trước -->
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px;">
+          <table class="exam-table" id="tablePreviewEssayScores" style="margin: 0; width: 100%;">
+            <thead>
+              <tr style="position: sticky; top: 0; z-index: 2; background: #f1f5f9;">
+                <th>STT</th>
+                <th>Lớp</th>
+                <th>Họ và Tên</th>
+                <th>Tài khoản</th>
+                <th style="background: #eff6ff; color: #1e40af; text-align: center;">Điểm TN</th>
+                <th style="background: #f0fdfa; color: #0f766e; text-align: center;">Điểm TL mới</th>
+                <th style="background: #fefce8; color: #854d0e; text-align: center;">Tổng Điểm mới</th>
+                <th style="text-align: center;">Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyPreviewEssayScores">
+              <!-- Render động các dòng xem trước -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
+        <div style="font-size: 0.82rem; color: #64748b;">
+          💡 Sau khi xác nhận, hệ thống sẽ lưu điểm tự luận và tổng điểm vào cả Sheet GV và Sheet Trung tâm.
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+          <button type="button" class="btn-cancel" id="btnCancelConfirmEssayScores" style="padding: 0.55rem 1.25rem; border-radius: 8px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-weight: 600;">Hủy</button>
+          <button type="button" class="btn-primary" id="btnSubmitConfirmEssayScores" style="padding: 0.55rem 1.5rem; background: linear-gradient(135deg, #0d9488 0%, #059669 100%); color: #ffffff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <span>💾 Xác Nhận &amp; Lưu Vào Google Sheets</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="modal-backdrop" id="geminiConfigModal" style="display: none;">
     <div class="modal-dialog gemini-dialog-card" style="max-width: 680px; width: 95%;">
       <div class="gemini-custom-modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
@@ -2376,6 +2650,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <script src="js/teacher.js?v=12.4"></script>
+  <script src="js/teacher.js?v=12.5"></script>
 </body>
 </html>

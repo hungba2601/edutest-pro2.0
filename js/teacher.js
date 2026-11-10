@@ -1453,18 +1453,20 @@ if (btnTestGeminiConnection) {
 function initTabSwitching() {
   const tabBtnCreate = document.getElementById("tabBtnCreate");
   const tabBtnResults = document.getElementById("tabBtnResults");
+  const tabBtnSummaryScores = document.getElementById("tabBtnSummaryScores");
   const tabBtnStudents = document.getElementById("tabBtnStudents");
   const tabBtnAdminTeachers = document.getElementById("tabBtnAdminTeachers");
   const tabCreate = document.getElementById("tabCreate");
   const tabResults = document.getElementById("tabResults");
+  const tabSummaryScores = document.getElementById("tabSummaryScores");
   const tabStudents = document.getElementById("tabStudents");
   const tabAdminTeachers = document.getElementById("tabAdminTeachers");
 
   function switchTab(activeBtn, activeTab) {
-    [tabBtnCreate, tabBtnResults, tabBtnStudents, tabBtnAdminTeachers].forEach(b => {
+    [tabBtnCreate, tabBtnResults, tabBtnSummaryScores, tabBtnStudents, tabBtnAdminTeachers].forEach(b => {
       if (b) b.classList.remove("active");
     });
-    [tabCreate, tabResults, tabStudents, tabAdminTeachers].forEach(t => {
+    [tabCreate, tabResults, tabSummaryScores, tabStudents, tabAdminTeachers].forEach(t => {
       if (t) t.style.display = "none";
     });
 
@@ -1485,6 +1487,15 @@ function initTabSwitching() {
       const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
       populateResultClassDropdown(selectedMaDe);
       loadTeacherResults(selectedMaDe);
+    });
+  }
+
+  if (tabBtnSummaryScores) {
+    tabBtnSummaryScores.addEventListener("click", () => {
+      switchTab(tabBtnSummaryScores, tabSummaryScores);
+      if (typeof initSummaryScoresTab === "function") {
+        initSummaryScoresTab();
+      }
     });
   }
 
@@ -7033,6 +7044,1307 @@ function openStudentDetailModal(record) {
   detailModal.style.cssText = "display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100vw !important; height: 100vh !important; background: rgba(15, 23, 42, 0.7) !important; backdrop-filter: blur(6px) !important; -webkit-backdrop-filter: blur(6px) !important; z-index: 999999 !important; align-items: center !important; justify-content: center !important; padding: 1.25rem !important; box-sizing: border-box !important;";
 }
 
+// ============================================================================
+// 11. TAB TỔNG HỢP ĐIỂM (TRẮC NGHIỆM + TỰ LUẬN + TỔNG ĐIỂM)
+// VÀ NHẬP ĐIỂM TỰ LUẬN TỰ ĐỘNG TỪ FILE EXCEL
+// ============================================================================
+
+let summaryRawResultsList = [];
+let summaryCurrentDisplayedList = [];
+let summaryCurrentStatusFilter = "ALL"; // "ALL" | "SUBMITTED" | "NOT_SUBMITTED"
+let summaryCurrentPage = 1;
+let summaryPageSize = 60;
+let pendingImportEssayScores = null;
+let isSummaryEventsInitialized = false;
+
+/**
+ * Khởi tạo dữ liệu và sự kiện cho Tab Tổng Hợp Điểm
+ */
+async function initSummaryScoresTab() {
+  populateSummaryExamDropdown();
+  syncSummaryTeacherDropdown();
+
+  const selectedMaDe = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+  populateSummaryClassDropdown(selectedMaDe);
+
+  if (!isSummaryEventsInitialized) {
+    setupSummaryTabEvents();
+    isSummaryEventsInitialized = true;
+  }
+
+  await loadSummaryScores(selectedMaDe);
+}
+
+/**
+ * Điền danh sách đề thi vào dropdown của Tab Tổng Hợp Điểm
+ */
+function populateSummaryExamDropdown() {
+  const selectElem = document.getElementById("selectFilterExamSummary");
+  if (!selectElem) return;
+
+  const currentVal = selectElem.value;
+  selectElem.innerHTML = '<option value="ALL">-- Tất cả bài kiểm tra --</option>';
+
+  const exams = currentExamsList || getCachedExams() || [];
+  exams.forEach(exam => {
+    if (exam && exam.maDe) {
+      const opt = document.createElement("option");
+      opt.value = exam.maDe;
+      opt.textContent = `${exam.tenKyThi || exam.maDe} (${exam.maDe})`;
+      selectElem.appendChild(opt);
+    }
+  });
+
+  const resultsExamVal = document.getElementById("selectFilterExam")?.value;
+  if (currentVal && Array.from(selectElem.options).some(o => o.value === currentVal)) {
+    selectElem.value = currentVal;
+  } else if (resultsExamVal && Array.from(selectElem.options).some(o => o.value === resultsExamVal)) {
+    selectElem.value = resultsExamVal;
+  }
+}
+
+/**
+ * Đồng bộ danh sách giáo viên cho BGH / Admin trên Tab Tổng Hợp Điểm
+ */
+function syncSummaryTeacherDropdown() {
+  const selectTeacherSummary = document.getElementById("selectFilterTeacherSummary");
+  const selectTeacherMain = document.getElementById("selectFilterTeacher");
+  if (!selectTeacherSummary || !selectTeacherMain) return;
+
+  selectTeacherSummary.innerHTML = selectTeacherMain.innerHTML;
+  selectTeacherSummary.value = selectTeacherMain.value || "ALL";
+}
+
+/**
+ * Điền danh sách lớp học vào dropdown Tab Tổng Hợp Điểm
+ */
+function populateSummaryClassDropdown(maDe) {
+  const selectClass = document.getElementById("selectFilterClassSummary");
+  if (!selectClass) return;
+
+  const prevVal = selectClass.value;
+  selectClass.innerHTML = '<option value="ALL">-- Tất cả các lớp --</option>';
+
+  const classSet = new Set();
+
+  if (maDe && maDe !== "ALL") {
+    let exam = (currentExamsList || []).find(e => String(e.maDe).trim() === String(maDe).trim());
+    if (!exam) {
+      const cached = getCachedExams();
+      exam = (cached || []).find(e => String(e.maDe).trim() === String(maDe).trim());
+    }
+    const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
+    const tokens = String(rawAllowed).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    const specificAllowed = tokens
+      .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
+      .map(normalizeClassName)
+      .filter(Boolean);
+
+    if (specificAllowed.length > 0) {
+      specificAllowed.forEach(c => classSet.add(c));
+    }
+  }
+
+  if (classSet.size === 0) {
+    if (typeof teacherAllClassesList !== "undefined" && Array.isArray(teacherAllClassesList) && teacherAllClassesList.length > 0) {
+      teacherAllClassesList.forEach(c => {
+        const nc = normalizeClassName(c);
+        if (nc && !["ALL", "TẤT CẢ", "ADMIN", "BGH"].includes(nc.toUpperCase())) classSet.add(nc);
+      });
+    }
+
+    if (currentTeacherStudents && currentTeacherStudents.length > 0) {
+      currentTeacherStudents.forEach(st => {
+        const nc = normalizeClassName(st.lop);
+        if (nc) classSet.add(nc);
+      });
+    }
+  }
+
+  const sortedClasses = Array.from(classSet).sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
+  sortedClasses.forEach(cls => {
+    const opt = document.createElement("option");
+    opt.value = cls;
+    opt.textContent = `Lớp ${cls}`;
+    selectClass.appendChild(opt);
+  });
+
+  if (prevVal && Array.from(selectClass.options).some(o => o.value === prevVal)) {
+    selectClass.value = prevVal;
+  }
+}
+
+/**
+ * Tải kết quả điểm tổng hợp từ Google Sheets
+ */
+async function loadSummaryScores(filterMaDe) {
+  const tbody = document.getElementById("summaryScoresTableBody");
+  if (tbody) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Đang tải bảng điểm tổng hợp...</td></tr>`;
+  }
+
+  const sInput = document.getElementById("searchSummaryStudentInput");
+  const bClear = document.getElementById("btnClearSearchSummary");
+  if (sInput) sInput.value = "";
+  if (bClear) bClear.style.display = "none";
+
+  const selectExamElem = document.getElementById("selectFilterExamSummary");
+  const actualMaDe = (filterMaDe !== undefined && filterMaDe !== null && filterMaDe !== "")
+    ? filterMaDe
+    : (selectExamElem?.value || "ALL");
+
+  if (selectExamElem && actualMaDe && Array.from(selectExamElem.options).some(o => o.value === actualMaDe)) {
+    selectExamElem.value = actualMaDe;
+  }
+
+  if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
+    const cached = getCachedTeacherStudents();
+    if (cached && Array.isArray(cached.students) && cached.students.length > 0) {
+      currentTeacherStudents = cached.students.map(st => ({ ...st, lop: normalizeClassName(st.lop) }));
+    } else {
+      try {
+        await loadTeacherStudents(false);
+      } catch (e) {
+        console.warn("Lỗi tải học sinh gốc cho Tab Tổng Hợp:", e);
+      }
+    }
+  }
+
+  populateSummaryClassDropdown(actualMaDe);
+
+  try {
+    let resultsFound = [];
+    const usernameVariants = getTeacherUsernameVariants();
+
+    for (const uGV of usernameVariants) {
+      try {
+        const fetchUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+        const res = await fetch(fetchUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            action: "getTeacherResults",
+            usernameGV: uGV,
+            maDe: actualMaDe
+          })
+        });
+
+        const rawText = await res.text();
+        if (rawText && !rawText.trim().startsWith("<")) {
+          const data = JSON.parse(rawText);
+          if (data && Array.isArray(data.results)) {
+            resultsFound = data.results;
+            if (resultsFound.length > 0) break;
+          }
+        }
+      } catch (ePost) {
+        console.warn("POST loadSummaryScores warning:", ePost);
+      }
+
+      if (!resultsFound || resultsFound.length === 0) {
+        try {
+          const fetchUrl = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+          const getUrl = `${fetchUrl}?action=getTeacherResults&usernameGV=${encodeURIComponent(uGV)}&maDe=${encodeURIComponent(actualMaDe)}&_t=${Date.now()}`;
+          const getRes = await fetch(getUrl);
+          const getText = await getRes.text();
+          if (getText && !getText.trim().startsWith("<")) {
+            const data = JSON.parse(getText);
+            if (data && Array.isArray(data.results)) {
+              resultsFound = data.results;
+              if (resultsFound.length > 0) break;
+            }
+          }
+        } catch (eGet) {
+          console.warn("GET loadSummaryScores warning:", eGet);
+        }
+      }
+    }
+
+    summaryRawResultsList = (resultsFound || []).map(r => {
+      const rawTN = (r.diemTracNghiem !== undefined && r.diemTracNghiem !== null && r.diemTracNghiem !== "")
+        ? r.diemTracNghiem
+        : r.diemTong;
+      let diemTN = 0;
+      if (rawTN !== "" && rawTN !== null && rawTN !== undefined) {
+        const pTN = parseFloat(String(rawTN).replace(",", "."));
+        if (!isNaN(pTN)) diemTN = Math.round(pTN * 100) / 100;
+      }
+
+      let diemTL = null;
+      if (r.diemTuLuan !== undefined && r.diemTuLuan !== null && r.diemTuLuan !== "") {
+        const pTL = parseFloat(String(r.diemTuLuan).replace(",", "."));
+        if (!isNaN(pTL)) diemTL = Math.round(pTL * 100) / 100;
+      }
+
+      let tongDiem = null;
+      if (r.tongDiem !== undefined && r.tongDiem !== null && r.tongDiem !== "") {
+        const pTD = parseFloat(String(r.tongDiem).replace(",", "."));
+        if (!isNaN(pTD)) tongDiem = Math.round(pTD * 100) / 100;
+      }
+      if (tongDiem === null) {
+        tongDiem = diemTL !== null ? Math.round((diemTN + diemTL) * 100) / 100 : diemTN;
+      }
+
+      return {
+        ...r,
+        lop: normalizeClassName(r.lop),
+        diemTN: diemTN,
+        diemTL: diemTL,
+        tongDiem: tongDiem
+      };
+    });
+
+    applySummaryFiltersAndRender();
+  } catch (err) {
+    console.error("Lỗi tải điểm tổng hợp:", err);
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 2.5rem; color: #f87171;">Lỗi tải dữ liệu: ${err.message}</td></tr>`;
+    }
+  }
+}
+
+/**
+ * Lọc và trộn danh sách học sinh theo lớp, tính toán KPIs và vẽ bảng
+ */
+function applySummaryFiltersAndRender() {
+  const selectedMaDe = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+  const selectedClass = document.getElementById("selectFilterClassSummary")?.value || "ALL";
+  const includeNotSubmitted = document.getElementById("chkIncludeNotSubmittedSummary")
+    ? document.getElementById("chkIncludeNotSubmittedSummary").checked
+    : true;
+
+  let filteredSubmissions = summaryRawResultsList;
+  if (selectedMaDe && selectedMaDe !== "ALL") {
+    filteredSubmissions = filteredSubmissions.filter(r => r.maDe === selectedMaDe);
+  }
+
+  let baseStudents = currentTeacherStudents || [];
+  if (baseStudents.length === 0) {
+    const cached = getCachedTeacherStudents();
+    if (cached && Array.isArray(cached.students)) baseStudents = cached.students;
+  }
+
+  let targetStudents = baseStudents;
+  if (selectedClass && selectedClass !== "ALL") {
+    targetStudents = baseStudents.filter(s => normalizeClassName(s.lop) === normalizeClassName(selectedClass));
+  } else if (selectedMaDe && selectedMaDe !== "ALL") {
+    let exam = (currentExamsList || []).find(e => String(e.maDe).trim() === String(selectedMaDe).trim());
+    if (!exam) {
+      const cached = getCachedExams();
+      exam = (cached || []).find(e => String(e.maDe).trim() === String(selectedMaDe).trim());
+    }
+    const rawAllowed = exam?.lopChoPhep || exam?.duLieuDe?.lopChoPhep || "";
+    const tokens = String(rawAllowed).split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    const specificAllowed = tokens
+      .filter(t => t.toUpperCase() !== "ALL" && t.toUpperCase() !== "TẤT CẢ")
+      .map(normalizeClassName)
+      .filter(Boolean);
+
+    if (specificAllowed.length > 0) {
+      targetStudents = baseStudents.filter(s => specificAllowed.includes(normalizeClassName(s.lop)));
+    }
+  }
+
+  let mergedList = [];
+  const examMap = new Map();
+  (currentExamsList || []).forEach(e => {
+    if (e.maDe) examMap.set(String(e.maDe).trim(), e.tenKyThi || e.maDe);
+  });
+
+  if (selectedMaDe === "ALL") {
+    let subs = filteredSubmissions || [];
+    if (selectedClass && selectedClass !== "ALL") {
+      subs = subs.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
+    }
+
+    const submittedItems = subs.map((r, idx) => {
+      const examName = examMap.get(String(r.maDe).trim()) || r.tenKyThi || r.maDe;
+      return {
+        stt: idx + 1,
+        usernameHS: r.usernameHS,
+        hoTen: r.hoTen,
+        lop: normalizeClassName(r.lop),
+        ngaySinh: r.ngaySinh,
+        gioiTinh: r.gioiTinh,
+        truong: r.truong,
+        maDe: r.maDe,
+        tenKyThi: examName,
+        diemTN: r.diemTN !== undefined ? r.diemTN : 0,
+        diemTL: r.diemTL !== undefined ? r.diemTL : null,
+        tongDiem: r.tongDiem !== undefined ? r.tongDiem : (r.diemTN || 0),
+        soCauDungSai: r.soCauDungSai || "--",
+        thoiGianNop: r.thoiGianNop || "--",
+        chiTietTraLoi: r.chiTietTraLoi || "[]",
+        baiLamTuLuan: r.baiLamTuLuan || [],
+        isSubmitted: true,
+        subRecord: r
+      };
+    });
+
+    if (includeNotSubmitted && targetStudents && targetStudents.length > 0) {
+      const submittedUserSet = new Set(submittedItems.map(s => String(s.usernameHS || "").trim().toLowerCase()));
+      const unsubmittedItems = [];
+      targetStudents.forEach(st => {
+        const u = String(st.username || "").trim().toLowerCase();
+        if (!submittedUserSet.has(u)) {
+          unsubmittedItems.push({
+            stt: 0,
+            usernameHS: st.username,
+            hoTen: st.hoTen,
+            lop: normalizeClassName(st.lop),
+            ngaySinh: st.ngaySinh,
+            gioiTinh: st.gioiTinh,
+            truong: st.truong,
+            maDe: "--",
+            tenKyThi: "",
+            diemTN: "",
+            diemTL: null,
+            tongDiem: "",
+            soCauDungSai: "",
+            thoiGianNop: "",
+            chiTietTraLoi: "[]",
+            baiLamTuLuan: [],
+            isSubmitted: false,
+            subRecord: null
+          });
+        }
+      });
+      mergedList = [...submittedItems, ...unsubmittedItems];
+    } else {
+      mergedList = submittedItems;
+    }
+  } else {
+    const currentExamName = examMap.get(String(selectedMaDe).trim()) || selectedMaDe;
+    if (targetStudents && targetStudents.length > 0) {
+      mergedList = targetStudents.map((st, idx) => {
+        const stUser = String(st.username || "").trim().toLowerCase();
+        const stName = String(st.hoTen || "").trim().toLowerCase();
+        const stClass = normalizeClassName(st.lop);
+
+        const sub = [...filteredSubmissions].reverse().find(r => {
+          const rUser = String(r.usernameHS || "").trim().toLowerCase();
+          if (rUser && stUser && rUser === stUser) return true;
+          const rName = String(r.hoTen || "").trim().toLowerCase();
+          const rClass = normalizeClassName(r.lop);
+          return rName === stName && rClass === stClass;
+        });
+
+        if (sub) {
+          return {
+            stt: idx + 1,
+            usernameHS: st.username,
+            hoTen: st.hoTen,
+            lop: stClass,
+            ngaySinh: st.ngaySinh,
+            gioiTinh: st.gioiTinh,
+            truong: st.truong,
+            maDe: sub.maDe || selectedMaDe,
+            tenKyThi: currentExamName,
+            diemTN: sub.diemTN !== undefined ? sub.diemTN : 0,
+            diemTL: sub.diemTL !== undefined ? sub.diemTL : null,
+            tongDiem: sub.tongDiem !== undefined ? sub.tongDiem : (sub.diemTN || 0),
+            soCauDungSai: sub.soCauDungSai || "--",
+            thoiGianNop: sub.thoiGianNop || "--",
+            chiTietTraLoi: sub.chiTietTraLoi || "[]",
+            baiLamTuLuan: sub.baiLamTuLuan || [],
+            isSubmitted: true,
+            subRecord: sub
+          };
+        } else {
+          return {
+            stt: idx + 1,
+            usernameHS: st.username,
+            hoTen: st.hoTen,
+            lop: stClass,
+            ngaySinh: st.ngaySinh,
+            gioiTinh: st.gioiTinh,
+            truong: st.truong,
+            maDe: selectedMaDe,
+            tenKyThi: currentExamName,
+            diemTN: "",
+            diemTL: null,
+            tongDiem: "",
+            soCauDungSai: "",
+            thoiGianNop: "",
+            chiTietTraLoi: "[]",
+            baiLamTuLuan: [],
+            isSubmitted: false,
+            subRecord: null
+          };
+        }
+      });
+    } else {
+      let subs = filteredSubmissions;
+      if (selectedClass && selectedClass !== "ALL") {
+        subs = subs.filter(r => normalizeClassName(r.lop) === normalizeClassName(selectedClass));
+      }
+      mergedList = subs.map((r, idx) => ({
+        stt: idx + 1,
+        usernameHS: r.usernameHS,
+        hoTen: r.hoTen,
+        lop: normalizeClassName(r.lop),
+        ngaySinh: r.ngaySinh,
+        gioiTinh: r.gioiTinh,
+        truong: r.truong,
+        maDe: r.maDe,
+        tenKyThi: currentExamName,
+        diemTN: r.diemTN !== undefined ? r.diemTN : 0,
+        diemTL: r.diemTL !== undefined ? r.diemTL : null,
+        tongDiem: r.tongDiem !== undefined ? r.tongDiem : (r.diemTN || 0),
+        soCauDungSai: r.soCauDungSai || "--",
+        thoiGianNop: r.thoiGianNop || "--",
+        chiTietTraLoi: r.chiTietTraLoi || "[]",
+        baiLamTuLuan: r.baiLamTuLuan || [],
+        isSubmitted: true,
+        subRecord: r
+      }));
+    }
+  }
+
+  const totalCount = mergedList.length;
+  const submittedCount = mergedList.filter(r => r.isSubmitted).length;
+  const notSubmittedCount = totalCount - submittedCount;
+
+  const badgeAll = document.getElementById("badgeSummaryCountAll");
+  const badgeSub = document.getElementById("badgeSummaryCountSubmitted");
+  const badgeNot = document.getElementById("badgeSummaryCountNotSubmitted");
+  if (badgeAll) badgeAll.textContent = totalCount;
+  if (badgeSub) badgeSub.textContent = submittedCount;
+  if (badgeNot) badgeNot.textContent = notSubmittedCount;
+
+  let finalList = mergedList;
+  if (summaryCurrentStatusFilter === "SUBMITTED") {
+    finalList = mergedList.filter(r => r.isSubmitted);
+  } else if (summaryCurrentStatusFilter === "NOT_SUBMITTED") {
+    finalList = mergedList.filter(r => !r.isSubmitted);
+  } else {
+    if (!includeNotSubmitted) {
+      finalList = mergedList.filter(r => r.isSubmitted);
+    }
+  }
+
+  finalList.forEach((r, idx) => {
+    r.stt = idx + 1;
+  });
+
+  summaryCurrentDisplayedList = finalList;
+
+  computeSummaryMetrics(mergedList);
+
+  const sInput = document.getElementById("searchSummaryStudentInput");
+  const query = sInput ? sInput.value.toLowerCase().trim() : "";
+  if (query) {
+    const searchFiltered = finalList.filter(r =>
+      (r.hoTen && r.hoTen.toLowerCase().includes(query)) ||
+      (r.lop && r.lop.toLowerCase().includes(query)) ||
+      (r.usernameHS && r.usernameHS.toLowerCase().includes(query)) ||
+      (r.maDe && r.maDe.toLowerCase().includes(query)) ||
+      (r.tenKyThi && r.tenKyThi.toLowerCase().includes(query))
+    );
+    renderSummaryScoresTable(searchFiltered);
+  } else {
+    renderSummaryScoresTable(finalList);
+  }
+}
+
+/**
+ * Tính toán số liệu thống kê KPI Tổng hợp
+ */
+function computeSummaryMetrics(results) {
+  const totalStudents = results.length;
+  const submittedList = results.filter(r => r.isSubmitted);
+  const submittedCount = submittedList.length;
+
+  const metricTotalSubs = document.getElementById("metricSummaryTotalSubs");
+  if (metricTotalSubs) {
+    if (totalStudents > submittedCount) {
+      const pct = totalStudents > 0 ? Math.round((submittedCount / totalStudents) * 100) : 0;
+      metricTotalSubs.innerHTML = `${submittedCount} <span style="font-size: 0.82rem; font-weight: 600; color: #64748b;">/ ${totalStudents} HS (${pct}%)</span>`;
+    } else {
+      metricTotalSubs.textContent = submittedCount;
+    }
+  }
+
+  if (submittedCount === 0) {
+    document.getElementById("metricSummaryAvgTN").textContent = "0.0";
+    document.getElementById("metricSummaryAvgTL").textContent = "0.0";
+    document.getElementById("metricSummaryAvgTotal").textContent = "0.0";
+    document.getElementById("metricSummaryPassRate").textContent = "0%";
+    const countEl = document.getElementById("metricSummaryGradedTLCount");
+    if (countEl) countEl.textContent = "0 bài đã có điểm TL";
+    return;
+  }
+
+  let sumTN = 0;
+  let sumTL = 0;
+  let gradedTLCount = 0;
+  let sumTotal = 0;
+  let passedCount = 0;
+
+  submittedList.forEach(r => {
+    const tn = Number(r.diemTN) || 0;
+    sumTN += tn;
+
+    if (r.diemTL !== null && r.diemTL !== undefined && !isNaN(Number(r.diemTL))) {
+      sumTL += Number(r.diemTL);
+      gradedTLCount++;
+    }
+
+    const tot = Number(r.tongDiem) || tn;
+    sumTotal += tot;
+    if (tot >= 5.0) passedCount++;
+  });
+
+  const avgTN = submittedCount > 0 ? (Math.round((sumTN / submittedCount) * 100) / 100) : 0;
+  const avgTL = gradedTLCount > 0 ? (Math.round((sumTL / gradedTLCount) * 100) / 100) : 0;
+  const avgTotal = submittedCount > 0 ? (Math.round((sumTotal / submittedCount) * 100) / 100) : 0;
+  const passRate = submittedCount > 0 ? Math.round((passedCount / submittedCount) * 100) : 0;
+
+  document.getElementById("metricSummaryAvgTN").textContent = avgTN;
+  document.getElementById("metricSummaryAvgTL").textContent = avgTL;
+  document.getElementById("metricSummaryAvgTotal").textContent = avgTotal;
+  document.getElementById("metricSummaryPassRate").textContent = `${passRate}%`;
+
+  const countEl = document.getElementById("metricSummaryGradedTLCount");
+  if (countEl) {
+    countEl.textContent = `${gradedTLCount} / ${submittedCount} bài đã có điểm TL`;
+  }
+}
+
+/**
+ * Vẽ bảng dữ liệu Điểm Tổng Hợp kèm phân trang
+ */
+function renderSummaryScoresTable(data) {
+  const tbody = document.getElementById("summaryScoresTableBody");
+  if (!tbody) return;
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Không có dữ liệu phù hợp với bộ lọc hiện tại.</td></tr>`;
+    renderSummaryPagination(0, 0, 0);
+    return;
+  }
+
+  const totalItems = data.length;
+  const pageSize = (summaryPageSize === "ALL") ? totalItems : parseInt(summaryPageSize, 10);
+  const totalPages = (pageSize >= totalItems) ? 1 : Math.ceil(totalItems / pageSize);
+
+  if (summaryCurrentPage > totalPages) summaryCurrentPage = totalPages;
+  if (summaryCurrentPage < 1) summaryCurrentPage = 1;
+
+  const startIndex = (summaryCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const pageItems = data.slice(startIndex, endIndex);
+
+  let html = "";
+  pageItems.forEach((row, idx) => {
+    const displayStt = startIndex + idx + 1;
+    const globalIdx = startIndex + idx;
+
+    let tnDisplay = '<span style="color: #cbd5e1;">--</span>';
+    if (row.isSubmitted) {
+      tnDisplay = `<span style="background: #eff6ff; color: #1e40af; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #bfdbfe; display: inline-block;">${row.diemTN}</span>`;
+    }
+
+    let tlDisplay = '<span style="color: #cbd5e1;">--</span>';
+    if (row.isSubmitted) {
+      if (row.diemTL !== null && row.diemTL !== undefined) {
+        tlDisplay = `<span style="background: #f0fdfa; color: #0f766e; font-weight: 800; padding: 3px 8px; border-radius: 6px; border: 1px solid #99f6e4; display: inline-block;">${row.diemTL}</span>`;
+      } else {
+        tlDisplay = `<span style="color: #94a3b8; font-size: 0.8rem; font-style: italic;">Chưa chấm</span>`;
+      }
+    }
+
+    let totalDisplay = '<span style="color: #cbd5e1;">--</span>';
+    if (row.isSubmitted) {
+      if (row.diemTL !== null && row.diemTL !== undefined) {
+        totalDisplay = `<strong style="background: #fefce8; color: #854d0e; font-weight: 900; font-size: 0.98rem; padding: 3px 9px; border-radius: 7px; border: 1.5px solid #fde047; display: inline-block; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">${row.tongDiem}</strong>`;
+      } else {
+        totalDisplay = `<strong style="color: #1e40af; font-weight: 800; font-size: 0.95rem;">${row.diemTN}</strong>`;
+      }
+    }
+
+    let actionBtn = '<span style="color: #94a3b8; font-size: 0.82rem;">Chưa thi</span>';
+    if (row.isSubmitted) {
+      actionBtn = `<button type="button" class="btn-summary-view-detail" data-idx="${globalIdx}" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 700; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 6px; cursor: pointer; color: #334155; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">Xem bài</button>`;
+    }
+
+    html += `
+      <tr style="${row.isSubmitted ? '' : 'background-color: #fafaf9; opacity: 0.75;'}">
+        <td style="text-align: center; font-weight: 600; color: #64748b;">${displayStt}</td>
+        <td><span class="class-badge" style="background: #f1f5f9; color: #334155; font-weight: 700; padding: 2px 7px; border-radius: 5px;">${row.lop || "--"}</span></td>
+        <td><strong style="color: #0f172a;">${row.hoTen || "--"}</strong><div style="font-size: 0.76rem; color: #94a3b8;">${row.usernameHS || ""}</div></td>
+        <td>${formatDob(row.ngaySinh)}</td>
+        <td>${row.gioiTinh || "--"}</td>
+        <td style="text-align: center;">${tnDisplay}</td>
+        <td style="text-align: center;">${tlDisplay}</td>
+        <td style="text-align: center;">${totalDisplay}</td>
+        <td style="font-size: 0.82rem; color: #475569;">${row.soCauDungSai || "--"}</td>
+        <td style="font-size: 0.8rem; color: #64748b;">${row.isSubmitted ? (row.thoiGianNop || "--") : ""}</td>
+        <td style="text-align: center;">${actionBtn}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+
+  tbody.querySelectorAll(".btn-summary-view-detail").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const idx = parseInt(e.currentTarget.dataset.idx, 10);
+      const rowItem = data[idx];
+      const record = rowItem?.subRecord || rowItem;
+      if (record && typeof openStudentDetailModal === "function") {
+        openStudentDetailModal(record);
+      }
+    });
+  });
+
+  renderSummaryPagination(totalItems, totalPages, pageSize);
+}
+
+/**
+ * Render thanh phân trang bảng Tổng hợp điểm
+ */
+function renderSummaryPagination(totalItems, totalPages, pageSize) {
+  const container = document.getElementById("summaryPaginationBar");
+  const topContainer = document.getElementById("summaryPaginationTop");
+  if (!container) return;
+
+  if (totalItems <= 0) {
+    container.style.display = "none";
+    container.innerHTML = "";
+    if (topContainer) {
+      topContainer.style.display = "none";
+      topContainer.innerHTML = "";
+    }
+    return;
+  }
+
+  container.style.display = "flex";
+  if (topContainer) topContainer.style.display = "inline-flex";
+
+  const startItem = (summaryCurrentPage - 1) * pageSize + 1;
+  const endItem = Math.min(summaryCurrentPage * pageSize, totalItems);
+
+  let pagesHtml = "";
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages || (p >= summaryCurrentPage - 2 && p <= summaryCurrentPage + 2)) {
+      const activeClass = (p === summaryCurrentPage) ? "active" : "";
+      pagesHtml += `<button type="button" class="btn-page ${activeClass}" onclick="changeSummaryPage(${p})">${p}</button>`;
+    } else if (p === summaryCurrentPage - 3 || p === summaryCurrentPage + 3) {
+      pagesHtml += `<span class="page-dots">...</span>`;
+    }
+  }
+
+  const prevDisabled = (summaryCurrentPage <= 1) ? "disabled" : "";
+  const nextDisabled = (summaryCurrentPage >= totalPages) ? "disabled" : "";
+
+  const barHtml = `
+    <div class="pagination-info">
+      Hiển thị <strong>${startItem} - ${endItem}</strong> trên tổng số <strong>${totalItems}</strong> học sinh
+      <span style="margin-left: 1rem; color: #94a3b8;">|</span>
+      <label style="margin-left: 0.75rem; font-size: 0.82rem; color: #64748b;">
+        Số lượng / trang:
+        <select class="form-select-sm" onchange="changeSummaryPageSize(this.value)" style="margin-left: 4px; padding: 2px 6px; border-radius: 6px; font-weight: bold; border: 1px solid #cbd5e1;">
+          <option value="60" ${pageSize === 60 ? 'selected' : ''}>60 hs / trang</option>
+          <option value="100" ${pageSize === 100 ? 'selected' : ''}>100 hs / trang</option>
+          <option value="200" ${pageSize === 200 ? 'selected' : ''}>200 hs / trang</option>
+          <option value="ALL" ${summaryPageSize === "ALL" ? 'selected' : ''}>Tất cả</option>
+        </select>
+      </label>
+    </div>
+    <div class="pagination-controls">
+      <button type="button" class="btn-page" ${prevDisabled} onclick="changeSummaryPage(${summaryCurrentPage - 1})" title="Trang trước">‹</button>
+      ${pagesHtml}
+      <button type="button" class="btn-page" ${nextDisabled} onclick="changeSummaryPage(${summaryCurrentPage + 1})" title="Trang sau">›</button>
+    </div>
+  `;
+
+  container.innerHTML = barHtml;
+
+  if (topContainer) {
+    topContainer.innerHTML = `
+      <div class="pagination-controls" style="margin: 0;">
+        <button type="button" class="btn-page btn-page-sm" ${prevDisabled} onclick="changeSummaryPage(${summaryCurrentPage - 1})" title="Trang trước">‹</button>
+        <span style="font-size: 0.8rem; font-weight: 700; color: #475569; padding: 0 6px;">Trang ${summaryCurrentPage}/${totalPages}</span>
+        <button type="button" class="btn-page btn-page-sm" ${nextDisabled} onclick="changeSummaryPage(${summaryCurrentPage + 1})" title="Trang sau">›</button>
+      </div>
+    `;
+  }
+}
+
+window.changeSummaryPage = function(newPage) {
+  summaryCurrentPage = newPage;
+  applySummaryFiltersAndRender();
+};
+
+window.changeSummaryPageSize = function(newSize) {
+  summaryPageSize = newSize;
+  summaryCurrentPage = 1;
+  applySummaryFiltersAndRender();
+};
+
+/**
+ * Gắn toàn bộ sự kiện cho Tab Tổng Hợp Điểm
+ */
+function setupSummaryTabEvents() {
+  const selectTeacherSummary = document.getElementById("selectFilterTeacherSummary");
+  if (selectTeacherSummary) {
+    selectTeacherSummary.addEventListener("change", async () => {
+      const selectedMaGV = selectTeacherSummary.value;
+      const selectTeacherMain = document.getElementById("selectFilterTeacher");
+      if (selectTeacherMain && selectTeacherMain.value !== selectedMaGV) {
+        selectTeacherMain.value = selectedMaGV;
+        selectTeacherMain.dispatchEvent(new Event("change"));
+      }
+      setTimeout(async () => {
+        populateSummaryExamDropdown();
+        const curExam = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+        populateSummaryClassDropdown(curExam);
+        await loadSummaryScores(curExam);
+      }, 500);
+    });
+  }
+
+  const btnRefreshTeacherSummary = document.getElementById("btnRefreshTeacherListSummary");
+  if (btnRefreshTeacherSummary) {
+    btnRefreshTeacherSummary.addEventListener("click", () => {
+      const btnMain = document.getElementById("btnRefreshTeacherList");
+      if (btnMain) btnMain.click();
+      setTimeout(syncSummaryTeacherDropdown, 1200);
+    });
+  }
+
+  const selectExam = document.getElementById("selectFilterExamSummary");
+  if (selectExam) {
+    selectExam.addEventListener("change", () => {
+      const chosenMaDe = selectExam.value || "ALL";
+      populateSummaryClassDropdown(chosenMaDe);
+      loadSummaryScores(chosenMaDe);
+    });
+  }
+
+  const selectClass = document.getElementById("selectFilterClassSummary");
+  if (selectClass) {
+    selectClass.addEventListener("change", () => {
+      applySummaryFiltersAndRender();
+    });
+  }
+
+  const chkInclude = document.getElementById("chkIncludeNotSubmittedSummary");
+  if (chkInclude) {
+    chkInclude.addEventListener("change", () => {
+      applySummaryFiltersAndRender();
+    });
+  }
+
+  const btnFilter = document.getElementById("btnFilterSummary");
+  if (btnFilter) {
+    btnFilter.addEventListener("click", () => {
+      const chosenMaDe = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+      loadSummaryScores(chosenMaDe);
+    });
+  }
+
+  const btnRefresh = document.getElementById("btnRefreshSummary");
+  if (btnRefresh) {
+    btnRefresh.addEventListener("click", async () => {
+      btnRefresh.disabled = true;
+      const origHtml = btnRefresh.innerHTML;
+      btnRefresh.innerHTML = `
+        <svg class="spin-animation" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+        <span>Đang làm mới...</span>
+      `;
+      try {
+        const curExam = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+        await loadSummaryScores(curExam);
+        showToast("Làm mới thành công", "Đã nạp bảng điểm tổng hợp mới nhất từ Google Sheets!", "success", 2500);
+      } catch (e) {
+        showToast("Lỗi", "Không thể làm mới: " + e.message, "error", 3000);
+      } finally {
+        btnRefresh.disabled = false;
+        btnRefresh.innerHTML = origHtml;
+      }
+    });
+  }
+
+  const btnAll = document.getElementById("btnSummaryFilterAll");
+  const btnSub = document.getElementById("btnSummaryFilterSubmitted");
+  const btnNot = document.getElementById("btnSummaryFilterNotSubmitted");
+
+  [btnAll, btnSub, btnNot].forEach(btn => {
+    if (btn) {
+      btn.addEventListener("click", () => {
+        [btnAll, btnSub, btnNot].forEach(b => { if (b) b.classList.remove("active"); });
+        btn.classList.add("active");
+        summaryCurrentStatusFilter = btn.dataset.filter || "ALL";
+        summaryCurrentPage = 1;
+        applySummaryFiltersAndRender();
+      });
+    }
+  });
+
+  const searchInput = document.getElementById("searchSummaryStudentInput");
+  const btnClear = document.getElementById("btnClearSearchSummary");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      if (btnClear) btnClear.style.display = searchInput.value ? "inline-flex" : "none";
+      summaryCurrentPage = 1;
+      applySummaryFiltersAndRender();
+    });
+  }
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      if (searchInput) searchInput.value = "";
+      btnClear.style.display = "none";
+      summaryCurrentPage = 1;
+      applySummaryFiltersAndRender();
+    });
+  }
+
+  const btnDownloadSample = document.getElementById("btnSummaryDownloadSample");
+  if (btnDownloadSample) {
+    btnDownloadSample.addEventListener("click", () => {
+      const curExam = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+      if (curExam === "ALL") {
+        showToast("Chọn đề thi", "Vui lòng chọn một Bài kiểm tra cụ thể để xuất file mẫu chấm tự luận!", "warning", 3500);
+        return;
+      }
+      const resExamSelect = document.getElementById("selectFilterExam");
+      if (resExamSelect) resExamSelect.value = curExam;
+      const resClassSelect = document.getElementById("selectFilterResultClass");
+      const sumClassSelect = document.getElementById("selectFilterClassSummary");
+      if (resClassSelect && sumClassSelect) resClassSelect.value = sumClassSelect.value;
+
+      exportEssayResultsExcel();
+    });
+  }
+
+  const btnUpload = document.getElementById("btnSummaryUploadScores");
+  const inputFile = document.getElementById("inputSummaryEssayFile");
+  if (btnUpload && inputFile) {
+    btnUpload.addEventListener("click", () => {
+      if (isBGHAccount()) {
+        alert("Tài khoản Ban Giám Hiệu ở chế độ Chỉ xem, không được chỉnh sửa điểm!");
+        return;
+      }
+      const curExam = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+      if (curExam === "ALL") {
+        showToast("Chọn đề thi", "Vui lòng chọn một Bài kiểm tra cụ thể trước khi tải file điểm lên!", "warning", 3500);
+        return;
+      }
+      inputFile.value = "";
+      inputFile.click();
+    });
+
+    inputFile.addEventListener("change", handleEssayFileSelected);
+  }
+
+  setupConfirmEssayScoresModalEvents();
+
+  const btnExportExcel = document.getElementById("btnSummaryExportExcel");
+  if (btnExportExcel) {
+    btnExportExcel.addEventListener("click", exportSummaryScoresExcel);
+  }
+}
+
+/**
+ * Xử lý khi người dùng chọn file Excel chấm tự luận để tải lên
+ */
+function handleEssayFileSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  if (typeof XLSX === "undefined") {
+    showToast("Lỗi", "Thư viện SheetJS chưa được nạp!", "error");
+    return;
+  }
+
+  const selectedMaDe = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+  const exam = (currentExamsList || []).find(ex => ex.maDe === selectedMaDe);
+  const examTitle = exam ? (exam.tenKyThi || exam.maDe) : selectedMaDe;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+      if (!jsonData || jsonData.length === 0) {
+        showToast("File rỗng", "File Excel tải lên không có dữ liệu học sinh!", "warning", 3000);
+        return;
+      }
+
+      processParsedEssayScores(jsonData, file.name, selectedMaDe, examTitle);
+    } catch (parseErr) {
+      console.error("Lỗi đọc file Excel:", parseErr);
+      showToast("Lỗi đọc file", "Không thể đọc nội dung file Excel: " + parseErr.message, "error", 4000);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/**
+ * So khớp học sinh từ file Excel với dữ liệu hệ thống và mở Modal xác nhận
+ */
+function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
+  const examSubs = summaryRawResultsList.filter(r => selectedMaDe === "ALL" || r.maDe === selectedMaDe);
+
+  const matchedList = [];
+  const unmatchedList = [];
+
+  rows.forEach((row, idx) => {
+    let rawHS = "";
+    let rawName = "";
+    let rawClass = "";
+    let rawMaDe = "";
+    let rawScore = "";
+
+    Object.keys(row).forEach(key => {
+      const k = key.trim().toLowerCase();
+      const val = row[key];
+
+      if (k.match(/^(mã\s*(học\s*sinh|hs)|tài\s*khoản|username|mahs)/i)) {
+        rawHS = String(val).trim();
+      } else if (k.match(/^(họ\s*(và\s*)?tên|hoten|tên\s*học\s*sinh)/i)) {
+        rawName = String(val).trim();
+      } else if (k.match(/^(lớp|lop|class)/i)) {
+        rawClass = normalizeClassName(val);
+      } else if (k.match(/^(mã\s*đề|made)/i)) {
+        rawMaDe = String(val).trim();
+      } else if (k.includes("tự luận") || k.includes("điểm tl") || k.includes("gv chấm") || k.match(/^(điểm\s*tự\s*luận|điểm\s*tl|diem\s*tu\s*luan|diem\s*tl)/i)) {
+        rawScore = val;
+      } else if (!rawScore && k.match(/^(điểm|diem|score|points)/i)) {
+        rawScore = val;
+      }
+    });
+
+    const parsedMaDe = rawMaDe || selectedMaDe;
+
+    if (rawScore === "" || rawScore === null || rawScore === undefined) {
+      unmatchedList.push({
+        stt: idx + 1,
+        lop: rawClass || "--",
+        hoTen: rawName || rawHS || "Chưa rõ",
+        usernameHS: rawHS || "--",
+        diemTN: "--",
+        diemTL: "--",
+        tongDiem: "--",
+        statusText: "Bỏ qua (chưa nhập điểm)"
+      });
+      return;
+    }
+
+    const pScore = parseFloat(String(rawScore).replace(",", "."));
+    if (isNaN(pScore) || pScore < 0) {
+      unmatchedList.push({
+        stt: idx + 1,
+        lop: rawClass || "--",
+        hoTen: rawName || rawHS || "Chưa rõ",
+        usernameHS: rawHS || "--",
+        diemTN: "--",
+        diemTL: String(rawScore),
+        tongDiem: "--",
+        statusText: "Điểm không hợp lệ"
+      });
+      return;
+    }
+
+    const scoreTL = Math.round(pScore * 100) / 100;
+
+    const targetUser = rawHS.toLowerCase();
+    const targetName = rawName.toLowerCase();
+    const targetClass = rawClass.toUpperCase();
+
+    let foundSub = examSubs.find(s => {
+      const sUser = String(s.usernameHS || "").trim().toLowerCase();
+      if (targetUser && sUser && (sUser === targetUser || sUser.replace(/^0+/, "") === targetUser.replace(/^0+/, ""))) {
+        return true;
+      }
+      const sName = String(s.hoTen || "").trim().toLowerCase();
+      const sClass = normalizeClassName(s.lop).toUpperCase();
+      if (targetName && sName && targetName === sName) {
+        if (!targetClass || !sClass || targetClass === sClass) return true;
+      }
+      return false;
+    });
+
+    let foundStudentBase = null;
+    if (!foundSub && currentTeacherStudents) {
+      foundStudentBase = currentTeacherStudents.find(st => {
+        const stUser = String(st.username || "").trim().toLowerCase();
+        if (targetUser && stUser && (stUser === targetUser || stUser.replace(/^0+/, "") === targetUser.replace(/^0+/, ""))) {
+          return true;
+        }
+        const stName = String(st.hoTen || "").trim().toLowerCase();
+        const stClass = normalizeClassName(st.lop).toUpperCase();
+        if (targetName && stName && targetName === stName) {
+          if (!targetClass || !stClass || targetClass === stClass) return true;
+        }
+        return false;
+      });
+    }
+
+    if (foundSub) {
+      const diemTN = Number(foundSub.diemTN) || 0;
+      const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+
+      matchedList.push({
+        stt: idx + 1,
+        lop: foundSub.lop || rawClass,
+        hoTen: foundSub.hoTen || rawName,
+        usernameHS: foundSub.usernameHS || rawHS,
+        maDe: foundSub.maDe || parsedMaDe,
+        diemTN: diemTN,
+        diemTL: scoreTL,
+        tongDiem: tongDiem,
+        statusText: "Khớp thành công"
+      });
+    } else if (foundStudentBase) {
+      matchedList.push({
+        stt: idx + 1,
+        lop: foundStudentBase.lop || rawClass,
+        hoTen: foundStudentBase.hoTen || rawName,
+        usernameHS: foundStudentBase.username || rawHS,
+        maDe: parsedMaDe,
+        diemTN: 0,
+        diemTL: scoreTL,
+        tongDiem: scoreTL,
+        statusText: "Khớp theo CSDL lớp (Chưa nộp TN)"
+      });
+    } else {
+      unmatchedList.push({
+        stt: idx + 1,
+        lop: rawClass || "--",
+        hoTen: rawName || "--",
+        usernameHS: rawHS || "--",
+        diemTN: "--",
+        diemTL: scoreTL,
+        tongDiem: "--",
+        statusText: "Không tìm thấy học sinh trong kỳ thi này"
+      });
+    }
+  });
+
+  if (matchedList.length === 0) {
+    showToast("Không có kết quả khớp", "Không tìm thấy học sinh nào trong file khớp với danh sách thi. Vui lòng kiểm tra lại Mã học sinh hoặc Họ tên!", "warning", 5000);
+    return;
+  }
+
+  pendingImportEssayScores = {
+    fileName: fileName,
+    maDe: selectedMaDe,
+    examTitle: examTitle,
+    scores: matchedList
+  };
+
+  openConfirmEssayScoresModal(fileName, examTitle, matchedList, unmatchedList);
+}
+
+/**
+ * Hiển thị Modal Xem Trước & Xác Nhận Điểm Tự Luận
+ */
+function openConfirmEssayScoresModal(fileName, examTitle, matchedList, unmatchedList) {
+  const modal = document.getElementById("modalConfirmEssayScores");
+  if (!modal) return;
+
+  document.getElementById("essayImportExamTitle").textContent = examTitle;
+  document.getElementById("essayImportFileName").textContent = fileName;
+  document.getElementById("essayImportMatchedCount").textContent = `${matchedList.length} học sinh`;
+  document.getElementById("essayImportUnmatchedCount").textContent = `${unmatchedList.length} dòng`;
+
+  const tbody = document.getElementById("tbodyPreviewEssayScores");
+  if (!tbody) return;
+
+  let html = "";
+  const allRows = [...matchedList, ...unmatchedList];
+  allRows.forEach((r, i) => {
+    const isMatched = r.statusText.includes("Khớp");
+    const statusBadge = isMatched
+      ? `<span style="background: #ecfdf5; color: #047857; font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem;">✓ ${r.statusText}</span>`
+      : `<span style="background: #fff1f2; color: #be123c; font-weight: 600; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem;">✗ ${r.statusText}</span>`;
+
+    html += `
+      <tr style="${isMatched ? '' : 'background: #fffbfa;'}">
+        <td style="text-align: center; color: #64748b;">${i + 1}</td>
+        <td><span class="class-badge">${r.lop}</span></td>
+        <td><strong>${r.hoTen}</strong></td>
+        <td style="font-size: 0.82rem; color: #64748b;">${r.usernameHS}</td>
+        <td style="text-align: center; font-weight: 700; color: #1e40af;">${r.diemTN}</td>
+        <td style="text-align: center; font-weight: 800; color: #0f766e;">${r.diemTL}</td>
+        <td style="text-align: center; font-weight: 900; color: #854d0e;">${r.tongDiem}</td>
+        <td style="text-align: center;">${statusBadge}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+  modal.style.display = "flex";
+}
+
+/**
+ * Gắn sự kiện cho Modal Xác Nhận Lưu Điểm Tự Luận
+ */
+function setupConfirmEssayScoresModalEvents() {
+  const modal = document.getElementById("modalConfirmEssayScores");
+  const btnClose = document.getElementById("btnCloseConfirmEssayScoresModal");
+  const btnCancel = document.getElementById("btnCancelConfirmEssayScores");
+  const btnSubmit = document.getElementById("btnSubmitConfirmEssayScores");
+
+  const closeModal = () => {
+    if (modal) modal.style.display = "none";
+    pendingImportEssayScores = null;
+  };
+
+  if (btnClose) btnClose.addEventListener("click", closeModal);
+  if (btnCancel) btnCancel.addEventListener("click", closeModal);
+
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  if (btnSubmit) {
+    btnSubmit.addEventListener("click", async () => {
+      if (!pendingImportEssayScores || !pendingImportEssayScores.scores || pendingImportEssayScores.scores.length === 0) {
+        showToast("Lỗi", "Không có dữ liệu điểm tự luận để lưu!", "warning");
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      const origHtml = btnSubmit.innerHTML;
+      btnSubmit.innerHTML = `
+        <svg class="spin-animation" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+        <span>Đang ghi nhận điểm vào Google Sheets...</span>
+      `;
+
+      try {
+        const uGV = currentTeacher?.username || "";
+        const targetMaDe = pendingImportEssayScores.maDe;
+        const payload = {
+          action: "importEssayScores",
+          usernameGV: uGV,
+          maDe: targetMaDe,
+          scores: pendingImportEssayScores.scores.map(s => ({
+            usernameHS: s.usernameHS,
+            hoTen: s.hoTen,
+            lop: s.lop,
+            maDe: s.maDe,
+            diemTuLuan: s.diemTL
+          }))
+        };
+
+        const targetApi = (isAdminRole() && adminActiveApiUrl) ? adminActiveApiUrl : API_URL;
+
+        const res = await fetch(targetApi, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload)
+        });
+        const resText = await res.text();
+        let result = null;
+        if (resText && !resText.trim().startsWith("<")) {
+          result = JSON.parse(resText);
+        }
+
+        if (targetApi !== DEFAULT_GAS_API_URL) {
+          try {
+            await fetch(DEFAULT_GAS_API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: JSON.stringify(payload)
+            });
+          } catch (eHub) {
+            console.warn("Đồng bộ điểm tự luận lên Hub:", eHub);
+          }
+        }
+
+        const count = result?.updatedCount !== undefined ? result.updatedCount : pendingImportEssayScores.scores.length;
+
+        showToast("Cập nhật thành công!", `Đã lưu điểm tự luận và cộng tổng điểm cho ${count} học sinh vào Google Sheets!`, "success", 4500);
+        closeModal();
+
+        await loadSummaryScores(targetMaDe);
+
+      } catch (err) {
+        console.error("Lỗi lưu điểm tự luận:", err);
+        showToast("Lỗi lưu điểm", "Không thể lưu điểm tự luận: " + err.message, "error", 4000);
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = origHtml;
+      }
+    });
+  }
+}
+
+/**
+ * Xuất toàn bộ bảng điểm tổng hợp ra file Excel (.xlsx)
+ */
+function exportSummaryScoresExcel() {
+  if (!summaryCurrentDisplayedList || summaryCurrentDisplayedList.length === 0) {
+    showToast("Không có dữ liệu", "Không có học sinh nào trong danh sách để xuất Excel!", "warning");
+    return;
+  }
+
+  if (typeof XLSX === "undefined") {
+    showToast("Lỗi", "Thư viện SheetJS chưa được nạp!", "error");
+    return;
+  }
+
+  const selectedMaDe = document.getElementById("selectFilterExamSummary")?.value || "ALL";
+  const selectedClass = document.getElementById("selectFilterClassSummary")?.value || "ALL";
+
+  const exportData = summaryCurrentDisplayedList.map((row, idx) => ({
+    "STT": idx + 1,
+    "Lớp": row.lop || "",
+    "Họ và Tên": row.hoTen || "",
+    "Mã Học Sinh": row.usernameHS || "",
+    "Ngày Sinh": formatDob(row.ngaySinh),
+    "Giới Tính": row.gioiTinh || "",
+    "Trường": row.truong || "",
+    "Mã Đề Thi": row.maDe || "",
+    "Tên Kỳ Thi": row.tenKyThi || "",
+    "Điểm Trắc Nghiệm": row.isSubmitted ? row.diemTN : "",
+    "Điểm Tự Luận": (row.isSubmitted && row.diemTL !== null) ? row.diemTL : "",
+    "Tổng Điểm (TN + TL)": row.isSubmitted ? row.tongDiem : "",
+    "Số Câu Đúng": row.isSubmitted ? (row.soCauDungSai || "") : "",
+    "Thời Gian Nộp": row.isSubmitted ? (row.thoiGianNop || "") : "",
+    "Trạng Thái": row.isSubmitted ? "Đã nộp bài" : "Chưa làm bài"
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  worksheet["!cols"] = [
+    { wch: 6 },
+    { wch: 10 },
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 13 },
+    { wch: 10 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 28 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 16 },
+    { wch: 20 },
+    { wch: 14 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "TongHopDiem");
+
+  const classTag = selectedClass !== "ALL" ? `Lop_${selectedClass.replace(/[\/\\?%*:|"<>]/g, "-")}_` : "";
+  const examTag = selectedMaDe !== "ALL" ? `De_${selectedMaDe}_` : "";
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const fileName = `Bang_Tong_Hop_Diem_${classTag}${examTag}${dateStr}.xlsx`;
+
+  XLSX.writeFile(workbook, fileName);
+  showToast("Xuất Excel thành công", `Đã tạo file bảng điểm tổng hợp: ${fileName}`, "success", 4000);
+}
 
 // ============================================================================
 // 12. QUẢN LÝ HỌC SINH & BỘ LỌC TÍCH CHỌN KHỐI / LỚP (GOOGLE SHEETS)
@@ -10527,7 +11839,7 @@ function initTeacherDashboard() {
 
       if (isBGH) {
         // TÀI KHOẢN CÓ CỘT D (QUYỀN) CHỨA 'BGH': LÀ BAN GIÁM HIỆU
-        // CHỈ HIỆN DUY NHẤT 1 TAB: "Xem Thống Kê & Điểm Số" của ALL giáo viên
+        // CHỈ HIỆN 2 TAB: "Xem Thống Kê & Điểm Số" VÀ "Tổng Hợp Điểm" của ALL giáo viên
         if (tabBtnCreate) tabBtnCreate.style.display = "none";
         if (tabBtnStudents) tabBtnStudents.style.display = "none";
         if (tabCreate) {
@@ -10555,6 +11867,11 @@ function initTeacherDashboard() {
           tabResults.classList.add("active");
         }
 
+        // Hiện Tab Tổng Hợp Điểm
+        if (tabBtnSummaryScores) {
+          tabBtnSummaryScores.style.display = "";
+        }
+
         // Đổi tiêu đề cột 'Chi tiết & Xóa' thành 'Xem bài làm' (vì BGH chỉ xem, không xóa)
         const thActions = document.getElementById("thResultActions");
         if (thActions) thActions.textContent = "Xem bài làm";
@@ -10562,9 +11879,16 @@ function initTeacherDashboard() {
         // Hiển thị banner thông báo chế độ giám sát BGH (Chỉ xem)
         const bghBanner = document.getElementById("bghReadOnlyBanner");
         if (bghBanner) bghBanner.style.display = "flex";
+
+        const bghBannerSummary = document.getElementById("bghReadOnlyBannerSummary");
+        if (bghBannerSummary) bghBannerSummary.style.display = "flex";
+
+        // BGH chỉ xem, không được upload sửa điểm tự luận
+        const btnUploadSummary = document.getElementById("btnSummaryUploadScores");
+        if (btnUploadSummary) btnUploadSummary.style.display = "none";
       } else {
         // TÀI KHOẢN GIÁO VIÊN CÓ QUYỀN ADMIN (CỘT D LÀ 'admin'):
-        // HIỆN ĐẦY ĐỦ CẢ 4 TAB: Tạo Đề, Xem Kết Quả, Quản Lý Học Sinh, VÀ Quản Lý Giáo Viên
+        // HIỆN ĐẦY ĐỦ CÁC TAB: Tạo Đề, Xem Kết Quả, Tổng Hợp Điểm, Quản Lý Học Sinh, VÀ Quản Lý Giáo Viên
         if (tabBtnCreate) tabBtnCreate.style.display = "";
         if (tabBtnStudents) tabBtnStudents.style.display = "";
         if (tabBtnResults) {
@@ -10572,12 +11896,20 @@ function initTeacherDashboard() {
           const span = tabBtnResults.querySelector("span");
           if (span) span.textContent = "Xem Kết Quả & Thống Kê";
         }
+        if (tabBtnSummaryScores) tabBtnSummaryScores.style.display = "";
         // Hiển thị Tab Quản lý Giáo viên cho Quản trị viên
         if (tabBtnAdminTeachers) tabBtnAdminTeachers.style.display = hasTeacherMgmt ? "" : "none";
+
+        const bghBannerSummary = document.getElementById("bghReadOnlyBannerSummary");
+        if (bghBannerSummary) bghBannerSummary.style.display = "none";
+        const btnUploadSummary = document.getElementById("btnSummaryUploadScores");
+        if (btnUploadSummary) btnUploadSummary.style.display = "inline-flex";
       }
 
       // Hiện thanh chọn giáo viên để BGH / Admin kiểm tra kết quả của toàn bộ GV
       if (adminTeacherGrp) adminTeacherGrp.style.display = "flex";
+      const adminTeacherGrpSummary = document.getElementById("adminTeacherFilterGroupSummary");
+      if (adminTeacherGrpSummary) adminTeacherGrpSummary.style.display = "flex";
 
       // Ẩn modal trạm trung tâm khỏi dropdown vì admin/bgh đang ở trạm trung tâm
       if (btnOpenHubModal) btnOpenHubModal.style.display = "none";
@@ -10597,6 +11929,7 @@ function initTeacherDashboard() {
         const span = tabBtnResults.querySelector("span");
         if (span) span.textContent = "Xem Kết Quả & Thống Kê";
       }
+      if (tabBtnSummaryScores) tabBtnSummaryScores.style.display = "";
 
       // Ẩn tab Quản lý Giáo viên
       if (tabBtnAdminTeachers) tabBtnAdminTeachers.style.display = "none";
@@ -10604,6 +11937,13 @@ function initTeacherDashboard() {
 
       // Ẩn thanh chọn giáo viên (chỉ dành riêng cho Admin BGH)
       if (adminTeacherGrp) adminTeacherGrp.style.display = "none";
+      const adminTeacherGrpSummary = document.getElementById("adminTeacherFilterGroupSummary");
+      if (adminTeacherGrpSummary) adminTeacherGrpSummary.style.display = "none";
+
+      const bghBannerSummary = document.getElementById("bghReadOnlyBannerSummary");
+      if (bghBannerSummary) bghBannerSummary.style.display = "none";
+      const btnUploadSummary = document.getElementById("btnSummaryUploadScores");
+      if (btnUploadSummary) btnUploadSummary.style.display = "inline-flex";
 
       // Mở nút Trạm Trung Tâm cho GV
       if (btnOpenHubModal) btnOpenHubModal.style.display = "";
