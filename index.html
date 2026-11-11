@@ -74,19 +74,43 @@
       <!-- Login Form (Không ghi nhớ tài khoản / mật khẩu trên trình duyệt) -->
       <form id="loginForm" autocomplete="off" novalidate onsubmit="return false;">
         
-        <!-- Teacher Selection Field (Dành riêng cho Học sinh - CẢNH BÁO BẮT BUỘC) -->
+        <!-- Teacher & Subject Selection Field (Dành riêng cho Học sinh - CẢNH BÁO BẮT BUỘC) -->
         <div class="form-group urgent-teacher-box" id="teacherSelectGroup">
-          <div class="teacher-urgent-header">
-            <label for="selectTeacherServer" class="urgent-teacher-label">
+          <!-- BƯỚC 1: CHỌN MÔN HỌC -->
+          <div class="teacher-urgent-header" style="margin-bottom: 0.35rem;">
+            <label for="selectSubjectServer" class="urgent-teacher-label" style="font-size: 0.84rem; color: #1e3a8a;">
               <span class="urgent-pulse-indicator" aria-hidden="true">
-                <span class="ping"></span>
-                <span></span>
+                <span class="ping" style="background-color: #3b82f6;"></span>
+                <span style="background-color: #2563eb;"></span>
               </span>
-              <span>⚠️ THẦY / CÔ PHỤ TRÁCH PHÒNG THI</span>
+              <span>📚 1. CHỌN MÔN HỌC / KỲ THI:</span>
               <span style="color: #dc2626; font-weight: 800;">(*)</span>
             </label>
             <div style="display: flex; align-items: center; gap: 0.35rem;">
-              <span class="badge-urgent-mandatory">BẮT BUỘC CHỌN</span>
+              <span class="badge-urgent-mandatory" style="background: #2563eb; color: #ffffff;">BƯỚC 1</span>
+            </div>
+          </div>
+          <div class="input-container" style="margin-bottom: 0.75rem;">
+            <span class="input-icon" style="color: #2563eb;" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+                <path d="M6 6h10"/>
+                <path d="M6 10h10"/>
+              </svg>
+            </span>
+            <select id="selectSubjectServer" class="form-input" style="border: 2px solid #2563eb; color: #1e3a8a; font-weight: 700; font-size: 0.92rem; padding-left: 2.75rem; background-color: #ffffff; cursor: pointer; border-radius: 10px;">
+              <option value="">-- 📚 BƯỚC 1: BẤM VÀO ĐÂY ĐỂ CHỌN MÔN HỌC --</option>
+            </select>
+          </div>
+
+          <!-- BƯỚC 2: CHỌN THẦY / CÔ THEO MÔN -->
+          <div class="teacher-urgent-header" style="margin-bottom: 0.35rem;">
+            <label for="selectTeacherServer" class="urgent-teacher-label" style="font-size: 0.84rem;">
+              <span>⚠️ 2. CHỌN THẦY / CÔ PHỤ TRÁCH:</span>
+              <span style="color: #dc2626; font-weight: 800;">(*)</span>
+            </label>
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              <span class="badge-urgent-mandatory">BƯỚC 2: BẮT BUỘC</span>
               <span id="badgeTeacherAutoDetect" class="badge-autodetect-tag" style="display: none;">
                 ✓ Nhận từ liên kết
               </span>
@@ -101,7 +125,7 @@
               </svg>
             </span>
             <select id="selectTeacherServer" class="form-input select-teacher-urgent" required>
-              <option value="">-- ⚠️ BẮT BUỘC: BẤM VÀO ĐÂY ĐỂ CHỌN THẦY / CÔ --</option>
+              <option value="">-- ⚠️ Vui lòng chọn Môn học ở trên trước --</option>
             </select>
           </div>
 
@@ -113,7 +137,7 @@
             </div>
             <ul class="teacher-danger-notice-body">
               <li>
-                Học sinh <strong>BẮT BUỘC</strong> phải chọn đúng tên Thầy/Cô đang phụ trách kiểm tra lớp của mình.
+                Học sinh <strong>BẮT BUỘC</strong> chọn đúng <strong>Môn học</strong> và <strong>Thầy/Cô</strong> đang phụ trách kiểm tra lớp của mình.
               </li>
               <li>
                 <span class="danger-bold">❌ NẾU KHÔNG CHỌN HOẶC CHỌN SAI:</span> Bạn sẽ <strong>KHÔNG ĐĂNG NHẬP ĐƯỢC</strong> hoặc bài làm nộp nhầm máy chủ dẫn tới <strong>MẤT TOÀN BỘ BÀI THI & ĐẠT 0 ĐIỂM!</strong>
@@ -126,7 +150,7 @@
             <span style="font-size: 1rem;">✅</span>
             <div>
               <span>Đang kết nối phòng thi: </span><strong id="teacherSelectedName" style="color: #15803d;">--</strong>
-              <div style="font-size: 0.72rem; color: #166534; font-weight: 500;">(Hãy chắc chắn Thầy/Cô này đúng là người giảng dạy lớp bạn!)</div>
+              <div style="font-size: 0.72rem; color: #166534; font-weight: 500;">(Hãy chắc chắn Thầy/Cô này đúng là người giảng dạy môn học cho lớp bạn!)</div>
             </div>
           </div>
         </div>

@@ -55,11 +55,11 @@ function getSpreadsheet() {
 
 /**
  * ============================================================================
- * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG THÊM CỘT D (QUYỀN) VÀO SHEET DATA_GIAOVIEN
- * Chọn hàm 'chayThemCotQuyenChoGiaoVien' trong menu dropdown rồi bấm 'Chạy' (Run)
+ * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG THÊM CỘT E (MÔN DẠY) VÀO SHEET DATA_GIAOVIEN
+ * Chọn hàm 'chayThemCotMonDayChoGiaoVien' trong menu dropdown rồi bấm 'Chạy' (Run)
  * ============================================================================
  */
-function chayThemCotQuyenChoGiaoVien() {
+function chayThemCotMonDayChoGiaoVien() {
   const ss = getSpreadsheet();
   if (!ss) {
     Logger.log("❌ Không thể kết nối Bảng tính Google Sheets. Vui lòng kiểm tra lại SPREADSHEET_URL!");
@@ -71,7 +71,14 @@ function chayThemCotQuyenChoGiaoVien() {
     return;
   }
   ensureGiaoVienSheetColumns(sheetGV);
-  Logger.log("🎉 Hoàn tất quá trình thêm Cột D (Quyền) vào Sheet DATA_GIAOVIEN!");
+  Logger.log("🎉 Hoàn tất quá trình thêm Cột E (Môn dạy) vào Sheet DATA_GIAOVIEN!");
+}
+
+/**
+ * Giữ alias tương thích: chayThemCotQuyenChoGiaoVien
+ */
+function chayThemCotQuyenChoGiaoVien() {
+  chayThemCotMonDayChoGiaoVien();
 }
 
 /**
@@ -107,21 +114,21 @@ function initDatabase() {
     sheetHS.appendRow(["HS003", "123", "9A1", "Lê Bảo Long", "02/11/2010", "Nam", "THCS Chu Văn An"]);
   }
 
-  // 2. Cấu trúc Sheet DATA_GIAOVIEN (Cột A: Tài khoản GV, B: Mật khẩu, C: Họ tên GV, D: Quyền, E: Lớp giảng dạy, F: Trường, G: Phiên bản Backend GV)
+  // 2. Cấu trúc Sheet DATA_GIAOVIEN (Cột A: Tài khoản GV, B: Mật khẩu, C: Họ tên GV, D: Quyền, E: Môn dạy, F: Lớp giảng dạy, G: Trường, H: Phiên bản Backend GV)
   let sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
   if (!sheetGV) {
     sheetGV = ss.insertSheet(SHEETS.GIAOVIEN);
-    const headers = ["Tài khoản GV", "Mật khẩu", "Họ tên GV", "Quyền", "Lớp giảng dạy", "Trường", "Phiên bản Backend GV"];
+    const headers = ["Tài khoản GV", "Mật khẩu", "Họ tên GV", "Quyền", "Môn dạy", "Lớp giảng dạy", "Trường", "Phiên bản Backend GV"];
     sheetGV.appendRow(headers);
     formatHeaderRow(sheetGV);
 
     // Thêm dữ liệu giáo viên mẫu và tài khoản Ban Giám Hiệu (mặc định quyền gv)
-    sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "gv", "", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
-    sheetGV.appendRow(["0938750424", "hung2601", "Nguyễn Phi Hùng", "admin", "8A1, 9A1", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
-    sheetGV.appendRow(["GV001", "123", "Thầy Lê Hoàng Nam", "gv", "9A1, 9A2", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
-    sheetGV.appendRow(["GV002", "123", "Cô Nguyễn Thùy Chi", "gv", "9A1, 9A3", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+    sheetGV.appendRow(["admin", "123456", "Ban Giám Hiệu", "gv", "BGH", "", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+    sheetGV.appendRow(["0938750424", "hung2601", "Nguyễn Phi Hùng", "admin", "Tin học", "8A1, 9A1", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+    sheetGV.appendRow(["GV001", "123", "Thầy Lê Hoàng Nam", "gv", "Toán", "9A1, 9A2", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
+    sheetGV.appendRow(["GV002", "123", "Cô Nguyễn Thùy Chi", "gv", "Ngữ văn", "9A1, 9A3", "THCS Chu Văn An", CURRENT_BACKEND_VERSION]);
   } else {
-    // Đảm bảo có đủ cột D là Quyền và các cột còn lại
+    // Đảm bảo có đủ cột D là Quyền, Cột E là Môn dạy và các cột còn lại
     ensureGiaoVienSheetColumns(sheetGV);
     // Đảm bảo có tài khoản Admin nếu sheet đã tồn tại
     try {
@@ -134,7 +141,7 @@ function initDatabase() {
         }
       }
       if (!hasAdmin) {
-        sheetGV.appendRow(["0938750424", "hung2601", "Nguyễn Phi Hùng", "admin", "", "THCS An Nhơn", CURRENT_BACKEND_VERSION]);
+        sheetGV.appendRow(["0938750424", "hung2601", "Nguyễn Phi Hùng", "admin", "Tin học", "", "THCS An Nhơn", CURRENT_BACKEND_VERSION]);
       }
     } catch (eAdmin) {}
   }
@@ -417,7 +424,7 @@ const formatBackendVersionDate = formatBackendVersion;
 
 /**
  * Lập bản đồ vị trí các cột trong Sheet DATA_GIAOVIEN linh hoạt
- * Chuẩn mới: Cột A: Tài khoản GV (0) | B: Mật khẩu (1) | C: Họ tên GV (2) | D: Quyền (3) | E: Lớp giảng dạy (4) | F: Trường (5) | G: Phiên bản Backend GV (6)
+ * Chuẩn mới: Cột A: Tài khoản GV (0) | B: Mật khẩu (1) | C: Họ tên GV (2) | D: Quyền (3) | E: Môn dạy (4) | F: Lớp giảng dạy (5) | G: Trường (6) | H: Phiên bản Backend GV (7)
  */
 function getGiaoVienColMap(sheetGV) {
   const map = {
@@ -425,42 +432,56 @@ function getGiaoVienColMap(sheetGV) {
     colPass: 1,
     colName: 2,
     colRole: 3,
-    colClass: 4,
-    colSchool: 5,
-    colVer: 6
+    colSubject: 4,
+    colClass: 5,
+    colSchool: 6,
+    colVer: 7
   };
   try {
     if (!sheetGV) return map;
-    const lastCol = Math.max(sheetGV.getLastColumn(), 5);
-    const headers = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 10)).getValues()[0];
+    const lastCol = Math.max(sheetGV.getLastColumn(), 6);
+    const headers = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 12)).getValues()[0];
     let foundRole = false;
+    let foundSubject = false;
 
     for (let c = 0; c < headers.length; c++) {
       const h = String(headers[c] || "").trim().toLowerCase();
       if (h.includes("quyền") || h.includes("quyen") || h === "role" || h.includes("chức vụ")) {
         map.colRole = c;
         foundRole = true;
-      } else if (h.includes("tài khoản") || h.includes("mã gv") || h.includes("username")) {
+      } else if (h.includes("môn") || h.includes("mon") || h.includes("subject") || h.includes("bộ môn")) {
+        map.colSubject = c;
+        foundSubject = true;
+      } else if (h.includes("tài khoản") || h.includes("mã gv") || h.includes("username") || h === "tk gv") {
         map.colUser = c;
-      } else if (h.includes("mật khẩu") || h.includes("password") || h.includes("pass")) {
+      } else if (h.includes("mật khẩu") || h.includes("password") || h === "pass" || h === "mk") {
         map.colPass = c;
       } else if (h.includes("họ tên") || h.includes("tên gv") || h.includes("hoten")) {
         map.colName = c;
       } else if (h.includes("lớp") || h.includes("lop")) {
         map.colClass = c;
-      } else if (h.includes("trường") || h.includes("truong")) {
+      } else if (h.includes("trường") || h.includes("truong") || h.includes("đơn vị")) {
         map.colSchool = c;
       } else if (h.includes("phiên bản") || h.includes("version")) {
         map.colVer = c;
       }
     }
 
-    // Nếu cấu trúc cũ chưa có cột Quyền thì Cột 3 là Lớp, 4 là Trường, 5 là Phiên bản
-    if (!foundRole) {
-      map.colRole = -1;
-      map.colClass = 3;
-      map.colSchool = 4;
-      map.colVer = 5;
+    // Xử lý tương thích ngược nếu sheet chưa có cột Môn dạy hoặc Quyền
+    if (!foundSubject) {
+      map.colSubject = -1;
+      if (!foundRole) {
+        // Cấu trúc rất cũ: A: User, B: Pass, C: Name, D: Class, E: School, F: Ver
+        map.colRole = -1;
+        map.colClass = 3;
+        map.colSchool = 4;
+        map.colVer = 5;
+      } else {
+        // Cấu trúc trước đó: A: User, B: Pass, C: Name, D: Role, E: Class, F: School, G: Ver
+        map.colClass = 4;
+        map.colSchool = 5;
+        map.colVer = 6;
+      }
     }
   } catch (e) {}
   return map;
@@ -468,8 +489,9 @@ function getGiaoVienColMap(sheetGV) {
 
 /**
  * Đọc phiên bản Backend yêu cầu từ Sheet DATA_GIAOVIEN
- * Trả về dạng số phiên bản như 2.1, 2.2, 2.3, 2.4, 3.0,...
- * - Với cấu trúc mới (có Cột D: Quyền): Cột G là 'Phiên bản Backend GV', Ô H1 là phiên bản trung tâm (vd: 2.3), Ô I1 là 'backend'
+ * Trả về dạng số phiên bản như 2.1, 2.2, 2.3, 2.4, 2.6, 3.0,...
+ * - Với cấu trúc mới (Cột D: Quyền, Cột E: Môn dạy): Cột H là 'Phiên bản Backend GV', Ô I1 là phiên bản trung tâm (vd: 2.6), Ô J1 là 'backend'
+ * - Với cấu trúc trước (Cột D: Quyền, chưa có Môn dạy): Cột G là 'Phiên bản Backend GV', Ô H1 là phiên bản trung tâm, Ô I1 là 'backend'
  * - Với cấu trúc cũ (chưa có Cột D): Cột F là 'Phiên bản Backend GV', Ô G1 là phiên bản trung tâm, Ô H1 là 'backend'
  */
 function getCentralBackendVersion(sheetGV) {
@@ -479,12 +501,12 @@ function getCentralBackendVersion(sheetGV) {
       sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
     }
     if (sheetGV) {
-      const maxCol = Math.max(sheetGV.getLastColumn(), 12);
+      const maxCol = Math.max(sheetGV.getLastColumn(), 14);
       const topRow = sheetGV.getRange(1, 1, 1, maxCol).getValues()[0];
       const gvCols = getGiaoVienColMap(sheetGV);
 
       // Cách 1: Xác định trực tiếp theo vị trí cột 'Phiên bản Backend GV'
-      // Nếu cột Phiên bản Backend GV ở cột G (colVer = 6, 0-based), thì ô phiên bản trung tâm là Ô H1 (cột 8, 1-based)
+      // Ô phiên bản trung tâm nằm ngay sau cột này
       if (gvCols.colVer >= 0) {
         const targetColIdx = gvCols.colVer + 1; // vị trí trong topRow (0-based) = colVer + 1 (tức cột kế tiếp)
         if (targetColIdx < topRow.length) {
@@ -496,7 +518,16 @@ function getCentralBackendVersion(sheetGV) {
         }
       }
 
-      // Cách 2: Ưu tiên đọc trực tiếp ô H1 (vị trí chuẩn mới sau khi thêm Cột D)
+      // Cách 2: Ưu tiên đọc trực tiếp ô I1 (vị trí chuẩn mới sau khi thêm Cột D và Cột E)
+      try {
+        const i1Val = String(sheetGV.getRange("I1").getDisplayValue() || "").trim();
+        if (i1Val && !i1Val.toLowerCase().includes("phiên bản") && !i1Val.toLowerCase().includes("backend")) {
+          const parsedI1 = formatBackendVersion(i1Val, "");
+          if (parsedI1) return parsedI1;
+        }
+      } catch (eI1) {}
+
+      // Cách 3: Đọc trực tiếp ô H1 (vị trí chuẩn khi có Cột D)
       try {
         const h1Val = String(sheetGV.getRange("H1").getDisplayValue() || "").trim();
         if (h1Val && !h1Val.toLowerCase().includes("phiên bản") && !h1Val.toLowerCase().includes("backend")) {
@@ -505,7 +536,7 @@ function getCentralBackendVersion(sheetGV) {
         }
       } catch (eH1) {}
 
-      // Cách 3: Tìm ô bên trái ô có chữ 'backend' ở hàng 1 (ví dụ: I1 là 'backend' -> H1 là phiên bản)
+      // Cách 4: Tìm ô bên trái ô có chữ 'backend' ở hàng 1 (ví dụ: J1 là 'backend' -> I1 là phiên bản)
       for (let c = 0; c < topRow.length; c++) {
         const strVal = String(topRow[c] || "").trim().toLowerCase();
         if (strVal === "backend" && c > 0) {
@@ -517,15 +548,15 @@ function getCentralBackendVersion(sheetGV) {
         }
       }
 
-      // Cách 4: Quét toàn bộ hàng 1 tìm ô có định dạng số phiên bản hợp lệ (như 2.0, 2.3, 2.4, 3.0,...)
+      // Cách 5: Quét toàn bộ hàng 1 tìm ô có định dạng số phiên bản hợp lệ (như 2.0, 2.3, 2.4, 2.6, 3.0,...)
       for (let c = 0; c < topRow.length; c++) {
         const strVal = String(topRow[c] || "").trim();
         if (/^v?\d+(\.\d+)+$/i.test(strVal)) {
-          return formatBackendVersion(strVal, CURRENT_BACKEND_VERSION || "2.4");
+          return formatBackendVersion(strVal, CURRENT_BACKEND_VERSION || "2.6");
         }
       }
 
-      // Cách 5: Kiểm tra ô G1 (cho cấu trúc sheet cũ chưa có cột D, đảm bảo G1 không phải là chữ 'Phiên bản Backend GV')
+      // Cách 6: Kiểm tra ô G1 (cho cấu trúc sheet cũ nhất)
       try {
         const g1Val = String(sheetGV.getRange("G1").getDisplayValue() || "").trim();
         if (g1Val && !g1Val.toLowerCase().includes("phiên bản") && !g1Val.toLowerCase().includes("backend")) {
@@ -539,8 +570,8 @@ function getCentralBackendVersion(sheetGV) {
 }
 
 /**
- * Đảm bảo Sheet DATA_GIAOVIEN có thêm cột D là 'Quyền', đẩy các cột kia qua phải 1 cột
- * Cột A: Tài khoản GV | B: Mật khẩu | C: Họ tên GV | D: Quyền | E: Lớp giảng dạy | F: Trường | G: Phiên bản Backend GV | H1: 2.3 | I1: backend
+ * Đảm bảo Sheet DATA_GIAOVIEN có thêm cột D là 'Quyền' và cột E là 'Môn dạy', đẩy các cột kia qua phải
+ * Cột A: Tài khoản GV | B: Mật khẩu | C: Họ tên GV | D: Quyền | E: Môn dạy | F: Lớp giảng dạy | G: Trường | H: Phiên bản Backend GV | I1: 2.6 | J1: backend
  */
 function ensureGiaoVienSheetColumns(sheetGV) {
   try {
@@ -552,10 +583,10 @@ function ensureGiaoVienSheetColumns(sheetGV) {
     }
     if (!sheetGV) {
       Logger.log("❌ Không tìm thấy Sheet DATA_GIAOVIEN!");
-      return 6;
+      return 7;
     }
     let lastCol = Math.max(sheetGV.getLastColumn(), 5);
-    let headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 12)).getValues()[0];
+    let headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 14)).getValues()[0];
 
     // 1. Kiểm tra xem đã có cột Quyền chưa
     let roleColIdx = -1;
@@ -589,10 +620,52 @@ function ensureGiaoVienSheetColumns(sheetGV) {
     }
 
     // Đọc lại header sau khi đảm bảo có cột D
-    lastCol = Math.max(sheetGV.getLastColumn(), 7);
-    headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 12)).getValues()[0];
+    lastCol = Math.max(sheetGV.getLastColumn(), 6);
+    headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 14)).getValues()[0];
 
-    // 2. Kiểm tra cột 'Phiên bản Backend GV'
+    // 2. Kiểm tra xem đã có cột Môn dạy chưa
+    let subjectColIdx = -1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || "").toLowerCase().trim();
+      if (h.includes("môn") || h.includes("mon") || h.includes("subject") || h.includes("bộ môn")) {
+        subjectColIdx = c;
+        break;
+      }
+    }
+
+    if (subjectColIdx === -1) {
+      // Chưa có cột Môn dạy: Chèn cột mới vào trước cột 5 (Vị trí cột E)
+      sheetGV.insertColumnBefore(5);
+      sheetGV.getRange(1, 5).setValue("Môn dạy");
+      formatHeaderRow(sheetGV);
+      subjectColIdx = 4;
+
+      // Cập nhật giá trị cột E cho các dòng hiện tại:
+      // Admin/BGH -> "BGH, Quản trị", các GV khác mặc định "Tin học" (để không bị trống)
+      const allRows = sheetGV.getDataRange().getValues();
+      for (let r = 1; r < allRows.length; r++) {
+        const subCell = sheetGV.getRange(r + 1, 5);
+        const oldVal = String(subCell.getValue() || "").trim();
+        if (!oldVal) {
+          const u = String(allRows[r][0] || "").trim().toLowerCase();
+          const q = String(allRows[r][3] || "").trim().toLowerCase();
+          if (u === "admin" || q.includes("bgh") || q === "admin") {
+            subCell.setValue("BGH, Quản trị");
+          } else {
+            subCell.setValue("Tin học");
+          }
+        }
+      }
+      Logger.log("✅ ĐÃ CHÈN THÀNH CÔNG CỘT E (MÔN DẠY) VÀ ĐẨY CÁC CỘT SANG PHẢI 1 CỘT!");
+    } else {
+      Logger.log("ℹ️ Cột Môn dạy đã có sẵn tại cột số " + (subjectColIdx + 1));
+    }
+
+    // Đọc lại header sau khi đảm bảo có cả cột D và cột E
+    lastCol = Math.max(sheetGV.getLastColumn(), 8);
+    headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 14)).getValues()[0];
+
+    // 3. Kiểm tra cột 'Phiên bản Backend GV'
     let verColIdx = -1;
     for (let c = 0; c < headerRow.length; c++) {
       const h = String(headerRow[c] || "").toLowerCase().trim();
@@ -609,9 +682,9 @@ function ensureGiaoVienSheetColumns(sheetGV) {
       verColIdx = nextCol - 1;
     }
 
-    // 3. Đảm bảo ô thông tin phiên bản chuẩn hệ thống ở dòng 1 (Ô H1 nếu cột G là Phiên bản GV)
+    // 4. Đảm bảo ô thông tin phiên bản chuẩn hệ thống ở dòng 1 (Ô I1 nếu cột H là Phiên bản GV)
     let foundVersionCell = false;
-    for (let c = 1; c <= Math.max(lastCol, 12); c++) {
+    for (let c = 1; c <= Math.max(lastCol, 14); c++) {
       const v = String(sheetGV.getRange(1, c).getValue() || "").trim();
       if (/^v?\d+(\.\d+)+$/i.test(v)) {
         foundVersionCell = true;
@@ -619,8 +692,8 @@ function ensureGiaoVienSheetColumns(sheetGV) {
       }
     }
     if (!foundVersionCell) {
-      // Vị trí ô phiên bản là cột ngay sau cột 'Phiên bản Backend GV' (Cột G (7) -> Cột H (8, Ô H1))
-      const verCellCol = (verColIdx >= 0 ? verColIdx + 2 : 8);
+      // Vị trí ô phiên bản là cột ngay sau cột 'Phiên bản Backend GV' (Cột H (8) -> Cột I (9, Ô I1))
+      const verCellCol = (verColIdx >= 0 ? verColIdx + 2 : 9);
       const verRange = sheetGV.getRange(1, verCellCol);
       verRange.setNumberFormat("@");
       verRange.setValue(CURRENT_BACKEND_VERSION || "2.6");
@@ -638,7 +711,7 @@ function ensureGiaoVienSheetColumns(sheetGV) {
     return verColIdx;
   } catch (err) {
     Logger.log("Lỗi ensureGiaoVienSheetColumns: " + err.toString());
-    return 6;
+    return 7;
   }
 }
 
@@ -687,7 +760,7 @@ function handleUpdateTeacherBackendVersion(payload) {
 }
 
 /**
- * Admin cập nhật phiên bản Backend chuẩn của hệ thống (lưu trực tiếp vào Ô H1 của sheet DATA_GIAOVIEN)
+ * Admin cập nhật phiên bản Backend chuẩn của hệ thống (lưu trực tiếp vào Ô I1 của sheet DATA_GIAOVIEN)
  * Payload: { version }
  */
 function handleSetCentralBackendVersion(payload) {
@@ -701,8 +774,8 @@ function handleSetCentralBackendVersion(payload) {
     const cols = getGiaoVienColMap(sheetGV);
 
     // Xác định ô phiên bản trung tâm (cột kế tiếp cột Phiên bản Backend GV)
-    const verColIdx = cols.colVer >= 0 ? cols.colVer : 6;
-    const targetCol = verColIdx + 2; // Ví dụ: Cột G (7) -> Cột H (8, Ô H1)
+    const verColIdx = cols.colVer >= 0 ? cols.colVer : 7;
+    const targetCol = verColIdx + 2; // Ví dụ: Cột H (8) -> Cột I (9, Ô I1)
 
     const cellVer = sheetGV.getRange(1, targetCol);
     cellVer.setNumberFormat("@");
@@ -711,7 +784,7 @@ function handleSetCentralBackendVersion(payload) {
     cellVer.setFontColor("#ffffff");
     cellVer.setFontWeight("bold");
 
-    // Ô ghi chú bên cạnh (Ô I1)
+    // Ô ghi chú bên cạnh (Ô J1)
     const cellLabel = sheetGV.getRange(1, targetCol + 1);
     if (!cellLabel.getValue()) {
       cellLabel.setValue("backend");
@@ -722,7 +795,7 @@ function handleSetCentralBackendVersion(payload) {
 
     return createJsonResponse({
       success: true,
-      message: `Đã cập nhật phiên bản backend trung tâm thành "${newVer}" tại ô H1 của Sheet DATA_GIAOVIEN!`,
+      message: `Đã cập nhật phiên bản backend trung tâm thành "${newVer}" tại ô I1 của Sheet DATA_GIAOVIEN!`,
       version: newVer
     });
   } catch (err) {
@@ -1092,6 +1165,7 @@ function handleLogin(payload) {
               hoTenGV: String(row[gvCols.colName] || (isBGH ? "Ban Giám Hiệu" : "")),
               quyen: isBGH ? "bgh" : (hasAdminTeacherMgmt ? "admin" : "gv"),
               rawQuyen: rawRole,
+              monDay: (gvCols.colSubject >= 0 ? String(row[gvCols.colSubject] || "").trim() : "") || (isBGH ? "BGH" : "Tin học"),
               lopGiangDay: String(row[gvCols.colClass] || (isBGH ? "BGH" : "")),
               truong: String(row[gvCols.colSchool] || ""),
               ngaySinh: "",
@@ -1569,7 +1643,7 @@ function handleGetTeacherHubDirectory() {
       return String(str || "").trim().toLowerCase().replace(/^0+/, "");
     };
 
-    // 1. Quét thông tin bổ sung từ DATA_GIAOVIEN (họ tên, quyền, trường)
+    // 1. Quét thông tin bổ sung từ DATA_GIAOVIEN (họ tên, quyền, môn dạy, trường)
     const gvMap = {};
     if (sheetGV) {
       const gvCols = getGiaoVienColMap(sheetGV);
@@ -1579,10 +1653,12 @@ function handleGetTeacherHubDirectory() {
         if (!rawUser) continue;
         const ck = cleanKey(rawUser);
         const rk = rawUser.toLowerCase();
+        const monDayVal = (gvCols.colSubject >= 0 ? String(gvData[i][gvCols.colSubject] || "").trim() : "") || "Tin học";
         const info = {
           rawMaGV: rawUser,
           hoTenGV: String(gvData[i][gvCols.colName] || "").trim(),
           quyen: gvCols.colRole >= 0 ? String(gvData[i][gvCols.colRole] || "").trim() : "gv",
+          monDay: monDayVal,
           truong: String(gvData[i][gvCols.colSchool] || "").trim()
         };
         if (!gvMap[ck]) gvMap[ck] = info;
@@ -1623,6 +1699,7 @@ function handleGetTeacherHubDirectory() {
           maGV: rawMaGV,
           hoTenGV: String(hubData[i][1] || gvInfo.hoTenGV || rawMaGV).trim(),
           quyen: gvInfo.quyen || "gv",
+          monDay: gvInfo.monDay || "Tin học",
           truong: String(hubData[i][2] || gvInfo.truong || "").trim(),
           serverUrl: sUrl,
           sheetUrl: sheetUrl,
@@ -1654,10 +1731,13 @@ function handleGetTeacherHubDirectory() {
           }
         }
 
+        const monDayVal = (gvCols.colSubject >= 0 ? String(gvData[i][gvCols.colSubject] || "").trim() : "") || "Tin học";
+
         teacherList.push({
           maGV: rawMaGV,
           hoTenGV: String(gvData[i][gvCols.colName] || rawMaGV).trim(),
           quyen: gvCols.colRole >= 0 ? String(gvData[i][gvCols.colRole] || "").trim() : "gv",
+          monDay: monDayVal,
           truong: String(gvData[i][gvCols.colSchool] || "").trim(),
           serverUrl: "",
           sheetUrl: sheetUrl,
@@ -4285,6 +4365,7 @@ function handleGetAdminTeachers(payload) {
         quyen: quyenVal || "gv",
         isAdmin: isAdmin || isBghUser,
         isBGH: isBghUser,
+        monDay: (cols.colSubject >= 0 ? String(row[cols.colSubject] || "").trim() : "") || (isBghUser ? "BGH" : "Tin học"),
         lopGiangDay: lopVal,
         truong: String(row[cols.colSchool] || ""),
         backendVersion: formatBackendVersion(row[cols.colVer], "2.0")
@@ -4306,7 +4387,7 @@ function handleGetAdminTeachers(payload) {
 
 /**
  * 2. Thêm mới tài khoản giáo viên vào Sheet DATA_GIAOVIEN
- * Payload: { username, password, hoTenGV, quyen, lopGiangDay, truong }
+ * Payload: { username, password, hoTenGV, quyen, monDay, lopGiangDay, truong }
  */
 function handleAddTeacher(payload) {
   try {
@@ -4324,6 +4405,7 @@ function handleAddTeacher(payload) {
     const password = String(payload.password || "123").trim();
     const hoTenGV = String(payload.hoTenGV || "").trim();
     const quyen = String(payload.quyen || "gv").trim().toLowerCase();
+    const monDay = String(payload.monDay || "Tin học").trim();
     const lopGiangDay = String(payload.lopGiangDay || "").trim();
     const truong = String(payload.truong || "").trim();
 
@@ -4345,12 +4427,13 @@ function handleAddTeacher(payload) {
       }
     }
 
-    const maxCol = Math.max(sheetGV.getLastColumn(), 7);
+    const maxCol = Math.max(sheetGV.getLastColumn(), 8);
     const newRow = new Array(maxCol).fill("");
     newRow[cols.colUser] = username.startsWith("0") ? "'" + username : username;
     newRow[cols.colPass] = "'" + password;
     newRow[cols.colName] = hoTenGV;
     if (cols.colRole >= 0) newRow[cols.colRole] = quyen;
+    if (cols.colSubject >= 0) newRow[cols.colSubject] = monDay;
     newRow[cols.colClass] = lopGiangDay;
     newRow[cols.colSchool] = truong;
     if (cols.colVer >= 0) newRow[cols.colVer] = (quyen === "admin" ? CURRENT_BACKEND_VERSION : "2.0");
@@ -4365,6 +4448,7 @@ function handleAddTeacher(payload) {
         password: password,
         hoTenGV: hoTenGV,
         quyen: quyen,
+        monDay: monDay,
         lopGiangDay: lopGiangDay,
         truong: truong
       }
@@ -4379,7 +4463,7 @@ function handleAddTeacher(payload) {
 
 /**
  * 3. Cập nhật thông tin tài khoản giáo viên trong DATA_GIAOVIEN
- * Payload: { username, originalUsername, password, hoTenGV, quyen, lopGiangDay, truong }
+ * Payload: { username, originalUsername, password, hoTenGV, quyen, monDay, lopGiangDay, truong }
  */
 function handleUpdateTeacher(payload) {
   try {
@@ -4410,6 +4494,9 @@ function handleUpdateTeacher(payload) {
     }
     if (cols.colRole >= 0 && payload.quyen !== undefined) {
       sheetGV.getRange(foundRow, cols.colRole + 1).setValue(String(payload.quyen).trim().toLowerCase());
+    }
+    if (cols.colSubject >= 0 && payload.monDay !== undefined) {
+      sheetGV.getRange(foundRow, cols.colSubject + 1).setValue(String(payload.monDay).trim());
     }
     if (payload.lopGiangDay !== undefined) {
       sheetGV.getRange(foundRow, cols.colClass + 1).setValue(String(payload.lopGiangDay).trim());

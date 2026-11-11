@@ -279,10 +279,29 @@ loginForm.addEventListener("submit", async (e) => {
   const isAdminLogin = (username.toLowerCase() === "admin");
   const effectiveRole = isAdminLogin ? "GV" : role;
 
-  // Validate bắt buộc chọn Thầy/Cô đối với Học sinh để bảo đảm không bị mất bài làm
+  // Validate bắt buộc chọn Môn học và Thầy/Cô đối với Học sinh để bảo đảm không bị mất bài làm
   if (effectiveRole === "HS") {
+    const selectSubject = document.getElementById("selectSubjectServer");
+    const chosenSubject = selectSubject ? (selectSubject.value || "").trim() : "";
     const selectTeacher = document.getElementById("selectTeacherServer");
     const chosenTeacher = selectTeacher ? (selectTeacher.value || "").trim() : "";
+
+    if (!chosenSubject) {
+      const urgentBox = document.getElementById("teacherSelectGroup");
+      if (urgentBox) {
+        urgentBox.classList.remove("shake-urgent");
+        void urgentBox.offsetWidth; // Trigger reflow
+        urgentBox.classList.add("shake-urgent");
+        urgentBox.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      if (selectSubject) selectSubject.focus();
+
+      const urgentMsg = "🚨 BƯỚC 1: Bạn chưa chọn Môn học! Vui lòng chọn Môn học bạn cần kiểm tra.";
+      showLoginAlert(urgentMsg);
+      showToast("Chưa chọn Môn học", "Vui lòng chọn Môn học trước khi chọn Thầy/Cô!", "warning", 5000);
+      return;
+    }
+
     if (!chosenTeacher) {
       const urgentBox = document.getElementById("teacherSelectGroup");
       if (urgentBox) {
@@ -293,7 +312,7 @@ loginForm.addEventListener("submit", async (e) => {
       }
       if (selectTeacher) selectTeacher.focus();
 
-      const urgentMsg = "🚨 BẮT BUỘC: Bạn chưa chọn Thầy/Cô phụ trách phòng thi! Nếu không chọn hoặc chọn sai, bạn sẽ KHÔNG THỂ ĐĂNG NHẬP hoặc BÀI LÀM SẼ BỊ MẤT!";
+      const urgentMsg = "🚨 BƯỚC 2 BẮT BUỘC: Bạn chưa chọn Thầy/Cô phụ trách phòng thi! Nếu không chọn hoặc chọn sai, bạn sẽ KHÔNG THỂ ĐĂNG NHẬP hoặc BÀI LÀM SẼ BỊ MẤT!";
       showLoginAlert(urgentMsg);
       showToast("Chưa chọn Thầy/Cô", "Vui lòng chọn đúng Thầy/Cô phụ trách phòng thi của bạn trước khi đăng nhập để tránh mất bài thi!", "error", 6000);
       return;
@@ -693,12 +712,15 @@ function updateServerStatusBadge() {
 }
 
 // ============================================================================
-// KHỞI TẠO DANH SÁCH GIÁO VIÊN TRÊN FORM ĐĂNG NHẬP (TRÁNH NGHẼN MẠNG 100%)
+// KHỞI TẠO DANH SÁCH MÔN HỌC & GIÁO VIÊN TRÊN FORM ĐĂNG NHẬP
 // ============================================================================
 function initTeacherDirectoryDropdown() {
+  const selectSubjectServer = document.getElementById("selectSubjectServer");
   const selectTeacherServer = document.getElementById("selectTeacherServer");
   const badgeTeacherAutoDetect = document.getElementById("badgeTeacherAutoDetect");
   if (!selectTeacherServer) return;
+
+  let currentTeachers = [];
 
   function cleanTeacherDirectoryList(rawTeachers) {
     if (!Array.isArray(rawTeachers)) return [];
@@ -716,6 +738,8 @@ function initTeacherDirectoryDropdown() {
       result.push({
         maGV: rawCode,
         hoTenGV: String(t.hoTenGV || "").trim(),
+        quyen: String(t.quyen || "gv").trim(),
+        monDay: String(t.monDay || "Tin học").trim(),
         truong: String(t.truong || "").trim(),
         serverUrl: String(t.serverUrl || "").trim(),
         sheetUrl: String(t.sheetUrl || "").trim(),
@@ -726,27 +750,80 @@ function initTeacherDirectoryDropdown() {
     return result;
   }
 
-  function renderTeacherList(rawTeachers) {
-    const teachers = cleanTeacherDirectoryList(rawTeachers);
+  function populateSubjectDropdown(teachers, defaultSub) {
+    if (!selectSubjectServer) return;
+    const subjectSet = new Set();
+    teachers.forEach(t => {
+      const monStr = String(t.monDay || "").trim();
+      if (!monStr) return;
+      monStr.split(/[,;\/]/).forEach(m => {
+        const cleanM = m.trim();
+        if (cleanM && cleanM.toLowerCase() !== "bgh" && cleanM.toLowerCase() !== "admin") {
+          subjectSet.add(cleanM);
+        }
+      });
+    });
+
+    if (subjectSet.size === 0) {
+      subjectSet.add("Tin học");
+    }
+
+    const sortedSubs = Array.from(subjectSet).sort((a, b) => a.localeCompare(b, 'vi'));
+
+    let html = '<option value="">-- 📚 BƯỚC 1: BẤM VÀO ĐÂY ĐỂ CHỌN MÔN HỌC --</option>';
+    html += '<option value="ALL">-- 🌟 Hiển thị tất cả giáo viên các môn --</option>';
+    sortedSubs.forEach(mon => {
+      const isSel = (defaultSub && defaultSub.toLowerCase() === mon.toLowerCase());
+      html += `<option value="${mon}" ${isSel ? "selected" : ""}>📖 Môn: ${mon}</option>`;
+    });
+
+    selectSubjectServer.innerHTML = html;
+    if (defaultSub) {
+      selectSubjectServer.value = defaultSub;
+    }
+  }
+
+  function renderTeacherDropdown(teachers, filterSubject, preserveServerUrl) {
     const urlParams = new URLSearchParams(window.location.search);
     const serverFromUrl = (urlParams.get("server") || "").trim();
-    const currentVal = selectTeacherServer.value || serverFromUrl;
+    const currentVal = preserveServerUrl !== undefined ? preserveServerUrl : (selectTeacherServer.value || serverFromUrl);
 
-    let html = '<option value="">-- ⚠️ BẮT BUỘC: BẤM VÀO ĐÂY ĐỂ CHỌN THẦY / CÔ --</option>';
-    let matchedOption = false;
-
-    if (Array.isArray(teachers) && teachers.length > 0) {
-      teachers.forEach(t => {
-        if (!t.serverUrl) return;
-        const isSel = (t.serverUrl === currentVal);
-        if (isSel) matchedOption = true;
-        const title = `👨‍🏫 ${t.hoTenGV || t.maGV} ${t.truong ? `(${t.truong})` : ""}`;
-        html += `<option value="${t.serverUrl}" ${isSel ? "selected" : ""}>${title}</option>`;
+    let filteredTeachers = teachers;
+    const isAll = (filterSubject === "ALL");
+    if (!isAll && filterSubject) {
+      filteredTeachers = teachers.filter(t => {
+        const monStr = String(t.monDay || "").toLowerCase();
+        const target = filterSubject.toLowerCase();
+        return monStr.split(/[,;\/]/).some(m => m.trim().toLowerCase() === target) || monStr.includes(target);
       });
     }
 
-    if (selectTeacherServer.innerHTML !== html) {
-      selectTeacherServer.innerHTML = html;
+    let html = '';
+    if (!filterSubject) {
+      html = '<option value="">-- ⚠️ Vui lòng chọn Môn học ở trên trước --</option>';
+    } else {
+      const subTitle = isAll ? "TẤT CẢ CÁC MÔN" : `MÔN ${filterSubject.toUpperCase()}`;
+      html = `<option value="">-- ⚠️ BƯỚC 2: CHỌN THẦY/CÔ DẠY ${subTitle} --</option>`;
+    }
+
+    let matchedOption = false;
+    if (filterSubject && filteredTeachers.length > 0) {
+      filteredTeachers.forEach(t => {
+        if (!t.serverUrl) return;
+        const isSel = (t.serverUrl === currentVal);
+        if (isSel) matchedOption = true;
+        const subBadge = t.monDay ? ` [Môn: ${t.monDay}]` : "";
+        const schoolBadge = t.truong ? ` (${t.truong})` : "";
+        const title = `👨‍🏫 ${t.hoTenGV || t.maGV}${subBadge}${schoolBadge}`;
+        html += `<option value="${t.serverUrl}" ${isSel ? "selected" : ""}>${title}</option>`;
+      });
+    } else if (filterSubject && filteredTeachers.length === 0) {
+      html += `<option value="" disabled>-- Chưa có giáo viên dạy môn "${filterSubject}" có máy chủ riêng --</option>`;
+    }
+
+    selectTeacherServer.innerHTML = html;
+    if (currentVal && matchedOption) {
+      selectTeacherServer.value = currentVal;
     }
 
     if (serverFromUrl && matchedOption && badgeTeacherAutoDetect) {
@@ -757,6 +834,29 @@ function initTeacherDirectoryDropdown() {
     updateServerStatusBadge();
   }
 
+  function updateDirectory(rawTeachers) {
+    currentTeachers = cleanTeacherDirectoryList(rawTeachers);
+
+    // Xác định môn học và server ban đầu từ query params hoặc cache
+    const urlParams = new URLSearchParams(window.location.search);
+    const serverFromUrl = (urlParams.get("server") || "").trim();
+    const monFromUrl = (urlParams.get("mon") || urlParams.get("subject") || "").trim();
+
+    let initialSubject = monFromUrl || (selectSubjectServer ? selectSubjectServer.value : "") || localStorage.getItem("selected_subject") || "";
+    let initialServer = serverFromUrl || selectTeacherServer.value || localStorage.getItem("student_gas_api_url") || "";
+
+    // Nếu có server từ URL/cache, tự động dò tìm môn học của giáo viên đó
+    if (initialServer && !initialSubject) {
+      const foundTeacher = currentTeachers.find(t => t.serverUrl === initialServer);
+      if (foundTeacher && foundTeacher.monDay) {
+        initialSubject = foundTeacher.monDay.split(/[,;\/]/)[0].trim();
+      }
+    }
+
+    populateSubjectDropdown(currentTeachers, initialSubject);
+    renderTeacherDropdown(currentTeachers, initialSubject, initialServer);
+  }
+
   // 1. Tải danh sách từ bộ nhớ cache cục bộ
   let cachedTeachers = [];
   try {
@@ -765,7 +865,7 @@ function initTeacherDirectoryDropdown() {
   } catch (e) {}
 
   if (cachedTeachers.length > 0) {
-    renderTeacherList(cachedTeachers);
+    updateDirectory(cachedTeachers);
   }
 
   // 2. Tải ngầm danh bạ mới nhất từ Trạm Trung Tâm
@@ -774,14 +874,40 @@ function initTeacherDirectoryDropdown() {
     .then(res => {
       if (res && res.success && Array.isArray(res.teachers) && res.teachers.length > 0) {
         localStorage.setItem("cached_teachers_directory", JSON.stringify(res.teachers));
-        renderTeacherList(res.teachers);
+        updateDirectory(res.teachers);
       }
     })
     .catch(err => {
       console.warn("Không thể tải danh bạ giáo viên từ Hub:", err);
     });
 
-  // 3. Khi học sinh chọn một giáo viên cụ thể
+  // 3. Sự kiện khi học sinh chọn môn học
+  if (selectSubjectServer) {
+    selectSubjectServer.addEventListener("change", () => {
+      const chosenSub = selectSubjectServer.value;
+      if (chosenSub) {
+        localStorage.setItem("selected_subject", chosenSub);
+      } else {
+        localStorage.removeItem("selected_subject");
+      }
+      // Khi đổi môn học, reset giáo viên đã chọn nếu giáo viên đó không thuộc môn mới
+      const currentSelectedUrl = selectTeacherServer.value;
+      const tMatches = currentTeachers.some(t => {
+        if (t.serverUrl !== currentSelectedUrl) return false;
+        if (!chosenSub || chosenSub === "ALL") return true;
+        const mStr = String(t.monDay || "").toLowerCase();
+        return mStr.includes(chosenSub.toLowerCase());
+      });
+      const preserveUrl = tMatches ? currentSelectedUrl : "";
+      if (!tMatches) {
+        localStorage.removeItem("student_gas_api_url");
+      }
+      renderTeacherDropdown(currentTeachers, chosenSub, preserveUrl);
+      hideLoginAlert();
+    });
+  }
+
+  // 4. Khi học sinh chọn một giáo viên cụ thể
   selectTeacherServer.addEventListener("change", () => {
     const chosen = selectTeacherServer.value;
     if (chosen) {

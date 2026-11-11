@@ -1330,19 +1330,20 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
             <thead>
               <tr>
                 <th style="width: 5%; text-align: center;">STT</th>
-                <th style="width: 13%;">Tài khoản GV</th>
-                <th style="width: 18%;">Họ tên Giáo viên</th>
-                <th style="width: 11%; text-align: center;">Quyền (Cột D)</th>
-                <th style="width: 12%;">Mật khẩu</th>
-                <th style="width: 14%;">Lớp giảng dạy</th>
-                <th style="width: 13%;">Trường</th>
-                <th style="width: 8%; text-align: center;">Bản Backend</th>
-                <th style="width: 14%; text-align: center;">Thao tác</th>
+                <th style="width: 12%;">Tài khoản GV</th>
+                <th style="width: 17%;">Họ tên Giáo viên</th>
+                <th style="width: 10%; text-align: center;">Quyền (Cột D)</th>
+                <th style="width: 10%; text-align: center;">Môn dạy (Cột E)</th>
+                <th style="width: 11%;">Mật khẩu</th>
+                <th style="width: 13%;">Lớp giảng dạy</th>
+                <th style="width: 12%;">Trường</th>
+                <th style="width: 7%; text-align: center;">Bản Backend</th>
+                <th style="width: 13%; text-align: center;">Thao tác</th>
               </tr>
             </thead>
             <tbody id="adminTeachersTableBody">
               <tr>
-                <td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
+                <td colspan="10" style="text-align: center; padding: 2.5rem; color: #94a3b8;">
                   Đang tải danh sách giáo viên từ Sheet DATA_GIAOVIEN...
                 </td>
               </tr>
@@ -2519,6 +2520,10 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
             <option value="gv">Giáo viên bộ môn (Chỉ quản lý đề thi và học sinh cá nhân)</option>
             <option value="admin">Quản trị viên (Admin BGH - Xem điểm toàn trường & Quản lý Giáo viên)</option>
           </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 0.35rem;">Môn dạy (Cột E) <span style="color: #ef4444;">*</span></label>
+          <input type="text" id="teacherInputSubject" class="form-input" style="width: 100%; box-sizing: border-box;" placeholder="VD: Tin học, Toán, Ngữ văn..." value="Tin học">
         </div>
         <div class="form-group" style="margin-bottom: 1rem;">
           <label style="display: block; font-weight: 700; font-size: 0.86rem; color: #1e293b; margin-bottom: 0.35rem;">Lớp giảng dạy (ngăn cách bởi dấu phẩy)</label>

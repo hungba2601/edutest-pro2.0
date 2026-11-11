@@ -43,6 +43,105 @@ function getSpreadsheet() {
 }
 
 /**
+ * ============================================================================
+ * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG THÊM CỘT E (MÔN DẠY) VÀO SHEET DATA_GIAOVIEN
+ * Chọn hàm 'chayThemCotMonDayChoGiaoVien' trong menu dropdown rồi bấm 'Chạy' (Run)
+ * ============================================================================
+ */
+function chayThemCotMonDayChoGiaoVien() {
+  const ss = getSpreadsheet();
+  if (!ss) {
+    Logger.log("❌ Không thể kết nối Bảng tính Google Sheets. Vui lòng kiểm tra lại SPREADSHEET_URL!");
+    return;
+  }
+  let sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+  if (!sheetGV) {
+    Logger.log("❌ Không tìm thấy Sheet DATA_GIAOVIEN!");
+    return;
+  }
+  ensureGiaoVienSheetColumns(sheetGV);
+  Logger.log("🎉 Hoàn tất quá trình thêm Cột E (Môn dạy) vào Sheet DATA_GIAOVIEN của Giáo viên!");
+}
+
+/**
+ * Đảm bảo Sheet DATA_GIAOVIEN có thêm cột D là 'Quyền' và cột E là 'Môn dạy'
+ * Cột A: Tài khoản GV | B: Mật khẩu | C: Họ tên GV | D: Quyền | E: Môn dạy | F: Lớp giảng dạy | G: Trường
+ */
+function ensureGiaoVienSheetColumns(sheetGV) {
+  try {
+    if (!sheetGV) {
+      const ss = getSpreadsheet();
+      if (ss) {
+        sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN || "DATA_GIAOVIEN");
+      }
+    }
+    if (!sheetGV) return;
+    let lastCol = Math.max(sheetGV.getLastColumn(), 5);
+    let headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 12)).getValues()[0];
+
+    // 1. Kiểm tra xem đã có cột Quyền chưa
+    let roleColIdx = -1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || "").toLowerCase().trim();
+      if (h.includes("quyền") || h.includes("quyen") || h === "role" || h.includes("chức vụ")) {
+        roleColIdx = c;
+        break;
+      }
+    }
+
+    if (roleColIdx === -1) {
+      sheetGV.insertColumnBefore(4);
+      sheetGV.getRange(1, 4).setValue("Quyền");
+      formatHeaderRow(sheetGV);
+      roleColIdx = 3;
+
+      const allRows = sheetGV.getDataRange().getValues();
+      for (let r = 1; r < allRows.length; r++) {
+        const roleCell = sheetGV.getRange(r + 1, 4);
+        const oldVal = String(roleCell.getValue() || "").trim();
+        if (!oldVal) {
+          roleCell.setValue("gv");
+        }
+      }
+      Logger.log("✅ Đã thêm cột D (Quyền) vào Sheet DATA_GIAOVIEN!");
+    }
+
+    // Đọc lại header sau khi có cột D
+    lastCol = Math.max(sheetGV.getLastColumn(), 6);
+    headerRow = sheetGV.getRange(1, 1, 1, Math.max(lastCol, 12)).getValues()[0];
+
+    // 2. Kiểm tra xem đã có cột Môn dạy chưa
+    let subjectColIdx = -1;
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || "").toLowerCase().trim();
+      if (h.includes("môn") || h.includes("mon") || h.includes("subject") || h.includes("bộ môn")) {
+        subjectColIdx = c;
+        break;
+      }
+    }
+
+    if (subjectColIdx === -1) {
+      sheetGV.insertColumnBefore(5);
+      sheetGV.getRange(1, 5).setValue("Môn dạy");
+      formatHeaderRow(sheetGV);
+      subjectColIdx = 4;
+
+      const allRows = sheetGV.getDataRange().getValues();
+      for (let r = 1; r < allRows.length; r++) {
+        const subCell = sheetGV.getRange(r + 1, 5);
+        const oldVal = String(subCell.getValue() || "").trim();
+        if (!oldVal) {
+          subCell.setValue("Tin học");
+        }
+      }
+      Logger.log("✅ Đã chèn thành công Cột E (Môn dạy) vào Sheet DATA_GIAOVIEN!");
+    }
+  } catch (err) {
+    Logger.log("Lỗi ensureGiaoVienSheetColumns trong Teacher_Code: " + err.toString());
+  }
+}
+
+/**
  * Hàm khởi tạo tự động 5 Sheet chuẩn cấu trúc nếu chưa có và thêm tài khoản mẫu
  * Chạy hàm này 1 lần duy nhất trong trình soạn thảo Apps Script để kiểm tra
  */
@@ -63,17 +162,19 @@ function initDatabase() {
     sheetHS.appendRow(["HS003", "123", "9A1", "Lê Bảo Long", "02/11/2010", "Nam", "THCS Chu Văn An"]);
   }
 
-  // 2. Cấu trúc Sheet DATA_GIAOVIEN
+  // 2. Cấu trúc Sheet DATA_GIAOVIEN (Cột A: Tài khoản GV, B: Mật khẩu, C: Họ tên GV, D: Quyền, E: Môn dạy, F: Lớp giảng dạy, G: Trường)
   let sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
   if (!sheetGV) {
     sheetGV = ss.insertSheet(SHEETS.GIAOVIEN);
-    const headers = ["Tài khoản GV", "Mật khẩu", "Họ tên GV", "Lớp giảng dạy", "Trường"];
+    const headers = ["Tài khoản GV", "Mật khẩu", "Họ tên GV", "Quyền", "Môn dạy", "Lớp giảng dạy", "Trường"];
     sheetGV.appendRow(headers);
     formatHeaderRow(sheetGV);
 
     // Thêm dữ liệu giáo viên mẫu
-    sheetGV.appendRow(["GV001", "123", "Thầy Lê Hoàng Nam", "9A1, 9A2", "THCS Chu Văn An"]);
-    sheetGV.appendRow(["GV002", "123", "Cô Nguyễn Thùy Chi", "9A1, 9A3", "THCS Chu Văn An"]);
+    sheetGV.appendRow(["GV001", "123", "Thầy Lê Hoàng Nam", "gv", "Tin học", "9A1, 9A2", "THCS Chu Văn An"]);
+    sheetGV.appendRow(["GV002", "123", "Cô Nguyễn Thùy Chi", "gv", "Toán", "9A1, 9A3", "THCS Chu Văn An"]);
+  } else {
+    ensureGiaoVienSheetColumns(sheetGV);
   }
 
   // 3. Cấu trúc Sheet DATA_DETHI (Gồm 8 cột: thêm cột Chế độ xem bài)
@@ -505,6 +606,7 @@ function handleLogin(payload) {
             data: {
               username: gvUser,
               hoTenGV: String(row[gvCols.colName] || ""),
+              monDay: (gvCols.colSubject >= 0 ? String(row[gvCols.colSubject] || "").trim() : "") || "Tin học",
               lopGiangDay: String(row[gvCols.colClass] || ""),
               truong: String(row[gvCols.colSchool] || ""),
               ngaySinh: row[5] ? formatBirthDateValue(row[5]) : "",
@@ -2231,17 +2333,28 @@ function getGiaoVienColMap(sheetGV) {
     colUser: 0,
     colPass: 1,
     colName: 2,
-    colClass: 3,
-    colSchool: 4
+    colRole: 3,
+    colSubject: 4,
+    colClass: 5,
+    colSchool: 6
   };
   try {
     if (!sheetGV) return map;
     const lastCol = Math.max(sheetGV.getLastColumn(), 5);
     const headers = sheetGV.getRange(1, 1, 1, Math.min(lastCol, 20)).getValues()[0];
+    let foundRole = false;
+    let foundSubject = false;
+
     for (let c = 0; c < headers.length; c++) {
       const h = String(headers[c] || "").trim().toLowerCase();
       if (!h) continue;
-      if (h.includes("tài khoản") || h.includes("mã gv") || h.includes("username") || h === "tk gv") {
+      if (h.includes("quyền") || h.includes("quyen") || h === "role" || h.includes("chức vụ")) {
+        map.colRole = c;
+        foundRole = true;
+      } else if (h.includes("môn") || h.includes("mon") || h.includes("subject") || h.includes("bộ môn")) {
+        map.colSubject = c;
+        foundSubject = true;
+      } else if (h.includes("tài khoản") || h.includes("mã gv") || h.includes("username") || h === "tk gv") {
         map.colUser = c;
       } else if (h.includes("mật khẩu") || h.includes("password") || h === "pass" || h === "mk") {
         map.colPass = c;
@@ -2251,6 +2364,19 @@ function getGiaoVienColMap(sheetGV) {
         map.colClass = c;
       } else if (h.includes("trường") || h.includes("truong") || h.includes("đơn vị")) {
         map.colSchool = c;
+      }
+    }
+
+    // Tương thích ngược nếu chưa có cột Môn dạy hoặc Quyền
+    if (!foundSubject) {
+      map.colSubject = -1;
+      if (!foundRole) {
+        map.colRole = -1;
+        map.colClass = 3;
+        map.colSchool = 4;
+      } else {
+        map.colClass = 4;
+        map.colSchool = 5;
       }
     }
   } catch (e) {

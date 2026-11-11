@@ -12278,7 +12278,7 @@ async function loadAdminTeachersList(forceRefresh = false) {
   if (!tbody) return;
 
   if (forceRefresh || adminTeachersCache.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #2563eb;"><span class="table-spinner"></span> Đang tải danh sách giáo viên từ Sheet DATA_GIAOVIEN...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 2.5rem; color: #2563eb;"><span class="table-spinner"></span> Đang tải danh sách giáo viên từ Sheet DATA_GIAOVIEN...</td></tr>';
   }
 
   try {
@@ -12292,10 +12292,10 @@ async function loadAdminTeachersList(forceRefresh = false) {
       renderAdminTeachersTable();
       populateHubTeacherQuickSelect();
     } else {
-      tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Không thể tải danh sách GV: ${data.message || "Lỗi không xác định"}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Không thể tải danh sách GV: ${data.message || "Lỗi không xác định"}</td></tr>`;
     }
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Lỗi kết nối Google Sheets: ${err.message || err.toString()}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Lỗi kết nối Google Sheets: ${err.message || err.toString()}</td></tr>`;
   }
 }
 
@@ -12344,6 +12344,7 @@ function renderAdminTeachersTable() {
   const filtered = adminTeachersCache.filter(t => {
     const u = String(t.username || "").toLowerCase();
     const name = String(t.hoTenGV || "").toLowerCase();
+    const mon = String(t.monDay || "").toLowerCase();
     const classes = String(t.lopGiangDay || "").toLowerCase();
     const school = String(t.truong || "").toLowerCase();
     const q = String(t.quyen || "").toLowerCase();
@@ -12353,11 +12354,11 @@ function renderAdminTeachersTable() {
     if (roleFilter === "GV" && isAdmin) return false;
 
     if (!kw) return true;
-    return u.includes(kw) || name.includes(kw) || classes.includes(kw) || school.includes(kw);
+    return u.includes(kw) || name.includes(kw) || mon.includes(kw) || classes.includes(kw) || school.includes(kw);
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Không tìm thấy giáo viên nào phù hợp với điều kiện tìm kiếm.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 2.5rem; color: #94a3b8;">Không tìm thấy giáo viên nào phù hợp với điều kiện tìm kiếm.</td></tr>';
     return;
   }
 
@@ -12388,6 +12389,11 @@ function renderAdminTeachersTable() {
           <div style="font-weight: 700; color: #1e3a8a;">${t.hoTenGV || "--"}</div>
         </td>
         <td style="text-align: center;">${roleBadge}</td>
+        <td style="text-align: center;">
+          <span style="display: inline-block; padding: 3px 10px; border-radius: 9999px; font-weight: 700; font-size: 0.82rem; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;">
+            📚 ${t.monDay || "Tin học"}
+          </span>
+        </td>
         <td>
           <div class="pass-container">
             <span id="passSpan_${cleanUser}">${passDisplay}</span>
@@ -12753,6 +12759,8 @@ window.openAddTeacherModal = function() {
   document.getElementById("teacherInputPassword").value = "1234";
   document.getElementById("teacherPasswordGroup").style.display = "block";
   document.getElementById("teacherInputRole").value = "gv";
+  const subInputAdd = document.getElementById("teacherInputSubject");
+  if (subInputAdd) subInputAdd.value = "Tin học";
   document.getElementById("teacherInputClasses").value = "";
   document.getElementById("teacherInputSchool").value = currentTeacher?.truong || "";
   document.getElementById("btnSaveTeacherText").textContent = "Lưu Vào Sheet DATA_GIAOVIEN";
@@ -12788,6 +12796,8 @@ window.openEditTeacherModal = function(cleanUser) {
     } else {
       document.getElementById("teacherInputRole").value = "gv";
     }
+  const subInputEdit = document.getElementById("teacherInputSubject");
+  if (subInputEdit) subInputEdit.value = t.monDay || "Tin học";
   document.getElementById("teacherInputClasses").value = t.lopGiangDay || "";
   document.getElementById("teacherInputSchool").value = t.truong || "";
   document.getElementById("btnSaveTeacherText").textContent = "Cập Nhật Vào Sheet";
@@ -12804,6 +12814,7 @@ async function handleSaveTeacherAccountSubmit() {
   const fullName = document.getElementById("teacherInputFullName").value.trim();
   const password = document.getElementById("teacherInputPassword").value.trim();
   const role = document.getElementById("teacherInputRole").value;
+  const monDay = (document.getElementById("teacherInputSubject")?.value || "Tin học").trim();
   const classes = document.getElementById("teacherInputClasses").value.trim();
   const school = document.getElementById("teacherInputSchool").value.trim();
   const btnSave = document.getElementById("btnSaveTeacherAccount");
@@ -12832,6 +12843,7 @@ async function handleSaveTeacherAccountSubmit() {
       hoTenGV: fullName,
       password: password,
       quyen: role,
+      monDay: monDay,
       lopGiangDay: classes,
       truong: school
     };
