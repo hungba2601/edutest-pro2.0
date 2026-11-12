@@ -64,6 +64,34 @@ function chayThemCotMonDayChoGiaoVien() {
 }
 
 /**
+ * Giữ alias tương thích: chayThemCotQuyenChoGiaoVien
+ */
+function chayThemCotQuyenChoGiaoVien() {
+  chayThemCotMonDayChoGiaoVien();
+}
+
+/**
+ * ============================================================================
+ * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG THÊM CỘT ĐIỂM TỰ LUẬN & TỔNG ĐIỂM VÀO SHEET DATA_KETQUA
+ * Chọn hàm 'chayThemCotTuLuanChoKetQua' trong menu dropdown rồi bấm 'Chạy' (Run)
+ * ============================================================================
+ */
+function chayThemCotTuLuanChoKetQua() {
+  const ss = getSpreadsheet();
+  if (!ss) {
+    Logger.log("❌ Không thể kết nối Bảng tính Google Sheets. Vui lòng kiểm tra lại SPREADSHEET_URL!");
+    return;
+  }
+  let sheetKQ = ss.getSheetByName(SHEETS.KETQUA || "DATA_KETQUA");
+  if (!sheetKQ) {
+    Logger.log("❌ Không tìm thấy Sheet DATA_KETQUA!");
+    return;
+  }
+  ensureKetQuaSheetColumns(sheetKQ);
+  Logger.log("🎉 Hoàn tất quá trình thêm Cột Điểm tự luận và Tổng điểm vào Sheet DATA_KETQUA của Giáo viên!");
+}
+
+/**
  * Đảm bảo Sheet DATA_GIAOVIEN có thêm cột D là 'Quyền' và cột E là 'Môn dạy'
  * Cột A: Tài khoản GV | B: Mật khẩu | C: Họ tên GV | D: Quyền | E: Môn dạy | F: Lớp giảng dạy | G: Trường
  */

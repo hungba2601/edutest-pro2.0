@@ -10712,8 +10712,8 @@ async function checkTeacherBackendVersionUpdate() {
     return;
   }
 
-  // 1. Lấy phiên bản backend được yêu cầu từ ô G1 của Sheet trung tâm (dạng số: 2.1, 2.2, 2.3, 2.4,...)
-  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.6").trim();
+  // 1. Lấy phiên bản backend được yêu cầu từ ô G1/H1/I1 của Sheet trung tâm (dạng số: 2.1, 2.2, 2.3, 2.4, 2.8,...)
+  let rawRequiredVersion = (localStorage.getItem("required_backend_version") || "2.8").trim();
   try {
     const hubRes = await fetch(`${DEFAULT_GAS_API_URL}?action=checkCentralBackendVersion&_t=${Date.now()}`);
     if (hubRes.ok) {
@@ -10725,7 +10725,7 @@ async function checkTeacherBackendVersionUpdate() {
     }
   } catch (e) {}
 
-  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.6");
+  const requiredVersion = formatBackendVersion(rawRequiredVersion, "2.8");
 
   // 2. Lấy phiên bản backend thực tế trên Google Sheets riêng của Giáo viên
   const personalServerUrl = getTeacherPersonalServerUrl();
@@ -10864,7 +10864,7 @@ function initCentralHubModal() {
 
   function openModal() {
     // Ẩn cảnh báo cập nhật nếu phiên bản đã đạt chuẩn hoặc là tài khoản trung tâm/admin
-    const rawReq = (localStorage.getItem("required_backend_version") || "2.4").trim();
+    const rawReq = (localStorage.getItem("required_backend_version") || "2.8").trim();
     const curVer = (localStorage.getItem("teacher_backend_version") || "2.0").trim();
     if (window.isTeacherBackendUpdated || compareBackendVersions(curVer, rawReq) >= 0 || isCentralAccount() || isAdminRole() || isCurrentUserAdmin()) {
       const noticeBox = document.getElementById("hubVersionUpdateNotice");
@@ -10995,10 +10995,18 @@ function initCentralHubModal() {
 
       // Nếu chưa có từ fetch, dùng biến nhúng từ gas_code_content.js
       if (!codeContent) {
-        codeContent = window.TEACHER_GAS_CODE || "";
+        if (typeof window.TEACHER_GAS_CODE === "string" && window.TEACHER_GAS_CODE.length > 100) {
+          codeContent = window.TEACHER_GAS_CODE;
+        } else if (window.TEACHER_GAS_CODE && typeof window.TEACHER_GAS_CODE === "object" && window.TEACHER_GAS_CODE.value) {
+          codeContent = window.TEACHER_GAS_CODE.value;
+        } else if (typeof window.TEACHER_GAS_CODE_TEXT === "string" && window.TEACHER_GAS_CODE_TEXT.length > 100) {
+          codeContent = window.TEACHER_GAS_CODE_TEXT;
+        } else if (window.TEACHER_GAS_CODE) {
+          codeContent = String(window.TEACHER_GAS_CODE);
+        }
       }
 
-      if (!codeContent) {
+      if (!codeContent || codeContent.length < 500) {
         showToast("Lỗi sao chép", "Chưa tải được mã nguồn Teacher_Code.gs!", "error", 3000);
         return;
       }
@@ -11018,8 +11026,11 @@ function initCentralHubModal() {
           document.body.removeChild(ta);
         }
 
+        const verMatch = codeContent.match(/TEACHER_BACKEND_VERSION\s*=\s*["']([^"']+)["']/);
+        const verStr = verMatch ? ` (Bản v${verMatch[1]})` : "";
+
         // Đổi trạng thái nút thành công
-        if (btnCopyTeacherGasCodeText) btnCopyTeacherGasCodeText.textContent = "✅ Đã Copy Xong!";
+        if (btnCopyTeacherGasCodeText) btnCopyTeacherGasCodeText.textContent = `✅ Đã Copy${verStr}!`;
         btnCopyTeacherGasCode.style.background = "linear-gradient(135deg, #059669, #047857)";
         setTimeout(() => {
           if (btnCopyTeacherGasCodeText) btnCopyTeacherGasCodeText.textContent = "Sao Chép Mã Code (.gs)";
@@ -11027,8 +11038,8 @@ function initCentralHubModal() {
         }, 3000);
 
         showToast(
-          "Đã sao chép thành công!",
-          "Đã copy toàn bộ mã nguồn Teacher_Code.gs! Thầy/Cô hãy mở Google Sheet > Tiện ích mở rộng > Apps Script > Dán (Ctrl+V) và Triển khai làm Web App.",
+          `Đã sao chép thành công! 📋${verStr}`,
+          `Đã copy toàn bộ mã nguồn Teacher_Code.gs${verStr}! Thầy/Cô hãy mở Google Sheet cá nhân > Tiện ích mở rộng > Apps Script > Dán (Ctrl+A rồi Ctrl+V) và Triển khai lại Web App.`,
           "success",
           7000
         );
@@ -11109,8 +11120,8 @@ function initCentralHubModal() {
           }
         } catch (eV) {}
 
-        const rawReq = (localStorage.getItem("required_backend_version") || "2.4").trim();
-        const requiredVersion = formatBackendVersion(rawReq, "2.4");
+        const rawReq = (localStorage.getItem("required_backend_version") || "2.8").trim();
+        const requiredVersion = formatBackendVersion(rawReq, "2.8");
         const isCurrentUpdated = compareBackendVersions(detectedVersion, requiredVersion) >= 0;
         const displayDetectedVer = `v${detectedVersion}`;
 
@@ -13557,7 +13568,7 @@ async function handleAdminSyncTeacherClasses() {
  * Admin cập nhật phiên bản backend hệ thống trung tâm (ghi trực tiếp vào Ô H1 Sheet DATA_GIAOVIEN)
  */
 async function handleAdminEditCentralVersion() {
-  const currentVer = (localStorage.getItem("required_backend_version") || "2.6").trim();
+  const currentVer = (localStorage.getItem("required_backend_version") || "2.8").trim();
   const inputVer = prompt(`Nhập phiên bản Backend hệ thống trung tâm mới:\n(Hệ thống sẽ cập nhật trực tiếp vào Ô H1 của Sheet DATA_GIAOVIEN)\nVí dụ: 2.3, 2.4, 3.0...`, currentVer);
   if (!inputVer || inputVer.trim() === "" || inputVer.trim() === currentVer) return;
 
@@ -13637,7 +13648,7 @@ function updateAdminTeacherStats() {
   if (statTotalAdmin) statTotalAdmin.textContent = adminCount;
   if (statTotalGvStandard) statTotalGvStandard.textContent = gvCount;
   if (statCentralVersion) {
-    const curReq = (localStorage.getItem("required_backend_version") || "2.4").trim();
+    const curReq = (localStorage.getItem("required_backend_version") || "2.8").trim();
     statCentralVersion.textContent = curReq;
   }
 }

@@ -83,6 +83,27 @@ function chayThemCotQuyenChoGiaoVien() {
 
 /**
  * ============================================================================
+ * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG THÊM CỘT ĐIỂM TỰ LUẬN & TỔNG ĐIỂM VÀO SHEET DATA_KETQUA
+ * Chọn hàm 'chayThemCotTuLuanChoKetQua' trong menu dropdown rồi bấm 'Chạy' (Run)
+ * ============================================================================
+ */
+function chayThemCotTuLuanChoKetQua() {
+  const ss = getSpreadsheet();
+  if (!ss) {
+    Logger.log("❌ Không thể kết nối Bảng tính Google Sheets. Vui lòng kiểm tra lại SPREADSHEET_URL!");
+    return;
+  }
+  let sheetKQ = ss.getSheetByName(SHEETS.KETQUA || "DATA_KETQUA");
+  if (!sheetKQ) {
+    Logger.log("❌ Không tìm thấy Sheet DATA_KETQUA!");
+    return;
+  }
+  ensureKetQuaSheetColumns(sheetKQ);
+  Logger.log("🎉 Hoàn tất quá trình thêm Cột Điểm tự luận và Tổng điểm vào Sheet DATA_KETQUA!");
+}
+
+/**
+ * ============================================================================
  * HÀM CHẠY TRỰC TIẾP: TỰ ĐỘNG ĐỒNG BỘ LỚP GIẢNG DẠY TỪ URL CỦA TẤT CẢ GIÁO VIÊN
  * Chọn hàm 'chayDongBoLopGiangDayTuSheetGiaoVien' trong menu dropdown rồi bấm 'Chạy' (Run)
  * ============================================================================
