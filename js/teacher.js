@@ -12065,6 +12065,15 @@ function initTransferStudentClassModal() {
     });
   }
 
+  const chkFilter = document.getElementById("chkFilterSameGradeOnly");
+  if (chkFilter) {
+    chkFilter.addEventListener("change", () => {
+      const curSrc = selSource ? selSource.value.trim().toUpperCase() : "";
+      populateTransferTargetDropdown(curSrc);
+      handleTransferTargetClassChanged();
+    });
+  }
+
   if (tbodySource) {
     tbodySource.addEventListener("click", (e) => {
       const row = e.target.closest(".transfer-student-row");
@@ -12189,9 +12198,13 @@ async function openTransferStudentClassModal() {
   const posDesc = document.getElementById("lblTransferTargetPositionDesc");
   const noticeSource = document.getElementById("transferSourceTeacherNotice");
   const noticeTarget = document.getElementById("transferTargetTeacherNotice");
+  const filterNotice = document.getElementById("transferTargetFilterNotice");
+  const chkFilter = document.getElementById("chkFilterSameGradeOnly");
 
   if (noticeSource) noticeSource.style.display = "none";
   if (noticeTarget) noticeTarget.style.display = "none";
+  if (filterNotice) filterNotice.style.display = "none";
+  if (chkFilter) chkFilter.checked = true;
   if (searchInput) searchInput.value = "";
   if (customTarget) {
     customTarget.style.display = "none";
@@ -12296,21 +12309,80 @@ function populateTransferClassesDropdowns() {
   populateTransferTargetDropdown("");
 }
 
+/**
+ * Trích xuất tiền tố khối lớp / nhánh lớp học để lọc chống chuyển nhầm cấp học, khối lớp
+ * Ví dụ:
+ *  - "9A1", "9A2", "9A11" -> "9A"
+ *  - "9B1", "9B2" -> "9B"
+ *  - "9/1", "9/2" -> "9/"
+ *  - "8A1", "8A2" -> "8A"
+ *  - "7A1" -> "7A"
+ *  - "6A1" -> "6A"
+ */
+function extractClassGroupPrefix(className) {
+  if (!className) return "";
+  const cleaned = String(className).trim().toUpperCase();
+  // 1. Khớp số khối + chữ cái (ví dụ: 9A, 8A, 9B, 10A, 11B, 12C)
+  const matchLetter = cleaned.match(/^(\d+[A-Z]+)/);
+  if (matchLetter) {
+    return matchLetter[1];
+  }
+  // 2. Khớp số khối + dấu gạch chéo hoặc chấm hoặc gạch ngang (ví dụ: 9/, 8/, 7-)
+  const matchSlash = cleaned.match(/^(\d+[\/\.\-_])/);
+  if (matchSlash) {
+    return matchSlash[1];
+  }
+  // 3. Khớp số khối đơn thuần (ví dụ: 9, 8, 7, 6)
+  const matchNum = cleaned.match(/^(\d+)/);
+  if (matchNum) {
+    return matchNum[1];
+  }
+  return cleaned;
+}
+
 function populateTransferTargetDropdown(currentSourceClass) {
   const selTarget = document.getElementById("selectTransferTargetClass");
+  const filterNotice = document.getElementById("transferTargetFilterNotice");
+  const filterPrefixBadge = document.getElementById("transferTargetFilterPrefixBadge");
+  const chkFilter = document.getElementById("chkFilterSameGradeOnly");
   if (!selTarget) return;
 
   const classes = transferClassModalData.classes || [];
-  let html = '<option value="">-- Chọn Lớp Chuyển Đến (Đích) --</option>';
+  const sourcePrefix = currentSourceClass ? extractClassGroupPrefix(currentSourceClass) : "";
+  const isFilterActive = chkFilter ? chkFilter.checked : true;
 
-  classes.forEach(c => {
-    const isSame = currentSourceClass && c.toUpperCase() === currentSourceClass.toUpperCase();
-    const teachers = transferClassModalData.classTeachers[c] || [];
-    const tInfo = teachers.length > 0 ? ` (GV: ${teachers[0].hoTenGV || teachers[0].maGV})` : "";
-    if (!isSame) {
-      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}${tInfo}</option>`;
+  if (currentSourceClass && sourcePrefix && filterNotice) {
+    filterNotice.style.display = "flex";
+    if (filterPrefixBadge) filterPrefixBadge.textContent = sourcePrefix;
+  } else if (filterNotice) {
+    filterNotice.style.display = "none";
+  }
+
+  let html = currentSourceClass
+    ? (isFilterActive && sourcePrefix
+        ? `<option value="">-- Chọn Lớp Chuyển Đến (Chỉ hiện nhóm ${sourcePrefix}) --</option>`
+        : '<option value="">-- Chọn Lớp Chuyển Đến (Đích) --</option>')
+    : '<option value="">-- Vui lòng chọn lớp nguồn trước --</option>';
+
+  let eligibleClasses = classes.filter(c => {
+    if (!currentSourceClass) return true;
+    if (c.toUpperCase() === currentSourceClass.toUpperCase()) return false;
+    if (isFilterActive && sourcePrefix) {
+      const cPrefix = extractClassGroupPrefix(c);
+      return cPrefix === sourcePrefix;
     }
+    return true;
   });
+
+  if (currentSourceClass && isFilterActive && sourcePrefix && eligibleClasses.length === 0) {
+    html += `<option value="" disabled>⚠️ Không tìm thấy lớp khác cùng nhóm ${sourcePrefix}</option>`;
+  } else {
+    eligibleClasses.forEach(c => {
+      const teachers = transferClassModalData.classTeachers[c] || [];
+      const tInfo = teachers.length > 0 ? ` (GV: ${teachers[0].hoTenGV || teachers[0].maGV})` : "";
+      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}${tInfo}</option>`;
+    });
+  }
 
   html += '<option value="__NEW_CLASS__">➕ Nhập Lớp Mới Khác...</option>';
   selTarget.innerHTML = html;
@@ -12656,6 +12728,19 @@ async function executeTransferStudentClassSubmit() {
   if (targetClass === currentClass) {
     alert(`Lớp chuyển đến (${targetClass}) trùng với lớp hiện tại của học sinh! Vui lòng chọn lớp đích khác.`);
     return;
+  }
+
+  // Cảnh báo nếu chuyển khác khối / cấp học (ví dụ từ 9A sang khối 6, 7, 8 hoặc sang 9/)
+  const srcPrefix = extractClassGroupPrefix(currentClass);
+  const dstPrefix = extractClassGroupPrefix(targetClass);
+  if (srcPrefix && dstPrefix && srcPrefix !== dstPrefix) {
+    const warnDiff =
+      `⚠️ CẢNH BÁO CHUYỂN KHÁC KHỐI / NHÁNH LỚP:\n\n` +
+      `• Lớp nguồn: "${currentClass}" (Nhóm ${srcPrefix})\n` +
+      `• Lớp chuyển đến: "${targetClass}" (Nhóm ${dstPrefix})\n\n` +
+      `Hệ thống nhận thấy 2 lớp này khác nhóm khối lớp / cấp học.\n` +
+      `Thầy/Cô có chắc chắn muốn thực hiện chuyển lớp này không?`;
+    if (!confirm(warnDiff)) return;
   }
 
   const posInput = document.getElementById("inputTransferTargetPosition");
