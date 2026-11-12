@@ -4107,6 +4107,9 @@ function previewExamModal(maDe) {
         ${isShared ? ` | <span style="background: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 6px; font-weight: 700; border: 1px solid #fde68a; font-size: 0.78rem;">📥 ${sourceInfo}</span>` : ''}
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn-preview-copy-exam" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #059669, #047857); color: #ffffff; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);" onclick="openCopyExamModal('${exam.maDe}')" title="Sao chép toàn bộ đề thi này thành 1 đề mới">
+          📋 Sao Chép Đề
+        </button>
         <button type="button" class="btn-preview-export-docx" style="padding: 0.35rem 0.85rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #7e22ce, #6b21a8); color: #ffffff; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 6px rgba(126, 34, 206, 0.25);" onclick="exportExamFromPreviewModal('${exam.maDe}')" title="Tải file Word (.docx) kèm bảng đáp án chấm">
           📄 Xuất DOCX
         </button>
@@ -5243,6 +5246,9 @@ function renderTeacherExamsTable(examsList, isFromCache) {
           <button type="button" class="btn-action-edit" data-made="${exam.maDe}" title="Mở lên giao diện để chỉnh sửa">
             ✏ Sửa đề
           </button>
+          <button type="button" class="btn-action-copy" data-made="${exam.maDe}" title="Sao chép toàn bộ đề thi này thành 1 đề mới">
+            📋 Sao chép
+          </button>
           <button type="button" class="btn-action-view" data-made="${exam.maDe}" title="Xem toàn bộ câu hỏi và đáp án">
             👁 Xem
           </button>
@@ -5303,6 +5309,14 @@ function attachExamTableEvents(tbody) {
         populateResultClassDropdown(maDe);
         loadTeacherResults(maDe);
       }
+    });
+  });
+
+  // 1.8. Gắn sự kiện Sao chép đề thi (Modal xác nhận)
+  tbody.querySelectorAll(".btn-action-copy").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const maDe = e.currentTarget.dataset.made;
+      openCopyExamModal(maDe);
     });
   });
 
@@ -11544,15 +11558,398 @@ async function loadHubTeachersForShare() {
   }
 }
 
-// Khởi tạo tính năng Central Hub & Chia Sẻ khi DOM sẵn sàng
+// ============================================================================
+// CHỨC NĂNG SAO CHÉP ĐỀ THI (NHÂN BẢN TOÀN BỘ ĐỀ THI RA THÀNH 1 ĐỀ MỚI)
+// ============================================================================
+let currentExamToCopy = null;
+let isCopyingExamInProgress = false;
+let isCopyExamModalInited = false;
+
+function initCopyExamModal() {
+  if (isCopyExamModalInited) return;
+
+  const copyModal = document.getElementById("modalConfirmCopyExam");
+  if (!copyModal) return;
+
+  isCopyExamModalInited = true;
+
+  const btnClose = document.getElementById("btnCloseCopyExamModal");
+  const btnCancel = document.getElementById("btnCancelCopyExamModal");
+  const btnConfirm = document.getElementById("btnConfirmCopyExamSubmit");
+  const titleInput = document.getElementById("copyExamNewTitleInput");
+
+  if (btnClose) btnClose.addEventListener("click", closeCopyExamModal);
+  if (btnCancel) btnCancel.addEventListener("click", closeCopyExamModal);
+
+  // Đóng an toàn khi click backdrop bên ngoài
+  if (typeof setupSafeModalBackdropClose === "function") {
+    setupSafeModalBackdropClose(copyModal, closeCopyExamModal);
+  }
+
+  // Bấm Enter trong ô nhập tên đề thi mới để xác nhận sao chép
+  if (titleInput) {
+    titleInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        executeCopyExamSubmit();
+      }
+    });
+  }
+
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", executeCopyExamSubmit);
+  }
+
+  // Gắn sự kiện cho nút "Sao chép đề" trên thanh công cụ bàn xem trước / chỉnh sửa đề
+  const btnDuplicateCurrent = document.getElementById("btnDuplicateCurrentExam");
+  if (btnDuplicateCurrent) {
+    btnDuplicateCurrent.addEventListener("click", () => {
+      if (editingExamCode) {
+        openCopyExamModal(editingExamCode);
+      } else if ((parsedQuestions && parsedQuestions.length > 0) || (parsedEssayQuestions && parsedEssayQuestions.length > 0)) {
+        // Tạo đề thi tạm từ nội dung đang có trên bàn soạn thảo
+        const tenKyThi = (document.getElementById("examTitle")?.value || "").trim() || "Kỳ thi mới";
+        const thoiGian = parseInt(document.getElementById("examDuration")?.value, 10) || 45;
+        const selectedClasses = typeof getSelectedClasses === "function" ? getSelectedClasses() : "ALL";
+        const radioAllow = document.getElementById("radioAllowReview");
+        const choXemLaiBai = radioAllow ? radioAllow.checked : true;
+        const radioAllowScore = document.getElementById("radioAllowViewScore");
+        const choXemDiem = radioAllowScore ? radioAllowScore.checked : true;
+        const radioTfChiaDeu = document.getElementById("radioTfScoreChiaDeu");
+        const cauHinhDiemDungSai = (radioTfChiaDeu && radioTfChiaDeu.checked) ? "chia_deu" : "bo_gddt";
+        const essayFormLink = (document.getElementById("essayFormLink")?.value || "").trim();
+
+        const mockExam = {
+          maDe: "DANG_SOAN_THAO",
+          tenKyThi: tenKyThi,
+          thoiGian: thoiGian,
+          lopChoPhep: selectedClasses,
+          trangThai: "Đóng",
+          choXemLaiBai: choXemLaiBai,
+          choXemDiem: choXemDiem,
+          cauHinhDiemDungSai: cauHinhDiemDungSai,
+          soCauHoi: (parsedQuestions || []).length,
+          soCauTuLuan: (parsedEssayQuestions || []).length,
+          duLieuDe: {
+            cauHoi: parsedQuestions || [],
+            choXemLaiBai: choXemLaiBai,
+            choXemDiem: choXemDiem,
+            cauHinhDiemDungSai: cauHinhDiemDungSai,
+            tuLuan: {
+              noiDung: (parsedEssayQuestions && parsedEssayQuestions.length > 0) ? parsedEssayQuestions[0].noiDung : "",
+              linkForm: essayFormLink,
+              danhSachCauHoi: parsedEssayQuestions || []
+            }
+          }
+        };
+        openCopyExamModalWithData(mockExam);
+      } else {
+        showToast("Chưa có nội dung đề", "Thầy/Cô hãy nạp hoặc soạn câu hỏi cho đề thi trước khi sao chép!", "info", 3000);
+      }
+    });
+  }
+}
+
+function setCopyAlert(type, msg) {
+  const statusAlert = document.getElementById("copyExamStatusAlert");
+  if (!statusAlert) return;
+  statusAlert.style.display = "block";
+  if (type === "error") {
+    statusAlert.style.background = "#fef2f2";
+    statusAlert.style.border = "1.5px solid #fecaca";
+    statusAlert.style.color = "#dc2626";
+  } else if (type === "warning") {
+    statusAlert.style.background = "#fffbeb";
+    statusAlert.style.border = "1.5px solid #fde68a";
+    statusAlert.style.color = "#b45309";
+  } else {
+    statusAlert.style.background = "#eff6ff";
+    statusAlert.style.border = "1.5px solid #bfdbfe";
+    statusAlert.style.color = "#1d4ed8";
+  }
+  statusAlert.innerHTML = msg;
+}
+
+function hideCopyAlert() {
+  const statusAlert = document.getElementById("copyExamStatusAlert");
+  if (statusAlert) statusAlert.style.display = "none";
+}
+
+function openCopyExamModal(maDe) {
+  let exam = (currentExamsList || []).find(e => e.maDe === maDe);
+  if (!exam) {
+    const cached = typeof getCachedExams === "function" ? getCachedExams() : [];
+    exam = cached.find(e => e.maDe === maDe);
+  }
+  if (!exam) {
+    showToast("Lỗi", "Không tìm thấy dữ liệu đề thi cần sao chép!", "error");
+    return;
+  }
+  openCopyExamModalWithData(exam);
+}
+
+function openCopyExamModalWithData(exam) {
+  initCopyExamModal();
+
+  const modal = document.getElementById("modalConfirmCopyExam");
+  if (!modal) return;
+
+  currentExamToCopy = exam;
+
+  // Hiển thị thông tin đề gốc
+  const titleEl = document.getElementById("copyExamSourceTitle");
+  const codeEl = document.getElementById("copyExamSourceCode");
+  const durEl = document.getElementById("copyExamSourceDuration");
+  const qCountEl = document.getElementById("copyExamSourceQCount");
+  const essayCountEl = document.getElementById("copyExamSourceEssayCount");
+  const essayWrapEl = document.getElementById("copyExamSourceEssayWrap");
+  const classesEl = document.getElementById("copyExamSourceClasses");
+  const titleInput = document.getElementById("copyExamNewTitleInput");
+  const statusSelect = document.getElementById("copyExamNewStatusSelect");
+
+  const essayCount = typeof getExamEssayCount === "function" ? getExamEssayCount(exam) : (exam.soCauTuLuan || 0);
+
+  if (titleEl) titleEl.textContent = exam.tenKyThi || "--";
+  if (codeEl) codeEl.textContent = exam.maDe || "--";
+  if (durEl) durEl.textContent = `${exam.thoiGian || 45} phút`;
+  if (qCountEl) qCountEl.textContent = `${exam.soCauHoi || 0} câu`;
+  if (essayWrapEl && essayCountEl) {
+    if (essayCount > 0) {
+      essayWrapEl.style.display = "inline";
+      essayCountEl.textContent = `${essayCount} câu`;
+    } else {
+      essayWrapEl.style.display = "none";
+    }
+  }
+  if (classesEl) classesEl.textContent = exam.lopChoPhep || "Tất cả";
+
+  // Tạo tên đề mới tự động: "Đề copy của [Tên kỳ thi]"
+  // Đảm bảo không trùng với đề đã có trong danh sách
+  const baseTitle = "Đề copy của " + (exam.tenKyThi || "kỳ thi");
+  let uniqueTitle = baseTitle;
+  let counter = 1;
+  const existingNames = (currentExamsList || []).map(e => (e.tenKyThi || "").trim().toLowerCase());
+  while (existingNames.includes(uniqueTitle.trim().toLowerCase())) {
+    counter++;
+    uniqueTitle = `${baseTitle} (${counter})`;
+  }
+
+  if (titleInput) {
+    titleInput.value = uniqueTitle;
+  }
+
+  if (statusSelect) {
+    statusSelect.value = "Đóng"; // Khuyên dùng để GV kiểm tra đề trước khi mở
+  }
+
+  hideCopyAlert();
+
+  // Reset nút xác nhận
+  const btnConfirm = document.getElementById("btnConfirmCopyExamSubmit");
+  const btnText = document.getElementById("btnConfirmCopyExamSubmitText");
+  const spinner = document.getElementById("copyExamSpinner");
+  if (btnConfirm) btnConfirm.disabled = false;
+  if (btnText) btnText.textContent = "📋 Xác Nhận Sao Chép";
+  if (spinner) spinner.style.display = "none";
+
+  modal.style.display = "flex";
+
+  // Tự động focus và bôi đen tên đề thi mới để tiện sửa nếu cần
+  setTimeout(() => {
+    if (titleInput) {
+      titleInput.focus();
+      titleInput.select();
+    }
+  }, 120);
+}
+
+function closeCopyExamModal() {
+  const modal = document.getElementById("modalConfirmCopyExam");
+  if (modal) modal.style.display = "none";
+  currentExamToCopy = null;
+  isCopyingExamInProgress = false;
+}
+
+async function executeCopyExamSubmit() {
+  if (isCopyingExamInProgress) return;
+  if (!currentExamToCopy) {
+    showToast("Lỗi", "Không tìm thấy dữ liệu đề thi cần sao chép!", "error");
+    return;
+  }
+
+  const titleInput = document.getElementById("copyExamNewTitleInput");
+  const statusSelect = document.getElementById("copyExamNewStatusSelect");
+  const newTitle = (titleInput ? titleInput.value : "").trim();
+  const newStatus = (statusSelect ? statusSelect.value : "Đóng") || "Đóng";
+
+  if (!newTitle) {
+    setCopyAlert("error", "⚠️ Tên đề thi mới không được để trống! Vui lòng nhập tên đề thi.");
+    if (titleInput) titleInput.focus();
+    return;
+  }
+
+  if (newTitle.toLowerCase() === (currentExamToCopy.tenKyThi || "").trim().toLowerCase()) {
+    setCopyAlert("warning", "⚠️ Tên đề thi mới đang trùng y hệt tên đề thi gốc! Thầy/Cô nên giữ tiền tố <strong>'Đề copy của ...'</strong> hoặc đổi tên khác để dễ phân biệt.");
+    if (titleInput) titleInput.focus();
+    return;
+  }
+
+  // Kiểm tra tên đề có bị trùng với một đề khác đang có trong danh sách không
+  const isDuplicateName = (currentExamsList || []).some(e =>
+    e.tenKyThi && e.tenKyThi.trim().toLowerCase() === newTitle.toLowerCase()
+  );
+  if (isDuplicateName) {
+    setCopyAlert("warning", `⚠️ Đề thi mang tên "${newTitle}" đã tồn tại trong danh sách của Thầy/Cô. Vui lòng đổi thêm số thứ tự (ví dụ: (2), (3)...) để tạo thành 1 đề độc lập mới.`);
+    if (titleInput) titleInput.focus();
+    return;
+  }
+
+  isCopyingExamInProgress = true;
+  const btnConfirm = document.getElementById("btnConfirmCopyExamSubmit");
+  const btnText = document.getElementById("btnConfirmCopyExamSubmitText");
+  const spinner = document.getElementById("copyExamSpinner");
+  if (btnConfirm) btnConfirm.disabled = true;
+  if (btnText) btnText.textContent = "Đang sao chép đề...";
+  if (spinner) spinner.style.display = "block";
+  hideCopyAlert();
+
+  try {
+    // Nhân bản sâu (Deep Clone) dữ liệu đề thi gốc
+    const duLieuDeCloned = JSON.parse(JSON.stringify(currentExamToCopy.duLieuDe || {}));
+    duLieuDeCloned.tenKyThi = newTitle;
+    
+    // Nếu đề gốc là đề được chia sẻ từ người khác, bản sao này là đề độc lập hoàn toàn của GV
+    delete duLieuDeCloned.sharedFromAdmin;
+    delete duLieuDeCloned.sharedBy;
+    delete duLieuDeCloned.nguonDe;
+
+    const teacherFullName = currentTeacher?.hoTenGV || currentTeacher?.hoTen || currentTeacher?.tenGV || "";
+    duLieuDeCloned.hoTenGV = teacherFullName;
+
+    const choXemLaiBai = (currentExamToCopy.choXemLaiBai !== false);
+    const choXemDiem = (currentExamToCopy.choXemDiem !== false);
+    const cauHinhDiemDungSai = currentExamToCopy.cauHinhDiemDungSai || duLieuDeCloned.cauHinhDiemDungSai || "bo_gddt";
+    const soLanViPhamChoPhep = currentExamToCopy.soLanViPhamChoPhep !== undefined ? currentExamToCopy.soLanViPhamChoPhep : (duLieuDeCloned.soLanViPhamChoPhep || 0);
+
+    // Chuẩn bị payload gửi lên Google Apps Script
+    const copyPayload = {
+      action: "saveExam",
+      maDe: "", // Để trống để Google Apps Script tự sinh mã DE_ mới độc lập, không ghi đè đề cũ
+      usernameGV: currentTeacher?.username || "",
+      hoTenGV: teacherFullName,
+      tenKyThi: newTitle,
+      thoiGian: Number(currentExamToCopy.thoiGian) || 45,
+      trangThai: newStatus,
+      lopChoPhep: currentExamToCopy.lopChoPhep || "ALL",
+      choXemLaiBai: choXemLaiBai,
+      choXemDiem: choXemDiem,
+      cauHinhDiemDungSai: cauHinhDiemDungSai,
+      soLanViPhamChoPhep: soLanViPhamChoPhep,
+      duLieuDe: duLieuDeCloned
+    };
+
+    // Xác định máy chủ Google Sheet để lưu
+    const personalServerUrl = typeof getTeacherPersonalServerUrl === "function" ? getTeacherPersonalServerUrl() : "";
+    const isMasterAdmin = typeof isCurrentUserAdmin === "function" && isCurrentUserAdmin();
+    let targetServerUrl = personalServerUrl || API_URL;
+    if (!targetServerUrl && (isMasterAdmin || (typeof isCentralAccount === "function" && isCentralAccount()))) {
+      targetServerUrl = DEFAULT_GAS_API_URL;
+    }
+
+    if (!targetServerUrl) {
+      throw new Error("Chưa kết nối Web App Google Sheets! Vui lòng kiểm tra lại cấu hình Google Sheet cá nhân.");
+    }
+
+    // Sinh mã đề tạm cho bản lưu cache cục bộ
+    const localNewMaDe = "DE_" + Date.now().toString().slice(-6) + "_" + Math.floor(Math.random() * 100);
+    const localExamItem = {
+      maDe: localNewMaDe,
+      tenKyThi: newTitle,
+      usernameGV: currentTeacher?.username || "",
+      hoTenGV: teacherFullName,
+      lopChoPhep: currentExamToCopy.lopChoPhep || "ALL",
+      thoiGian: Number(currentExamToCopy.thoiGian) || 45,
+      soCauHoi: (duLieuDeCloned.cauHoi || []).length,
+      soCauTuLuan: (typeof getExamEssayCount === "function") ? getExamEssayCount({ duLieuDe: duLieuDeCloned }) : (currentExamToCopy.soCauTuLuan || 0),
+      hasTuLuan: !!(duLieuDeCloned.tuLuan && (duLieuDeCloned.tuLuan.noiDung || duLieuDeCloned.tuLuan.linkForm || (duLieuDeCloned.tuLuan.danhSachCauHoi && duLieuDeCloned.tuLuan.danhSachCauHoi.length > 0))),
+      trangThai: newStatus,
+      choXemLaiBai: choXemLaiBai,
+      choXemDiem: choXemDiem,
+      cauHinhDiemDungSai: cauHinhDiemDungSai,
+      soLanViPhamChoPhep: soLanViPhamChoPhep,
+      duLieuDe: duLieuDeCloned
+    };
+
+    // Lưu ngay tức thì vào LocalStorage cache để hiển thị mượt mà 0 giây
+    if (typeof getCachedExams === "function" && typeof saveCachedExams === "function") {
+      let cached = getCachedExams();
+      cached.unshift(localExamItem);
+      saveCachedExams(cached);
+      currentExamsList = cached;
+      renderTeacherExamsTable(currentExamsList, true);
+    }
+
+    // Gửi yêu cầu lưu đề mới lên Google Apps Script
+    const res = await fetch(targetServerUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(copyPayload)
+    });
+
+    const rawText = await res.text();
+    let result = null;
+    if (rawText && !rawText.trim().startsWith("<")) {
+      try { result = JSON.parse(rawText); } catch (e) { result = null; }
+    }
+
+    if (result && result.success) {
+      // Cập nhật lại mã đề chính xác do GAS trả về
+      if (result.maDe && typeof getCachedExams === "function" && typeof saveCachedExams === "function") {
+        let cached = getCachedExams();
+        const found = cached.find(e => e.maDe === localNewMaDe);
+        if (found) {
+          found.maDe = result.maDe;
+          saveCachedExams(cached);
+          currentExamsList = cached;
+          renderTeacherExamsTable(currentExamsList, false);
+        }
+      }
+
+      closeCopyExamModal();
+      showToast("Sao chép thành công! 📋", `Đã tạo đề thi mới: "${newTitle}" thành công!`, "success", 4000);
+      
+      // Đồng bộ lại danh sách mới nhất từ Google Sheets
+      if (typeof loadTeacherExams === "function") {
+        await loadTeacherExams(false);
+      }
+    } else {
+      const errMsg = result?.message || "Máy chủ phản hồi không thành công!";
+      setCopyAlert("error", `❌ Không thể lưu đề sao chép lên Google Sheets: ${errMsg}`);
+    }
+  } catch (err) {
+    console.error("Lỗi khi sao chép đề thi:", err);
+    // Vẫn giữ bản sao trong bộ nhớ máy
+    closeCopyExamModal();
+    showToast("Đã lưu bản sao vào máy", `Đề thi "${newTitle}" đã được sao chép và lưu an toàn vào bộ nhớ máy (Đang chờ đồng bộ Sheets).`, "info", 5000);
+  } finally {
+    isCopyingExamInProgress = false;
+    if (btnConfirm) btnConfirm.disabled = false;
+    if (btnText) btnText.textContent = "📋 Xác Nhận Sao Chép";
+    if (spinner) spinner.style.display = "none";
+  }
+}
+
+// Khởi tạo tính năng Central Hub, Chia Sẻ & Sao Chép khi DOM sẵn sàng
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
     initCentralHubModal();
     initShareExamModal();
+    initCopyExamModal();
   });
 } else {
   initCentralHubModal();
   initShareExamModal();
+  initCopyExamModal();
 }
 
 /**
@@ -12058,6 +12455,9 @@ function initTeacherDashboard() {
 
     // Khởi tạo tính năng Chia sẻ đề thi cho Giáo viên
     try { initShareExamModal(); } catch (e) { console.warn("Share exam modal warning:", e); }
+
+    // Khởi tạo tính năng Sao chép đề thi
+    try { initCopyExamModal(); } catch (e) { console.warn("Copy exam modal warning:", e); }
 
     // Khởi tạo nút Cuộn lên đầu trang (Scroll to Top)
     const btnScrollToTop = document.getElementById("btnScrollToTop");

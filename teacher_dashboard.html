@@ -567,6 +567,13 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                   <span>Xuất DOCX</span>
                 </button>
+                <button type="button" id="btnDuplicateCurrentExam" class="btn-secondary-sm" style="font-size: 0.78rem; padding: 0.45rem 0.8rem; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1.5px solid #86efac; color: #15803d; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 1px 3px rgba(21, 128, 61, 0.12);" title="Sao chép toàn bộ đề thi này thành 1 đề mới độc lập">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  <span>Sao chép đề</span>
+                </button>
                 <!-- Dropdown Thêm Câu Hỏi (Nhiều lựa chọn & Đúng/Sai & Tự luận) -->
                 <div class="dropdown-add-q-container" style="position: relative;">
                   <button type="button" id="btnAddManualQuestion" class="btn-secondary-sm" style="background: #2563eb; border: 1px solid #2563eb; color: #ffffff; font-weight: 700; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);">
@@ -2410,6 +2417,108 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
         <button type="button" id="btnConfirmShareExam" style="padding: 0.55rem 1.45rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #7e22ce 0%, #6b21a8 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(126, 34, 206, 0.35);">
           <span id="btnConfirmShareExamText">📤 Xác nhận Chia Sẻ</span>
           <div id="shareExamSpinner" style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;"></div>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL XÁC NHẬN SAO CHÉP ĐỀ THI
+       ==================================================================== -->
+  <div class="modal-backdrop" id="modalConfirmCopyExam" style="display: none;" aria-hidden="true">
+    <div class="modal-dialog"
+      style="max-width: 540px; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(16, 185, 129, 0.25); border: 1.5px solid rgba(16, 185, 129, 0.3);">
+
+      <!-- Modal Header -->
+      <div class="modal-header"
+        style="background: linear-gradient(135deg, #065f46 0%, #059669 60%, #10b981 100%); color: #ffffff; padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div
+            style="width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); font-size: 1.3rem;">
+            📋
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Sao Chép Đề Thi</h3>
+            <span style="font-size: 0.78rem; color: #d1fae5;">Tạo một bản sao độc lập từ đề thi đã có</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseCopyExamModal"
+          style="color: #ffffff; background: rgba(255,255,255,0.15); border: none; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">&times;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body"
+        style="padding: 1.5rem; background: #ffffff; display: flex; flex-direction: column; gap: 1rem;">
+
+        <!-- Câu hỏi xác nhận & Banner -->
+        <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 12px; padding: 0.95rem 1.15rem;">
+          <div style="font-size: 0.92rem; font-weight: 700; color: #065f46; display: flex; align-items: center; gap: 6px; margin-bottom: 0.35rem;">
+            <span>❓ Thầy/Cô có chắc chắn muốn sao chép đề thi này?</span>
+          </div>
+          <div style="font-size: 0.82rem; color: #047857; line-height: 1.45;">
+            Hệ thống sẽ nhân bản toàn bộ câu hỏi trắc nghiệm, tự luận, thang điểm và các cấu hình sang một kỳ thi mới hoàn toàn độc lập.
+          </div>
+        </div>
+
+        <!-- Thông tin đề nguồn -->
+        <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 0.9rem 1.1rem;">
+          <div style="font-size: 0.75rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">
+            Đề thi gốc được chọn sao chép:
+          </div>
+          <div style="font-size: 0.95rem; font-weight: 700; color: #0f172a;" id="copyExamSourceTitle">--</div>
+          <div style="font-size: 0.8rem; color: #475569; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 12px;">
+            <span>Mã đề: <strong id="copyExamSourceCode" style="color: #0284c7;">--</strong></span>
+            <span>Thời gian: <strong id="copyExamSourceDuration">--</strong></span>
+            <span>Số câu TN: <strong id="copyExamSourceQCount" style="color: #2563eb;">--</strong></span>
+            <span id="copyExamSourceEssayWrap">Tự luận: <strong id="copyExamSourceEssayCount" style="color: #059669;">--</strong></span>
+            <span>Lớp: <strong id="copyExamSourceClasses">--</strong></span>
+          </div>
+        </div>
+
+        <!-- Cấu hình tên đề thi mới -->
+        <div class="form-group" style="margin: 0;">
+          <label for="copyExamNewTitleInput" class="form-label required"
+            style="font-weight: 700; color: #1e293b; margin-bottom: 0.4rem; display: block;">
+            Tên đề thi mới (Bản sao):
+          </label>
+          <input type="text" id="copyExamNewTitleInput" class="form-input"
+            placeholder="Ví dụ: Đề copy của ..."
+            style="width: 100%; padding: 0.65rem 0.85rem; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 0.9rem; font-weight: 600; color: #0f172a; box-sizing: border-box;">
+          <span style="font-size: 0.75rem; color: #64748b; margin-top: 5px; display: block;">
+            💡 Tên đề thi mặc định đã được thêm chữ <strong>"Đề copy của ..."</strong>. Thầy/Cô có thể chỉnh sửa lại tên này theo ý muốn.
+          </span>
+        </div>
+
+        <!-- Cấu hình trạng thái đề thi sau khi sao chép -->
+        <div class="form-group" style="margin: 0;">
+          <label for="copyExamNewStatusSelect" class="form-label"
+            style="font-weight: 700; color: #1e293b; margin-bottom: 0.4rem; display: block;">
+            Trạng thái sau khi sao chép:
+          </label>
+          <select id="copyExamNewStatusSelect" class="form-select"
+            style="width: 100%; padding: 0.65rem 0.85rem; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 0.9rem; box-sizing: border-box;">
+            <option value="Đóng" selected>🔴 Đang Đóng (Khuyên dùng - để Thầy/Cô rà soát đề trước khi cho học sinh thi)</option>
+            <option value="Mở">🟢 Đang Mở (Cho phép học sinh thấy và làm bài thi ngay)</option>
+          </select>
+        </div>
+
+        <!-- Trạng thái / Lỗi thông báo -->
+        <div id="copyExamStatusAlert"
+          style="display: none; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; line-height: 1.4;"></div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer"
+        style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end; align-items: center; gap: 0.65rem;">
+        <button type="button" id="btnCancelCopyExamModal"
+          style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Hủy bỏ</button>
+        <button type="button" id="btnConfirmCopyExamSubmit"
+          style="padding: 0.55rem 1.45rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);">
+          <span id="btnConfirmCopyExamSubmitText">📋 Xác Nhận Sao Chép</span>
+          <div id="copyExamSpinner"
+            style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;">
+          </div>
         </button>
       </div>
 

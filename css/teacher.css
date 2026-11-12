@@ -1203,6 +1203,27 @@ input:checked + .slider:before { transform: translateX(22px); }
   transform: translateY(-1px);
 }
 
+.btn-action-copy {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all var(--transition-fast);
+}
+.btn-action-copy:hover {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+  transform: translateY(-1px);
+}
+
 .btn-action-view {
   background: #ecfdf5;
   border: 1px solid #a7f3d0;
