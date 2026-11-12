@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = ""; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const TEACHER_BACKEND_VERSION = "2.6"; 
+const TEACHER_BACKEND_VERSION = "2.7"; 
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -428,6 +428,8 @@ function doGet(e) {
           return handleUpdateStudent(payload);
         case "addStudent":
           return handleAddStudent(payload);
+        case "transferStudentClass":
+          return handleTransferStudentClass(payload);
         case "ensureDeThiColumns":
           const ssEnsure = getSpreadsheet();
           ensureDeThiSheetColumns(ssEnsure.getSheetByName(SHEETS.DETHI));
@@ -523,6 +525,9 @@ function doPost(e) {
 
       case "addStudent":
         return handleAddStudent(payload);
+
+      case "transferStudentClass":
+        return handleTransferStudentClass(payload);
 
       case "ensureDeThiColumns":
         const ssEnsurePost = getSpreadsheet();
@@ -3008,6 +3013,188 @@ function handleAddStudent(payload) {
     return createJsonResponse({
       success: false,
       message: "Lỗi thêm học sinh: " + err.toString()
+    });
+  }
+}
+
+/**
+ * ============================================================================
+ * CHỨC NĂNG CẬP NHẬT CHUYỂN LỚP CHO HỌC SINH TRÊN SHEET GIÁO VIÊN
+ * Nhận lệnh từ Trạm Trung Tâm khi Admin chuyển lớp cho học sinh:
+ * - Nếu GV dạy lớp cũ nhưng không dạy lớp mới -> Bỏ/Xóa học sinh khỏi DATA_HOCSINH
+ * - Nếu GV có dạy lớp mới -> Cập nhật hoặc Thêm học sinh vào DATA_HOCSINH ở đúng vị trí targetPosition
+ * - Cập nhật toàn bộ điểm thi DATA_KETQUA và DATA_TULUAN sang lớp mới
+ * ============================================================================
+ */
+function handleTransferStudentClass(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+    const sheetKQ = ss.getSheetByName(SHEETS.KETQUA);
+    const sheetTL = ss.getSheetByName(SHEETS.TULUAN);
+    const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+
+    const usernameHS = String(payload.usernameHS || "").trim();
+    const oldClass = formatClassValue(payload.oldClass || "").trim().toUpperCase();
+    const newClass = formatClassValue(payload.newClass || "").trim().toUpperCase();
+    const targetPosition = payload.targetPosition !== undefined && payload.targetPosition !== null && payload.targetPosition !== "" ? parseInt(payload.targetPosition, 10) : null;
+    const studentData = payload.studentData || {};
+
+    if (!usernameHS || !newClass) {
+      return createJsonResponse({ success: false, message: "Thiếu dữ liệu chuyển lớp!" });
+    }
+
+    const lopToSave = newClass.includes("/") ? "'" + newClass : newClass;
+
+    // 1. Kiểm tra giáo viên này giảng dạy những lớp nào
+    let teacherClasses = [];
+    if (sheetGV) {
+      ensureGiaoVienSheetColumns(sheetGV);
+      const gvCols = getGiaoVienColMap(sheetGV);
+      const gvData = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < gvData.length; i++) {
+        const cStr = String(gvData[i][gvCols.colClass] || "");
+        cStr.split(/[,;\s]+/).forEach(function(c) {
+          const cleaned = formatClassValue(c).trim().toUpperCase();
+          if (cleaned && !teacherClasses.includes(cleaned)) teacherClasses.push(cleaned);
+        });
+      }
+    }
+
+    const isTeachingOld = oldClass && teacherClasses.includes(oldClass);
+    const isTeachingNew = teacherClasses.includes(newClass);
+    const isAll = teacherClasses.length === 0 || teacherClasses.includes("ALL") || teacherClasses.includes("TẤT CẢ");
+
+    // 2. Cập nhật Sheet DATA_HOCSINH
+    let studentAction = "none";
+    if (sheetHS) {
+      const hsCols = getHocSinhColMap(sheetHS);
+      const hsData = sheetHS.getDataRange().getValues();
+      const header = hsData[0];
+      const rows = hsData.slice(1);
+
+      let studentIdx = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (isSameStudentAccount(rows[i][hsCols.colUser], usernameHS)) {
+          studentIdx = i;
+          break;
+        }
+      }
+
+      if (studentIdx !== -1) {
+        if (!isTeachingNew && !isAll) {
+          // Giáo viên không dạy lớp mới -> BỎ/Xóa học sinh khỏi Sheet này
+          rows.splice(studentIdx, 1);
+          studentAction = "removed";
+        } else {
+          // Giáo viên có dạy lớp mới -> Cập nhật lớp và di chuyển vị trí STT
+          const studentRow = rows[studentIdx];
+          studentRow[hsCols.colClass] = lopToSave;
+          rows.splice(studentIdx, 1);
+
+          const newClassIndices = [];
+          for (let i = 0; i < rows.length; i++) {
+            const c = formatClassValue(rows[i][hsCols.colClass]).trim().toUpperCase();
+            if (c === newClass) newClassIndices.push(i);
+          }
+
+          if (newClassIndices.length === 0) {
+            rows.push(studentRow);
+          } else if (targetPosition !== null && !isNaN(targetPosition) && targetPosition > 0) {
+            if (targetPosition <= 1) rows.splice(newClassIndices[0], 0, studentRow);
+            else if (targetPosition > newClassIndices.length) rows.splice(newClassIndices[newClassIndices.length - 1] + 1, 0, studentRow);
+            else rows.splice(newClassIndices[targetPosition - 1], 0, studentRow);
+          } else {
+            rows.splice(newClassIndices[newClassIndices.length - 1] + 1, 0, studentRow);
+          }
+          studentAction = "updated";
+        }
+      } else {
+        // Học sinh chưa có trên Sheet này nhưng giáo viên này có dạy lớp mới -> THÊM học sinh vào
+        if (isTeachingNew || isAll) {
+          const maxCol = Math.max(header.length, sheetHS.getLastColumn(), 7);
+          const newRow = new Array(maxCol).fill("");
+          newRow[hsCols.colUser] = usernameHS;
+          newRow[hsCols.colPass] = studentData.password || "123";
+          newRow[hsCols.colClass] = lopToSave;
+          newRow[hsCols.colName] = studentData.hoTen || "";
+          newRow[hsCols.colDob] = studentData.ngaySinh || "";
+          newRow[hsCols.colGender] = studentData.gioiTinh || "Nam";
+          newRow[hsCols.colSchool] = studentData.truong || "";
+
+          const newClassIndices = [];
+          for (let i = 0; i < rows.length; i++) {
+            const c = formatClassValue(rows[i][hsCols.colClass]).trim().toUpperCase();
+            if (c === newClass) newClassIndices.push(i);
+          }
+
+          if (newClassIndices.length === 0) {
+            rows.push(newRow);
+          } else if (targetPosition !== null && !isNaN(targetPosition) && targetPosition > 0) {
+            if (targetPosition <= 1) rows.splice(newClassIndices[0], 0, newRow);
+            else if (targetPosition > newClassIndices.length) rows.splice(newClassIndices[newClassIndices.length - 1] + 1, 0, newRow);
+            else rows.splice(newClassIndices[targetPosition - 1], 0, newRow);
+          } else {
+            rows.splice(newClassIndices[newClassIndices.length - 1] + 1, 0, newRow);
+          }
+          studentAction = "added";
+        }
+      }
+
+      // Ghi lại toàn bộ bảng DATA_HOCSINH
+      const maxCol = Math.max(header.length, sheetHS.getLastColumn(), 7);
+      const formattedRows = rows.map(function(r) {
+        const copyR = r.slice(0);
+        while (copyR.length < maxCol) copyR.push("");
+        return copyR.slice(0, maxCol);
+      });
+      sheetHS.clearContents();
+      sheetHS.appendRow(header);
+      formatHeaderRow(sheetHS);
+      if (formattedRows.length > 0) {
+        sheetHS.getRange(2, 1, formattedRows.length, maxCol).setValues(formattedRows);
+      }
+    }
+
+    // 3. Cập nhật DATA_KETQUA trên Sheet GV
+    let kqUpdated = 0;
+    if (sheetKQ) {
+      ensureKetQuaSheetColumns(sheetKQ);
+      const kqCols = getKetQuaColMap(sheetKQ);
+      const kqData = sheetKQ.getDataRange().getValues();
+      for (let r = 1; r < kqData.length; r++) {
+        if (isSameStudentAccount(kqData[r][kqCols.colHS], usernameHS)) {
+          sheetKQ.getRange(r + 1, kqCols.colLop + 1).setValue(lopToSave);
+          kqUpdated++;
+        }
+      }
+    }
+
+    // 4. Cập nhật DATA_TULUAN trên Sheet GV
+    let tlUpdated = 0;
+    if (sheetTL) {
+      const tlData = sheetTL.getDataRange().getValues();
+      for (let r = 1; r < tlData.length; r++) {
+        if (isSameStudentAccount(tlData[r][0], usernameHS)) {
+          sheetTL.getRange(r + 1, 2).setValue(lopToSave);
+          tlUpdated++;
+        }
+      }
+    }
+
+    return createJsonResponse({
+      success: true,
+      message: `Đã cập nhật chuyển lớp trên Sheet Giáo viên (${studentAction}), cập nhật ${kqUpdated} kết quả trắc nghiệm và ${tlUpdated} bài tự luận!`,
+      usernameHS: usernameHS,
+      newClass: newClass,
+      studentAction: studentAction,
+      kqUpdated: kqUpdated,
+      tlUpdated: tlUpdated
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi chuyển lớp trên Sheet Giáo viên: " + err.toString()
     });
   }
 }

@@ -1112,6 +1112,10 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
               <span>+ Thêm học sinh</span>
             </button>
+            <button type="button" id="btnOpenTransferStudentClassModal" style="display: none; align-items: center; gap: 6px; padding: 0.45rem 1rem; font-size: 0.82rem; font-weight: 700; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: #ffffff; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3); transition: all 0.2s ease;" title="Chuyển lớp cho học sinh (Chỉ dành riêng cho Admin)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              <span>🔄 Chuyển Lớp (Admin)</span>
+            </button>
             <button type="button" id="btnRefreshStudents" class="btn-secondary-sm" style="display: inline-flex; align-items: center; gap: 5px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
               <span>Làm mới danh sách</span>
@@ -2517,6 +2521,179 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
           style="padding: 0.55rem 1.45rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);">
           <span id="btnConfirmCopyExamSubmitText">📋 Xác Nhận Sao Chép</span>
           <div id="copyExamSpinner"
+            style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;">
+          </div>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ====================================================================
+       MODAL CHUYỂN LỚP CHO HỌC SINH (CHỈ DÀNH RIÊNG CHO QUẢN TRỊ VIÊN ADMIN)
+       ==================================================================== -->
+  <div class="modal-backdrop" id="modalTransferStudentClass" style="display: none;" aria-hidden="true">
+    <div class="modal-dialog"
+      style="max-width: 1040px; border-radius: 18px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(217, 119, 6, 0.3); border: 1.5px solid rgba(217, 119, 6, 0.35);">
+
+      <!-- Modal Header -->
+      <div class="modal-header"
+        style="background: linear-gradient(135deg, #78350f 0%, #b45309 50%, #d97706 100%); color: #ffffff; padding: 1.15rem 1.5rem; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <div
+            style="width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); font-size: 1.35rem;">
+            🔄
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #ffffff;">Chuyển Lớp Cho Học Sinh (Admin)</h3>
+            <span style="font-size: 0.78rem; color: #fef3c7;">Chuyển học sinh sang lớp mới, đồng bộ toàn bộ điểm số, bài làm trên Sheet Trung Tâm &amp; Sheet Giáo Viên</span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btnCloseTransferStudentModal"
+          style="color: #ffffff; background: rgba(255,255,255,0.15); border: none; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">&times;</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body"
+        style="padding: 1.25rem 1.5rem; background: #ffffff; display: flex; flex-direction: column; gap: 1rem; max-height: calc(88vh - 140px); overflow-y: auto;">
+
+        <!-- Grid 2 Cột: Cột Trái (Nguồn) vs Cột Phải (Đích) -->
+        <div class="transfer-grid-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+
+          <!-- CỘT TRÁI: LỚP NGUỒN & DANH SÁCH HỌC SINH -->
+          <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.85rem;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="selectTransferSourceClass" style="font-size: 0.88rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #2563eb; color: #fff; text-align: center; line-height: 22px; font-size: 0.75rem;">1</span>
+                Chọn Lớp Nguồn (Hiện tại):
+              </label>
+              <span id="transferSourceClassCountBadge" style="font-size: 0.78rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 8px; border-radius: 6px; border: 1px solid #bfdbfe;">0 học sinh</span>
+            </div>
+
+            <select id="selectTransferSourceClass" class="form-select"
+              style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1.5px solid #cbd5e1; font-size: 0.88rem; font-weight: 600; color: #0f172a;">
+              <option value="">-- Đang nạp danh sách lớp từ hệ thống... --</option>
+            </select>
+
+            <!-- Ô tìm kiếm nhanh học sinh lớp nguồn -->
+            <div style="position: relative;">
+              <input type="text" id="inputSearchTransferSourceStudent" class="form-input"
+                placeholder="🔍 Tìm nhanh học sinh theo tên hoặc mã HS..."
+                style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.82rem; box-sizing: border-box;">
+            </div>
+
+            <!-- Bảng danh sách học sinh lớp nguồn -->
+            <div style="border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; max-height: 240px; overflow-y: auto; background: #ffffff;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 2; border-bottom: 1.5px solid #cbd5e1;">
+                  <tr>
+                    <th style="padding: 6px 8px; text-align: center; width: 38px; color: #475569;">STT</th>
+                    <th style="padding: 6px 8px; text-align: left; width: 75px; color: #475569;">Mã HS</th>
+                    <th style="padding: 6px 8px; text-align: left; color: #475569;">Họ và Tên</th>
+                    <th style="padding: 6px 8px; text-align: center; width: 65px; color: #475569;">Ngày sinh</th>
+                    <th style="padding: 6px 8px; text-align: center; width: 45px; color: #475569;">Phái</th>
+                  </tr>
+                </thead>
+                <tbody id="transferSourceStudentsTbody">
+                  <tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">Vui lòng chọn lớp nguồn ở trên</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Box hiển thị học sinh đang được chọn -->
+            <div id="transferSelectedStudentBox"
+              style="background: #eff6ff; border: 1.5px solid #93c5fd; border-radius: 10px; padding: 0.65rem 0.85rem; font-size: 0.82rem; color: #1e40af;">
+              <div style="font-weight: 700; margin-bottom: 2px;">👉 Học sinh được chọn để chuyển:</div>
+              <div id="transferSelectedStudentInfo" style="font-weight: 600; color: #1e3a8a;">Chưa chọn học sinh nào (Bấm chọn 1 dòng ở trên)</div>
+            </div>
+
+          </div>
+
+          <!-- CỘT PHẢI: LỚP ĐÍCH & VỊ TRÍ CHÈN -->
+          <div style="background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 14px; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.85rem;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="selectTransferTargetClass" style="font-size: 0.88rem; font-weight: 700; color: #92400e; display: flex; align-items: center; gap: 6px;">
+                <span style="display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: #d97706; color: #fff; text-align: center; line-height: 22px; font-size: 0.75rem;">2</span>
+                Chọn Lớp Chuyển Đến (Đích):
+              </label>
+              <span id="transferTargetClassCountBadge" style="font-size: 0.78rem; font-weight: 700; color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 6px; border: 1px solid #fde68a;">0 học sinh</span>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <select id="selectTransferTargetClass" class="form-select"
+                style="flex: 1; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1.5px solid #fcd34d; font-size: 0.88rem; font-weight: 600; color: #78350f;">
+                <option value="">-- Chọn lớp chuyển đến --</option>
+              </select>
+              <input type="text" id="inputTransferCustomTargetClass" class="form-input" placeholder="Nhập tên lớp mới..."
+                style="display: none; width: 140px; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1.5px solid #f59e0b; font-size: 0.85rem; font-weight: 700; color: #78350f;">
+            </div>
+
+            <!-- Bảng học sinh hiện tại của lớp đích (để quan sát cấu trúc và STT) -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: #78350f;">Danh sách học sinh lớp đích hiện tại:</span>
+              <span style="font-size: 0.75rem; color: #92400e;">(Để Admin dễ theo dõi vị trí STT)</span>
+            </div>
+
+            <div style="border: 1px solid #fde68a; border-radius: 10px; overflow: hidden; max-height: 190px; overflow-y: auto; background: #ffffff;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+                <thead style="position: sticky; top: 0; background: #fff7ed; z-index: 2; border-bottom: 1.5px solid #fed7aa;">
+                  <tr>
+                    <th style="padding: 6px 8px; text-align: center; width: 45px; color: #7c2d12;">STT</th>
+                    <th style="padding: 6px 8px; text-align: left; width: 85px; color: #7c2d12;">Mã HS</th>
+                    <th style="padding: 6px 8px; text-align: left; color: #7c2d12;">Họ và Tên</th>
+                    <th style="padding: 6px 8px; text-align: center; width: 75px; color: #7c2d12;">Ngày sinh</th>
+                  </tr>
+                </thead>
+                <tbody id="transferTargetStudentsTbody">
+                  <tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #a16207;">Chưa chọn lớp chuyển đến</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Cấu hình vị trí chèn trong lớp mới -->
+            <div style="background: #ffffff; border: 1.5px solid #fed7aa; border-radius: 10px; padding: 0.75rem 0.9rem;">
+              <label for="inputTransferTargetPosition" style="font-size: 0.85rem; font-weight: 700; color: #9a3412; display: block; margin-bottom: 4px;">
+                3. Vị Trí (STT) Chèn Vào Lớp Mới:
+              </label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="number" id="inputTransferTargetPosition" min="1" class="form-input"
+                  style="width: 100px; padding: 0.45rem 0.65rem; border-radius: 6px; border: 1.5px solid #f97316; font-size: 0.95rem; font-weight: 800; color: #c2410c; text-align: center;"
+                  value="1">
+                <span id="lblTransferTargetPositionDesc" style="font-size: 0.8rem; color: #7c2d12; font-weight: 600;">
+                  (Mặc định: Số cuối lớp)
+                </span>
+              </div>
+              <div style="font-size: 0.74rem; color: #9a3412; line-height: 1.4; margin-top: 5px;">
+                💡 <strong>Gợi ý:</strong> Admin có thể nhập vị trí mong muốn (ví dụ 1, 5, 15...). Học sinh sẽ được chèn vào đúng vị trí này trong bảng DATA_HOCSINH, các học sinh phía sau tự động lùi xuống để khớp với danh sách ở các hệ thống khác của trường.
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Banner thông báo / Cảnh báo đồng bộ toàn diện -->
+        <div style="background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 10px; padding: 0.75rem 1rem; font-size: 0.8rem; color: #166534; line-height: 1.5;">
+          🛡️ <strong>Cơ chế tự động đồng bộ đa tầng:</strong> Khi chuyển lớp, toàn bộ điểm kiểm tra trắc nghiệm (<strong>DATA_KETQUA</strong>), bài làm tự luận (<strong>DATA_TULUAN</strong>) trên Sheet Trung Tâm và các Sheet của Giáo viên sẽ được cập nhật sang lớp mới. Học sinh cũng sẽ tự động được xóa khỏi lớp cũ và bổ sung vào lớp mới của các giáo viên tương ứng.
+        </div>
+
+        <!-- Trạng thái thông báo / Lỗi -->
+        <div id="transferStudentStatusAlert"
+          style="display: none; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; line-height: 1.4;"></div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer"
+        style="padding: 1rem 1.5rem; background: #f8fafc; border-top: 1.5px solid #e2e8f0; display: flex; justify-content: flex-end; align-items: center; gap: 0.65rem;">
+        <button type="button" id="btnCancelTransferStudentModal"
+          style="padding: 0.55rem 1.25rem; font-size: 0.88rem; font-weight: 600; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer;">Đóng</button>
+        <button type="button" id="btnConfirmTransferStudentSubmit"
+          style="padding: 0.55rem 1.45rem; font-size: 0.88rem; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #d97706 0%, #b45309 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);">
+          <span id="btnConfirmTransferStudentSubmitText">🚀 Xác Nhận Chuyển Lớp</span>
+          <div id="transferStudentSpinner"
             style="display: none; width: 14px; height: 14px; border: 2px solid #ffffff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite;">
           </div>
         </button>

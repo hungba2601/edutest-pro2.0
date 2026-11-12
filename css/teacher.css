@@ -4452,6 +4452,33 @@ input:checked + .slider:before { transform: translateX(22px); }
   }
 }
 
+/* ============================================================================
+   MODAL CHUYỂN LỚP CHO HỌC SINH (ADMIN)
+   ============================================================================ */
+@media (max-width: 768px) {
+  .transfer-grid-container {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.transfer-student-row {
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+.transfer-student-row:hover {
+  background: #f8fafc;
+}
+.transfer-student-row.is-selected {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  font-weight: 700;
+}
+.transfer-student-row.is-selected td {
+  color: #1e3a8a !important;
+  border-color: #bfdbfe !important;
+}
+
 
 
 

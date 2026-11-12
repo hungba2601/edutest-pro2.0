@@ -408,6 +408,10 @@ function updateServerStatusBadgeUI() {
       saveNoticeText.innerHTML = "⚠️ <strong>Chưa kết nối Google Sheet riêng:</strong> Vui lòng bấm vào <strong>'Trạm Trung Tâm'</strong> để kết nối URL Web App của Thầy/Cô trước khi lưu đề!";
     }
   }
+
+  if (typeof updateTransferButtonVisibility === "function") {
+    updateTransferButtonVisibility();
+  }
 }
 
 let API_URL = getTeacherPersonalServerUrl() || DEFAULT_GAS_API_URL;
@@ -11939,17 +11943,624 @@ async function executeCopyExamSubmit() {
   }
 }
 
-// Khởi tạo tính năng Central Hub, Chia Sẻ & Sao Chép khi DOM sẵn sàng
+/**
+ * ============================================================================
+ * QUẢN TRỊ VIÊN (ADMIN) - TÍNH NĂNG CHUYỂN LỚP HỌC SINH TOÀN DIỆN
+ * Đồng bộ lớp, điểm số trắc nghiệm, bài thi tự luận trên Sheet Trung Tâm & Sheet GV
+ * ============================================================================
+ */
+let transferClassModalData = {
+  classes: [],
+  students: []
+};
+let selectedTransferStudent = null;
+let isTransferStudentInProgress = false;
+
+function updateTransferButtonVisibility() {
+  const btn = document.getElementById("btnOpenTransferStudentClassModal");
+  if (!btn) return;
+  const isAdmin = (typeof isCurrentUserAdmin === "function" && isCurrentUserAdmin()) ||
+                  (typeof isAdminRole === "function" && isAdminRole());
+  // BGH chỉ xem báo cáo điểm, chỉ Admin mới được quyền can thiệp chuyển lớp
+  const isBGH = typeof isBGHAccount === "function" && isBGHAccount();
+  if (isAdmin && !isBGH) {
+    btn.style.display = "inline-flex";
+  } else {
+    btn.style.display = "none";
+  }
+}
+
+function setTransferAlert(type, message) {
+  const alertEl = document.getElementById("transferStudentStatusAlert");
+  if (!alertEl) return;
+  if (!message) {
+    alertEl.style.display = "none";
+    alertEl.innerHTML = "";
+    return;
+  }
+  alertEl.style.display = "block";
+  if (type === "error") {
+    alertEl.style.background = "#fef2f2";
+    alertEl.style.border = "1.5px solid #fecaca";
+    alertEl.style.color = "#b91c1c";
+  } else if (type === "success") {
+    alertEl.style.background = "#f0fdf4";
+    alertEl.style.border = "1.5px solid #bbf7d0";
+    alertEl.style.color = "#15803d";
+  } else {
+    alertEl.style.background = "#eff6ff";
+    alertEl.style.border = "1.5px solid #bfdbfe";
+    alertEl.style.color = "#1d4ed8";
+  }
+  alertEl.innerHTML = message;
+}
+
+function hideTransferAlert() {
+  setTransferAlert("", "");
+}
+
+function initTransferStudentClassModal() {
+  const btnOpen = document.getElementById("btnOpenTransferStudentClassModal");
+  const modal = document.getElementById("modalTransferStudentClass");
+  const btnClose = document.getElementById("btnCloseTransferStudentModal");
+  const btnCancel = document.getElementById("btnCancelTransferStudentModal");
+  const selSource = document.getElementById("selectTransferSourceClass");
+  const selTarget = document.getElementById("selectTransferTargetClass");
+  const inputCustomTarget = document.getElementById("inputTransferCustomTargetClass");
+  const inputSearch = document.getElementById("inputSearchTransferSourceStudent");
+  const btnConfirm = document.getElementById("btnConfirmTransferStudentSubmit");
+  const tbodySource = document.getElementById("transferSourceStudentsTbody");
+
+  if (btnOpen) {
+    btnOpen.addEventListener("click", () => {
+      openTransferStudentClassModal();
+    });
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener("click", () => {
+      closeTransferStudentClassModal();
+    });
+  }
+
+  if (btnCancel) {
+    btnCancel.addEventListener("click", () => {
+      closeTransferStudentClassModal();
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        closeTransferStudentClassModal();
+      }
+    });
+  }
+
+  if (selSource) {
+    selSource.addEventListener("change", () => {
+      handleTransferSourceClassChanged();
+    });
+  }
+
+  if (inputSearch) {
+    inputSearch.addEventListener("input", () => {
+      renderTransferSourceStudents();
+    });
+  }
+
+  if (selTarget) {
+    selTarget.addEventListener("change", () => {
+      handleTransferTargetClassChanged();
+    });
+  }
+
+  if (inputCustomTarget) {
+    inputCustomTarget.addEventListener("input", () => {
+      handleTransferTargetClassChanged();
+    });
+  }
+
+  if (tbodySource) {
+    tbodySource.addEventListener("click", (e) => {
+      const row = e.target.closest(".transfer-student-row");
+      if (!row) return;
+      const u = row.getAttribute("data-username");
+      if (!u) return;
+      selectTransferStudentByUsername(u);
+    });
+  }
+
+  if (btnConfirm) {
+    btnConfirm.addEventListener("click", () => {
+      executeTransferStudentClassSubmit();
+    });
+  }
+
+  updateTransferButtonVisibility();
+}
+
+async function openTransferStudentClassModal() {
+  const modal = document.getElementById("modalTransferStudentClass");
+  if (!modal) return;
+
+  const isAdmin = (typeof isCurrentUserAdmin === "function" && isCurrentUserAdmin()) ||
+                  (typeof isAdminRole === "function" && isAdminRole());
+  if (!isAdmin) {
+    alert("Chỉ Quản trị viên (Admin) mới có quyền sử dụng chức năng Chuyển Lớp!");
+    return;
+  }
+
+  // Reset UI
+  modal.style.display = "flex";
+  modal.setAttribute("aria-hidden", "false");
+  hideTransferAlert();
+  selectedTransferStudent = null;
+  updateSelectedStudentBoxUI();
+
+  const selSource = document.getElementById("selectTransferSourceClass");
+  const selTarget = document.getElementById("selectTransferTargetClass");
+  const tbodySource = document.getElementById("transferSourceStudentsTbody");
+  const tbodyTarget = document.getElementById("transferTargetStudentsTbody");
+  const customTarget = document.getElementById("inputTransferCustomTargetClass");
+  const searchInput = document.getElementById("inputSearchTransferSourceStudent");
+  const posInput = document.getElementById("inputTransferTargetPosition");
+  const posDesc = document.getElementById("lblTransferTargetPositionDesc");
+
+  if (searchInput) searchInput.value = "";
+  if (customTarget) {
+    customTarget.style.display = "none";
+    customTarget.value = "";
+  }
+  if (posInput) posInput.value = "1";
+  if (posDesc) posDesc.textContent = "(Mặc định: Số cuối lớp)";
+
+  if (selSource) {
+    selSource.innerHTML = '<option value="">-- Đang nạp danh sách lớp từ hệ thống... --</option>';
+    selSource.disabled = true;
+  }
+  if (selTarget) {
+    selTarget.innerHTML = '<option value="">-- Đang nạp danh sách lớp... --</option>';
+    selTarget.disabled = true;
+  }
+  if (tbodySource) {
+    tbodySource.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;"><div style="display: inline-block; width: 22px; height: 22px; border: 3px solid #2563eb; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px;"></div>Đang tải dữ liệu học sinh toàn trường từ máy chủ trung tâm...</td></tr>';
+  }
+  if (tbodyTarget) {
+    tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #a16207;">Chưa chọn lớp chuyển đến</td></tr>';
+  }
+
+  // Tải dữ liệu từ máy chủ trung tâm DEFAULT_GAS_API_URL
+  try {
+    let res = null;
+    try {
+      const resp = await fetch(DEFAULT_GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ action: "getTransferClassesAndStudents" })
+      });
+      const txt = await resp.text();
+      if (txt && !txt.trim().startsWith("<")) res = JSON.parse(txt);
+    } catch (ePost) {
+      console.warn("POST getTransferClassesAndStudents failed, attempting GET:", ePost);
+    }
+
+    if (!res || !res.success) {
+      const getRes = await fetch(`${DEFAULT_GAS_API_URL}?action=getTransferClassesAndStudents&_t=${Date.now()}`);
+      const getTxt = await getRes.text();
+      if (getTxt && !getTxt.trim().startsWith("<")) res = JSON.parse(getTxt);
+    }
+
+    if (res && res.success) {
+      transferClassModalData = {
+        classes: Array.isArray(res.classes) ? res.classes : [],
+        students: Array.isArray(res.students) ? res.students : []
+      };
+
+      populateTransferClassesDropdowns();
+      if (selSource) selSource.disabled = false;
+      if (selTarget) selTarget.disabled = false;
+
+      if (tbodySource) {
+        tbodySource.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #64748b;">👈 Vui lòng chọn một lớp nguồn ở menu phía trên</td></tr>';
+      }
+    } else {
+      const errMsg = res?.message || "Không thể tải danh sách lớp từ Google Sheets!";
+      setTransferAlert("error", `❌ ${errMsg}`);
+      if (tbodySource) {
+        tbodySource.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #dc2626;">❌ ${errMsg}</td></tr>`;
+      }
+    }
+  } catch (err) {
+    console.error("Lỗi khi mở modal chuyển lớp:", err);
+    setTransferAlert("error", `❌ Không thể kết nối tới Google Sheets: ${err.message}`);
+    if (tbodySource) {
+      tbodySource.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #dc2626;">❌ Lỗi kết nối: ${err.message}</td></tr>`;
+    }
+  }
+}
+
+function closeTransferStudentClassModal() {
+  if (isTransferStudentInProgress) return;
+  const modal = document.getElementById("modalTransferStudentClass");
+  if (modal) {
+    modal.style.display = "none";
+    modal.setAttribute("aria-hidden", "true");
+  }
+  selectedTransferStudent = null;
+  hideTransferAlert();
+}
+
+function populateTransferClassesDropdowns() {
+  const selSource = document.getElementById("selectTransferSourceClass");
+  const classes = transferClassModalData.classes || [];
+
+  if (selSource) {
+    let html = '<option value="">-- Chọn Lớp Nguồn (Hiện tại) --</option>';
+    classes.forEach(c => {
+      const count = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === c.toUpperCase()).length;
+      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)} (${count} HS)</option>`;
+    });
+    selSource.innerHTML = html;
+  }
+
+  populateTransferTargetDropdown("");
+}
+
+function populateTransferTargetDropdown(currentSourceClass) {
+  const selTarget = document.getElementById("selectTransferTargetClass");
+  if (!selTarget) return;
+
+  const classes = transferClassModalData.classes || [];
+  let html = '<option value="">-- Chọn Lớp Chuyển Đến (Đích) --</option>';
+
+  classes.forEach(c => {
+    const isSame = currentSourceClass && c.toUpperCase() === currentSourceClass.toUpperCase();
+    const count = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === c.toUpperCase()).length;
+    if (!isSame) {
+      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)} (Hiện có ${count} HS)</option>`;
+    }
+  });
+
+  html += '<option value="__NEW_CLASS__">➕ Nhập Lớp Mới Khác...</option>';
+  selTarget.innerHTML = html;
+}
+
+function handleTransferSourceClassChanged() {
+  const selSource = document.getElementById("selectTransferSourceClass");
+  const sourceClass = selSource ? selSource.value.trim() : "";
+
+  selectedTransferStudent = null;
+  updateSelectedStudentBoxUI();
+  populateTransferTargetDropdown(sourceClass);
+
+  renderTransferSourceStudents();
+
+  const selTarget = document.getElementById("selectTransferTargetClass");
+  if (selTarget && selTarget.value.toUpperCase() === sourceClass.toUpperCase()) {
+    selTarget.value = "";
+    handleTransferTargetClassChanged();
+  }
+}
+
+function renderTransferSourceStudents() {
+  const selSource = document.getElementById("selectTransferSourceClass");
+  const tbody = document.getElementById("transferSourceStudentsTbody");
+  const badgeCount = document.getElementById("transferSourceClassCountBadge");
+  const searchInput = document.getElementById("inputSearchTransferSourceStudent");
+  if (!tbody) return;
+
+  const sourceClass = selSource ? selSource.value.trim().toUpperCase() : "";
+  if (!sourceClass) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">Vui lòng chọn lớp nguồn ở trên</td></tr>';
+    if (badgeCount) badgeCount.textContent = "0 học sinh";
+    return;
+  }
+
+  let list = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === sourceClass);
+
+  if (badgeCount) {
+    badgeCount.textContent = `${list.length} học sinh`;
+  }
+
+  const kw = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  if (kw) {
+    list = list.filter(s => {
+      const u = String(s.username || "").toLowerCase();
+      const n = String(s.hoTen || "").toLowerCase();
+      return u.includes(kw) || n.includes(kw);
+    });
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = kw
+      ? '<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Không tìm thấy học sinh khớp với từ khóa tìm kiếm</td></tr>'
+      : '<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Lớp này hiện chưa có học sinh nào trên hệ thống</td></tr>';
+    return;
+  }
+
+  let html = "";
+  list.forEach((s, idx) => {
+    const isSelected = selectedTransferStudent && selectedTransferStudent.username === s.username;
+    const stt = s.sttTrongLop || (idx + 1);
+    html += `
+      <tr class="transfer-student-row ${isSelected ? 'is-selected' : ''}" data-username="${escapeHtml(s.username)}" style="cursor: pointer; transition: background 0.15s ease;">
+        <td style="text-align: center; padding: 6px 8px; font-weight: 700; color: #475569;">${stt}</td>
+        <td style="padding: 6px 8px; font-weight: 700; color: #1e293b;">${escapeHtml(s.username)}</td>
+        <td style="padding: 6px 8px; font-weight: 600; color: #0f172a;">${escapeHtml(s.hoTen)}</td>
+        <td style="text-align: center; padding: 6px 8px; color: #475569;">${escapeHtml(s.ngaySinh || '-')}</td>
+        <td style="text-align: center; padding: 6px 8px; color: #475569;">${escapeHtml(s.gioiTinh || '-')}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function selectTransferStudentByUsername(username) {
+  const student = transferClassModalData.students.find(s => s.username === username);
+  if (!student) return;
+
+  selectedTransferStudent = student;
+  updateSelectedStudentBoxUI();
+
+  const rows = document.querySelectorAll("#transferSourceStudentsTbody .transfer-student-row");
+  rows.forEach(r => {
+    if (r.getAttribute("data-username") === username) {
+      r.classList.add("is-selected");
+    } else {
+      r.classList.remove("is-selected");
+    }
+  });
+}
+
+function updateSelectedStudentBoxUI() {
+  const box = document.getElementById("transferSelectedStudentBox");
+  const info = document.getElementById("transferSelectedStudentInfo");
+  if (!info) return;
+
+  if (!selectedTransferStudent) {
+    info.innerHTML = "Chưa chọn học sinh nào (Bấm chọn 1 dòng ở bảng trên)";
+    if (box) {
+      box.style.background = "#eff6ff";
+      box.style.borderColor = "#93c5fd";
+    }
+  } else {
+    const stt = selectedTransferStudent.sttTrongLop ? ` (STT hiện tại: #${selectedTransferStudent.sttTrongLop})` : "";
+    info.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+        <div>
+          <span style="font-size: 0.95rem; font-weight: 800; color: #1e3a8a;">${escapeHtml(selectedTransferStudent.hoTen)}</span>
+          <span style="margin-left: 6px; padding: 2px 7px; background: #dbeafe; color: #1e40af; border-radius: 6px; font-weight: 700; font-size: 0.78rem;">Mã: ${escapeHtml(selectedTransferStudent.username)}</span>
+        </div>
+        <div style="font-weight: 700; color: #2563eb; font-size: 0.82rem;">
+          Lớp: ${escapeHtml(selectedTransferStudent.lop)}${stt}
+        </div>
+      </div>
+    `;
+    if (box) {
+      box.style.background = "#dcfce7";
+      box.style.borderColor = "#86efac";
+    }
+  }
+}
+
+function handleTransferTargetClassChanged() {
+  const selTarget = document.getElementById("selectTransferTargetClass");
+  const customInput = document.getElementById("inputTransferCustomTargetClass");
+  const tbodyTarget = document.getElementById("transferTargetStudentsTbody");
+  const badgeTarget = document.getElementById("transferTargetClassCountBadge");
+  const posInput = document.getElementById("inputTransferTargetPosition");
+  const posDesc = document.getElementById("lblTransferTargetPositionDesc");
+
+  if (!selTarget || !tbodyTarget) return;
+
+  const val = selTarget.value.trim();
+  let targetClass = "";
+
+  if (val === "__NEW_CLASS__") {
+    if (customInput) customInput.style.display = "block";
+    targetClass = customInput ? customInput.value.trim().toUpperCase() : "";
+  } else {
+    if (customInput) customInput.style.display = "none";
+    targetClass = val.toUpperCase();
+  }
+
+  if (!targetClass) {
+    tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #a16207;">Chưa chọn lớp chuyển đến</td></tr>';
+    if (badgeTarget) badgeTarget.textContent = "0 học sinh";
+    if (posInput) posInput.value = "1";
+    if (posDesc) posDesc.textContent = "(Mặc định: Số cuối lớp)";
+    return;
+  }
+
+  const targetStudents = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === targetClass);
+
+  if (badgeTarget) {
+    badgeTarget.textContent = `${targetStudents.length} học sinh`;
+  }
+
+  const nextPos = targetStudents.length + 1;
+  if (posInput) {
+    posInput.value = nextPos;
+    posInput.max = nextPos;
+  }
+  if (posDesc) {
+    posDesc.textContent = targetStudents.length === 0
+      ? "(Học sinh đầu tiên của lớp: Vị trí 1)"
+      : `(Mặc định: Số cuối lớp - Vị trí ${nextPos}/${nextPos})`;
+  }
+
+  if (targetStudents.length === 0) {
+    tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #15803d; font-weight: 600;">✨ Lớp này hiện chưa có học sinh nào. Học sinh mới chuyển đến sẽ ở vị trí STT số 1.</td></tr>';
+    return;
+  }
+
+  let html = "";
+  targetStudents.forEach((s, idx) => {
+    const stt = s.sttTrongLop || (idx + 1);
+    html += `
+      <tr>
+        <td style="text-align: center; padding: 5px 8px; font-weight: 700; color: #9a3412;">${stt}</td>
+        <td style="padding: 5px 8px; font-weight: 700; color: #78350f;">${escapeHtml(s.username)}</td>
+        <td style="padding: 5px 8px; font-weight: 600; color: #451a03;">${escapeHtml(s.hoTen)}</td>
+        <td style="text-align: center; padding: 5px 8px; color: #78350f;">${escapeHtml(s.ngaySinh || '-')}</td>
+      </tr>
+    `;
+  });
+
+  tbodyTarget.innerHTML = html;
+}
+
+async function executeTransferStudentClassSubmit() {
+  if (isTransferStudentInProgress) return;
+
+  const isAdmin = (typeof isCurrentUserAdmin === "function" && isCurrentUserAdmin()) ||
+                  (typeof isAdminRole === "function" && isAdminRole());
+  if (!isAdmin) {
+    alert("Chỉ Quản trị viên (Admin) mới có quyền chuyển lớp học sinh!");
+    return;
+  }
+
+  if (!selectedTransferStudent) {
+    alert("Vui lòng chọn 1 học sinh ở bảng bên trái cần chuyển lớp!");
+    return;
+  }
+
+  const selTarget = document.getElementById("selectTransferTargetClass");
+  const customInput = document.getElementById("inputTransferCustomTargetClass");
+  let targetClass = "";
+
+  if (selTarget && selTarget.value === "__NEW_CLASS__") {
+    targetClass = customInput ? customInput.value.trim().toUpperCase() : "";
+  } else if (selTarget) {
+    targetClass = selTarget.value.trim().toUpperCase();
+  }
+
+  if (!targetClass) {
+    alert("Vui lòng chọn hoặc nhập lớp chuyển đến (Lớp đích)!");
+    if (selTarget && selTarget.value === "__NEW_CLASS__" && customInput) {
+      customInput.focus();
+    } else if (selTarget) {
+      selTarget.focus();
+    }
+    return;
+  }
+
+  const currentClass = String(selectedTransferStudent.lop || "").trim().toUpperCase();
+  if (targetClass === currentClass) {
+    alert(`Lớp chuyển đến (${targetClass}) trùng với lớp hiện tại của học sinh! Vui lòng chọn lớp đích khác.`);
+    return;
+  }
+
+  const posInput = document.getElementById("inputTransferTargetPosition");
+  let targetPosition = null;
+  if (posInput && posInput.value.trim()) {
+    targetPosition = parseInt(posInput.value.trim(), 10);
+    if (isNaN(targetPosition) || targetPosition < 1) {
+      targetPosition = 1;
+    }
+  }
+
+  const posText = targetPosition ? `tại vị trí STT #${targetPosition}` : "vào cuối danh sách";
+  const confirmMsg =
+    `⚠️ XÁC NHẬN CHUYỂN LỚP CHO HỌC SINH:\n\n` +
+    `• Học sinh: ${selectedTransferStudent.hoTen} (Mã: ${selectedTransferStudent.username})\n` +
+    `• Chuyển từ lớp: ${currentClass} ➔ Lớp mới: ${targetClass}\n` +
+    `• Vị trí chèn trong lớp mới: ${posText}\n\n` +
+    `🛡️ Hệ thống sẽ tự động cập nhật và đồng bộ:\n` +
+    `1. Cập nhật vị trí danh sách trong Sheet DATA_HOCSINH\n` +
+    `2. Chuyển toàn bộ điểm trắc nghiệm (DATA_KETQUA) sang lớp ${targetClass}\n` +
+    `3. Chuyển toàn bộ bài thi tự luận (DATA_TULUAN) sang lớp ${targetClass}\n` +
+    `4. Đồng bộ danh sách học sinh tới các Sheet của Giáo viên liên quan\n\n` +
+    `Thầy/Cô có chắc chắn muốn thực hiện ngay bây giờ?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const btnConfirm = document.getElementById("btnConfirmTransferStudentSubmit");
+  const btnText = document.getElementById("btnConfirmTransferStudentSubmitText");
+  const spinner = document.getElementById("transferStudentSpinner");
+
+  isTransferStudentInProgress = true;
+  if (btnConfirm) btnConfirm.disabled = true;
+  if (btnText) btnText.textContent = "Đang chuyển lớp & đồng bộ...";
+  if (spinner) spinner.style.display = "inline-block";
+  hideTransferAlert();
+
+  const payload = {
+    action: "transferStudentClass",
+    usernameHS: selectedTransferStudent.username,
+    oldClass: currentClass,
+    newClass: targetClass,
+    targetPosition: targetPosition
+  };
+
+  try {
+    let result = null;
+    try {
+      const resp = await fetch(DEFAULT_GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const txt = await resp.text();
+      if (txt && !txt.trim().startsWith("<")) result = JSON.parse(txt);
+    } catch (ePost) {
+      console.warn("POST transferStudentClass failed, attempting GET fallback:", ePost);
+    }
+
+    if (!result || !result.success) {
+      const getUrl = `${DEFAULT_GAS_API_URL}?action=transferStudentClass&usernameHS=${encodeURIComponent(payload.usernameHS)}&oldClass=${encodeURIComponent(payload.oldClass)}&newClass=${encodeURIComponent(payload.newClass)}&targetPosition=${encodeURIComponent(targetPosition || '')}&_t=${Date.now()}`;
+      const getResp = await fetch(getUrl);
+      const getTxt = await getResp.text();
+      if (getTxt && !getTxt.trim().startsWith("<")) result = JSON.parse(getTxt);
+    }
+
+    if (result && result.success) {
+      const successMsg = result.message || `Đã chuyển học sinh ${selectedTransferStudent.hoTen} sang lớp ${targetClass} thành công!`;
+      showToast("Chuyển lớp thành công! 🎉", successMsg, "success", 7000);
+
+      if (typeof loadTeacherStudents === "function") {
+        try { await loadTeacherStudents(true); } catch (e) {}
+      }
+      if (typeof loadExamResults === "function") {
+        try { await loadExamResults(true); } catch (e) {}
+      }
+      if (typeof loadSummaryScoresData === "function") {
+        try { await loadSummaryScoresData(true); } catch (e) {}
+      }
+
+      closeTransferStudentClassModal();
+    } else {
+      const errMsg = result?.message || "Máy chủ phản hồi thất bại khi chuyển lớp!";
+      setTransferAlert("error", `❌ Không thể chuyển lớp: ${errMsg}`);
+    }
+  } catch (err) {
+    console.error("Lỗi khi chuyển lớp học sinh:", err);
+    setTransferAlert("error", `❌ Lỗi kết nối máy chủ: ${err.message}`);
+  } finally {
+    isTransferStudentInProgress = false;
+    if (btnConfirm) btnConfirm.disabled = false;
+    if (btnText) btnText.textContent = "🚀 Xác Nhận Chuyển Lớp";
+    if (spinner) spinner.style.display = "none";
+  }
+}
+
+// Khởi tạo tính năng Central Hub, Chia Sẻ, Sao Chép & Chuyển Lớp khi DOM sẵn sàng
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
     initCentralHubModal();
     initShareExamModal();
     initCopyExamModal();
+    initTransferStudentClassModal();
+    updateTransferButtonVisibility();
   });
 } else {
   initCentralHubModal();
   initShareExamModal();
   initCopyExamModal();
+  initTransferStudentClassModal();
+  updateTransferButtonVisibility();
 }
 
 /**
@@ -12363,6 +12974,9 @@ function initTeacherDashboard() {
         gvNavAvatar.textContent = initials || "GV";
       }
     }
+
+    // Cập nhật hiển thị nút Chuyển Lớp cho Admin
+    try { updateTransferButtonVisibility(); } catch (e) {}
 
     // Hiển thị thông tin giáo viên lên navbar (chỉ hiển thị tên, ẩn dòng lớp dài dòng)
     const gvFullNameEl = document.getElementById("gvFullName");

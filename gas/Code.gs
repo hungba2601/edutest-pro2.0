@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1MCOXMDiLbh_Nifk1RxkI0jk8YIJ0hHndvz2dp7Ip5Y/edit"; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const CURRENT_BACKEND_VERSION = "2.6";
+const CURRENT_BACKEND_VERSION = "2.7";
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -867,6 +867,10 @@ function doGet(e) {
           return handleUpdateStudent(payload);
         case "addStudent":
           return handleAddStudent(payload);
+        case "getTransferClassesAndStudents":
+          return handleGetTransferClassesAndStudents(payload);
+        case "transferStudentClass":
+          return handleTransferStudentClass(payload);
         case "ensureDeThiColumns":
           const ssEnsure = getSpreadsheet();
           ensureDeThiSheetColumns(ssEnsure.getSheetByName(SHEETS.DETHI));
@@ -1044,6 +1048,12 @@ function doPost(e) {
 
       case "addStudent":
         return handleAddStudent(payload);
+
+      case "getTransferClassesAndStudents":
+        return handleGetTransferClassesAndStudents(payload);
+
+      case "transferStudentClass":
+        return handleTransferStudentClass(payload);
 
       case "ensureDeThiColumns":
         const ssEnsurePost = getSpreadsheet();
@@ -4292,6 +4302,348 @@ function handleAddStudent(payload) {
     return createJsonResponse({
       success: false,
       message: "Lỗi thêm học sinh: " + err.toString()
+    });
+  }
+}
+
+/**
+ * ============================================================================
+ * CHỨC NĂNG CHUYỂN LỚP CHO HỌC SINH (CHỈ DÀNH CHO ADMIN)
+ * ============================================================================
+ */
+
+/**
+ * Lấy danh sách tất cả các lớp trong toàn trường (từ DATA_GIAOVIEN, DATA_HOCSINH, HUB_STUDENTS)
+ * và toàn bộ học sinh để phục vụ giao diện chuyển lớp 2 cột của Admin
+ */
+function handleGetTransferClassesAndStudents(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+    const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+    const sheetHubStudents = ss.getSheetByName(SHEETS.HUB_STUDENTS || "HUB_STUDENTS");
+
+    const classSet = new Set();
+
+    // 1. Quét toàn bộ lớp từ DATA_GIAOVIEN (tất cả các giáo viên)
+    if (sheetGV) {
+      ensureGiaoVienSheetColumns(sheetGV);
+      const gvCols = getGiaoVienColMap(sheetGV);
+      const gvData = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < gvData.length; i++) {
+        const rawClasses = String(gvData[i][gvCols.colClass] || "");
+        rawClasses.split(/[,;\s]+/).forEach(function(c) {
+          const cleaned = formatClassValue(c).trim().toUpperCase();
+          if (cleaned && cleaned !== "ALL" && cleaned !== "TẤT CẢ") {
+            classSet.add(cleaned);
+          }
+        });
+      }
+    }
+
+    // 2. Quét lớp và danh sách học sinh từ DATA_HOCSINH (giữ nguyên thứ tự dòng)
+    const students = [];
+    const classCountMap = {};
+
+    if (sheetHS) {
+      const hsCols = getHocSinhColMap(sheetHS);
+      const hsData = sheetHS.getDataRange().getValues();
+      for (let i = 1; i < hsData.length; i++) {
+        const row = hsData[i];
+        const rawLop = formatClassValue(row[hsCols.colClass]).trim().toUpperCase();
+        if (rawLop) {
+          classSet.add(rawLop);
+          classCountMap[rawLop] = (classCountMap[rawLop] || 0) + 1;
+        }
+        const u = String(row[hsCols.colUser] !== null && row[hsCols.colUser] !== undefined ? row[hsCols.colUser] : "").trim();
+        if (u) {
+          students.push({
+            username: u,
+            password: String(row[hsCols.colPass] !== null && row[hsCols.colPass] !== undefined ? row[hsCols.colPass] : "").trim(),
+            lop: rawLop,
+            hoTen: String(row[hsCols.colName] || "").trim(),
+            ngaySinh: formatBirthDateValue(row[hsCols.colDob]),
+            gioiTinh: String(row[hsCols.colGender] || "").trim(),
+            truong: String(row[hsCols.colSchool] || "").trim(),
+            sttTrongLop: classCountMap[rawLop] || 1
+          });
+        }
+      }
+    }
+
+    // 3. Quét lớp từ HUB_STUDENTS
+    if (sheetHubStudents) {
+      const hubData = sheetHubStudents.getDataRange().getValues();
+      for (let i = 1; i < hubData.length; i++) {
+        const rawLop = formatClassValue(hubData[i][2]).trim().toUpperCase();
+        if (rawLop) classSet.add(rawLop);
+      }
+    }
+
+    // Sắp xếp danh sách lớp tự nhiên (Natural Sort): 6A1, 6A2... 8A1, 8A2... 9A1, 9A2, 9A11...
+    const sortedClasses = Array.from(classSet).sort(function(a, b) {
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return createJsonResponse({
+      success: true,
+      classes: sortedClasses,
+      students: students,
+      totalStudents: students.length,
+      totalClasses: sortedClasses.length
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi lấy dữ liệu chuyển lớp: " + err.toString()
+    });
+  }
+}
+
+/**
+ * Xử lý chuyển lớp cho học sinh:
+ * - Cập nhật và sắp xếp lại vị trí STT dòng trong DATA_HOCSINH
+ * - Cập nhật HUB_STUDENTS định tuyến giáo viên mới
+ * - Cập nhật toàn bộ điểm thi trắc nghiệm trong DATA_KETQUA
+ * - Cập nhật toàn bộ bài làm tự luận trong DATA_TULUAN
+ * - Tự động đồng bộ và cập nhật sang các Sheet Google của Giáo viên liên quan
+ */
+function handleTransferStudentClass(payload) {
+  try {
+    const ss = getSpreadsheet();
+    const sheetHS = ss.getSheetByName(SHEETS.HOCSINH);
+    const sheetKQ = ss.getSheetByName(SHEETS.KETQUA);
+    const sheetTL = ss.getSheetByName(SHEETS.TULUAN);
+    const sheetHub = ss.getSheetByName(SHEETS.HUB_SERVERS);
+    const sheetHubStudents = ss.getSheetByName(SHEETS.HUB_STUDENTS || "HUB_STUDENTS");
+    const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
+
+    const usernameHS = String(payload.usernameHS || "").trim();
+    const oldClass = formatClassValue(payload.oldClass || "").trim().toUpperCase();
+    const newClass = formatClassValue(payload.newClass || "").trim().toUpperCase();
+    const targetPosition = payload.targetPosition !== undefined && payload.targetPosition !== null && payload.targetPosition !== "" ? parseInt(payload.targetPosition, 10) : null;
+
+    if (!usernameHS) {
+      return createJsonResponse({ success: false, message: "Thiếu mã tài khoản học sinh cần chuyển lớp!" });
+    }
+    if (!newClass) {
+      return createJsonResponse({ success: false, message: "Thiếu lớp chuyển đến (lớp mới)!" });
+    }
+    if (oldClass && oldClass === newClass) {
+      return createJsonResponse({ success: false, message: "Lớp chuyển đến phải khác lớp hiện tại của học sinh!" });
+    }
+
+    const lopToSave = newClass.includes("/") ? "'" + newClass : newClass;
+    let studentDataFound = null;
+
+    // 1. Cập nhật và di chuyển vị trí học sinh trong DATA_HOCSINH
+    let studentFullName = "";
+    if (sheetHS) {
+      const hsCols = getHocSinhColMap(sheetHS);
+      const hsData = sheetHS.getDataRange().getValues();
+      const header = hsData[0];
+      const rows = hsData.slice(1);
+
+      let studentIdx = -1;
+      for (let i = 0; i < rows.length; i++) {
+        if (isSameStudentAccount(rows[i][hsCols.colUser], usernameHS)) {
+          studentIdx = i;
+          break;
+        }
+      }
+
+      if (studentIdx === -1) {
+        return createJsonResponse({
+          success: false,
+          message: `Không tìm thấy học sinh có mã "${usernameHS}" trên Sheet DATA_HOCSINH!`
+        });
+      }
+
+      const studentRow = rows[studentIdx];
+      studentFullName = String(studentRow[hsCols.colName] || "").trim();
+      studentRow[hsCols.colClass] = lopToSave;
+
+      studentDataFound = {
+        username: usernameHS,
+        password: String(studentRow[hsCols.colPass] || "").trim(),
+        lop: newClass,
+        hoTen: studentFullName,
+        ngaySinh: formatBirthDateValue(studentRow[hsCols.colDob]),
+        gioiTinh: String(studentRow[hsCols.colGender] || "").trim(),
+        truong: String(studentRow[hsCols.colSchool] || "").trim()
+      };
+
+      // Xóa dòng học sinh khỏi vị trí cũ
+      rows.splice(studentIdx, 1);
+
+      // Tìm tất cả các chỉ số dòng của các học sinh thuộc newClass trong danh sách còn lại
+      const newClassIndices = [];
+      for (let i = 0; i < rows.length; i++) {
+        const c = formatClassValue(rows[i][hsCols.colClass]).trim().toUpperCase();
+        if (c === newClass) {
+          newClassIndices.push(i);
+        }
+      }
+
+      if (newClassIndices.length === 0) {
+        // Lớp mới chưa có học sinh nào -> thêm vào cuối danh sách
+        rows.push(studentRow);
+      } else if (targetPosition !== null && !isNaN(targetPosition) && targetPosition > 0) {
+        if (targetPosition <= 1) {
+          // Chèn trước học sinh đầu tiên của lớp mới
+          rows.splice(newClassIndices[0], 0, studentRow);
+        } else if (targetPosition > newClassIndices.length) {
+          // Chèn sau học sinh cuối cùng của lớp mới
+          rows.splice(newClassIndices[newClassIndices.length - 1] + 1, 0, studentRow);
+        } else {
+          // Chèn vào đúng vị trí STT được chỉ định (trước học sinh đang ở vị trí targetPosition - 1)
+          rows.splice(newClassIndices[targetPosition - 1], 0, studentRow);
+        }
+      } else {
+        // Mặc định: thêm ngay sau học sinh cuối cùng của lớp mới
+        rows.splice(newClassIndices[newClassIndices.length - 1] + 1, 0, studentRow);
+      }
+
+      // Ghi lại toàn bộ bảng DATA_HOCSINH
+      const maxCol = Math.max(header.length, sheetHS.getLastColumn(), 7);
+      const formattedRows = rows.map(function(r) {
+        const copyR = r.slice(0);
+        while (copyR.length < maxCol) copyR.push("");
+        return copyR.slice(0, maxCol);
+      });
+      if (formattedRows.length > 0) {
+        sheetHS.getRange(2, 1, formattedRows.length, maxCol).setValues(formattedRows);
+      }
+    }
+
+    // 2. Cập nhật HUB_STUDENTS (Trạm Trung Tâm)
+    let newTeacherUser = "";
+    let newTeacherServerUrl = "";
+    if (sheetGV) {
+      ensureGiaoVienSheetColumns(sheetGV);
+      const gvCols = getGiaoVienColMap(sheetGV);
+      const gvData = sheetGV.getDataRange().getValues();
+      for (let i = 1; i < gvData.length; i++) {
+        const tClasses = String(gvData[i][gvCols.colClass] || "").split(/[,;\s]+/).map(function(s) {
+          return s.trim().toUpperCase();
+        });
+        if (tClasses.includes(newClass)) {
+          newTeacherUser = String(gvData[i][gvCols.colUser] || "").trim();
+          break;
+        }
+      }
+    }
+
+    if (sheetHub && newTeacherUser) {
+      const hubData = sheetHub.getDataRange().getValues();
+      for (let i = 1; i < hubData.length; i++) {
+        if (isSameTeacherAccount(hubData[i][0], newTeacherUser)) {
+          newTeacherServerUrl = String(hubData[i][3] || "").trim();
+          break;
+        }
+      }
+    }
+
+    if (sheetHubStudents) {
+      const nowStr = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
+      const hubStData = sheetHubStudents.getDataRange().getValues();
+      let foundHubRow = -1;
+      for (let i = 1; i < hubStData.length; i++) {
+        if (isSameStudentAccount(hubStData[i][0], usernameHS)) {
+          foundHubRow = i + 1;
+          break;
+        }
+      }
+      if (foundHubRow !== -1) {
+        sheetHubStudents.getRange(foundHubRow, 3).setValue(lopToSave);
+        if (studentFullName) sheetHubStudents.getRange(foundHubRow, 2).setValue(studentFullName);
+        if (newTeacherUser) sheetHubStudents.getRange(foundHubRow, 5).setValue(newTeacherUser);
+        if (newTeacherServerUrl) sheetHubStudents.getRange(foundHubRow, 6).setValue(newTeacherServerUrl);
+        sheetHubStudents.getRange(foundHubRow, 7).setValue(nowStr);
+      }
+    }
+
+    // 3. Cập nhật DATA_KETQUA trên Sheet Trung Tâm
+    let kqUpdatedCount = 0;
+    if (sheetKQ) {
+      ensureKetQuaSheetColumns(sheetKQ);
+      const kqCols = getKetQuaColMap(sheetKQ);
+      const kqData = sheetKQ.getDataRange().getValues();
+      for (let r = 1; r < kqData.length; r++) {
+        if (isSameStudentAccount(kqData[r][kqCols.colHS], usernameHS)) {
+          sheetKQ.getRange(r + 1, kqCols.colLop + 1).setValue(lopToSave);
+          kqUpdatedCount++;
+        }
+      }
+    }
+
+    // 4. Cập nhật DATA_TULUAN trên Sheet Trung Tâm
+    let tlUpdatedCount = 0;
+    if (sheetTL) {
+      const tlData = sheetTL.getDataRange().getValues();
+      for (let r = 1; r < tlData.length; r++) {
+        if (isSameStudentAccount(tlData[r][0], usernameHS)) {
+          sheetTL.getRange(r + 1, 2).setValue(lopToSave);
+          tlUpdatedCount++;
+        }
+      }
+    }
+
+    // 5. Đồng bộ tới các máy chủ Google Sheet riêng của Giáo viên qua HUB_SERVERS
+    let teacherServersUpdated = 0;
+    if (sheetHub) {
+      const hubServersData = sheetHub.getDataRange().getValues();
+      for (let i = 1; i < hubServersData.length; i++) {
+        const tUser = String(hubServersData[i][0] || "").trim();
+        const tUrl = String(hubServersData[i][3] || "").trim();
+        if (!tUrl || !tUrl.startsWith("https://script.google.com/macros/s/")) continue;
+        if (SPREADSHEET_URL && tUrl.includes(SPREADSHEET_URL)) continue; // Bỏ qua nếu là Sheet trung tâm
+
+        try {
+          const subPayload = {
+            action: "transferStudentClass",
+            usernameHS: usernameHS,
+            oldClass: oldClass,
+            newClass: newClass,
+            targetPosition: targetPosition,
+            studentData: studentDataFound
+          };
+          const resp = UrlFetchApp.fetch(tUrl, {
+            method: "post",
+            contentType: "text/plain;charset=utf-8",
+            payload: JSON.stringify(subPayload),
+            muteHttpExceptions: true
+          });
+          const respTxt = resp.getContentText();
+          if (respTxt && !respTxt.trim().startsWith("<")) {
+            const respJson = JSON.parse(respTxt);
+            if (respJson && respJson.success) teacherServersUpdated++;
+          }
+        } catch (eServer) {
+          Logger.log("Lỗi gửi chuyển lớp tới GV " + tUser + ": " + eServer.toString());
+        }
+      }
+    }
+
+    const posText = (targetPosition !== null && !isNaN(targetPosition) && targetPosition > 0)
+      ? `tại vị trí số ${targetPosition}`
+      : `vào cuối danh sách`;
+
+    return createJsonResponse({
+      success: true,
+      message: `Đã chuyển học sinh "${studentFullName || usernameHS}" từ lớp "${oldClass || 'Cũ'}" sang lớp "${newClass}" (${posText}) thành công! Đã cập nhật ${kqUpdatedCount} kết quả trắc nghiệm, ${tlUpdatedCount} bài tự luận và đồng bộ ${teacherServersUpdated} máy chủ giáo viên.`,
+      usernameHS: usernameHS,
+      oldClass: oldClass,
+      newClass: newClass,
+      targetPosition: targetPosition,
+      kqUpdatedCount: kqUpdatedCount,
+      tlUpdatedCount: tlUpdatedCount,
+      teacherServersUpdated: teacherServersUpdated
+    });
+  } catch (err) {
+    return createJsonResponse({
+      success: false,
+      message: "Lỗi chuyển lớp học sinh: " + err.toString()
     });
   }
 }
