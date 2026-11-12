@@ -7919,24 +7919,6 @@ function setupSummaryTabEvents() {
     });
   }
 
-  const btnDownloadSample = document.getElementById("btnSummaryDownloadSample");
-  if (btnDownloadSample) {
-    btnDownloadSample.addEventListener("click", () => {
-      const curExam = document.getElementById("selectFilterExamSummary")?.value || "ALL";
-      if (curExam === "ALL") {
-        showToast("Chọn đề thi", "Vui lòng chọn một Bài kiểm tra cụ thể để xuất file mẫu chấm tự luận!", "warning", 3500);
-        return;
-      }
-      const resExamSelect = document.getElementById("selectFilterExam");
-      if (resExamSelect) resExamSelect.value = curExam;
-      const resClassSelect = document.getElementById("selectFilterResultClass");
-      const sumClassSelect = document.getElementById("selectFilterClassSummary");
-      if (resClassSelect && sumClassSelect) resClassSelect.value = sumClassSelect.value;
-
-      exportEssayResultsExcel();
-    });
-  }
-
   const btnUpload = document.getElementById("btnSummaryUploadScores");
   const inputFile = document.getElementById("inputSummaryEssayFile");
   if (btnUpload && inputFile) {
