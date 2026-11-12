@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = ""; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const TEACHER_BACKEND_VERSION = "2.7"; 
+const TEACHER_BACKEND_VERSION = "2.8"; 
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -3168,6 +3168,30 @@ function handleTransferStudentClass(payload) {
           kqUpdated++;
         }
       }
+
+      // Nếu giáo viên tiếp nhận học sinh mới và trên Sheet chưa có kết quả cũ, nạp kết quả từ Hub sang
+      if (kqUpdated === 0 && (isTeachingNew || isAll) && Array.isArray(payload.ketQuaRows)) {
+        payload.ketQuaRows.forEach(function(item) {
+          const newRowKQ = new Array(Math.max(sheetKQ.getLastColumn(), 15)).fill("");
+          newRowKQ[kqCols.colHS] = usernameHS;
+          newRowKQ[kqCols.colLop] = lopToSave;
+          newRowKQ[kqCols.colHoTen] = studentData.hoTen || "";
+          newRowKQ[kqCols.colNgaySinh] = studentData.ngaySinh || "";
+          newRowKQ[kqCols.colGioiTinh] = studentData.gioiTinh || "";
+          newRowKQ[kqCols.colTruong] = studentData.truong || "";
+          newRowKQ[kqCols.colDangNhap] = Utilities.formatDate(new Date(), "Asia/Ho_Chi_Minh", "dd/MM/yyyy HH:mm:ss");
+          newRowKQ[kqCols.colMaDe] = item.maDe || "";
+          newRowKQ[kqCols.colGV] = item.usernameGV || "";
+          newRowKQ[kqCols.colDiemTN] = item.diemTN !== undefined ? item.diemTN : "";
+          newRowKQ[kqCols.colDiemTL] = item.diemTL !== undefined ? item.diemTL : "";
+          newRowKQ[kqCols.colTongDiem] = item.tongDiem !== undefined ? item.tongDiem : "";
+          newRowKQ[kqCols.colSoCau] = item.soCau || "";
+          newRowKQ[kqCols.colThoiGianNop] = item.thoiGianNop || "";
+          newRowKQ[kqCols.colChiTiet] = item.chiTiet || "";
+          sheetKQ.appendRow(newRowKQ);
+          kqUpdated++;
+        });
+      }
     }
 
     // 4. Cập nhật DATA_TULUAN trên Sheet GV
@@ -3179,6 +3203,18 @@ function handleTransferStudentClass(payload) {
           sheetTL.getRange(r + 1, 2).setValue(lopToSave);
           tlUpdated++;
         }
+      }
+
+      // Nếu giáo viên tiếp nhận và trên Sheet chưa có bài tự luận cũ, nạp từ Hub sang
+      if (tlUpdated === 0 && (isTeachingNew || isAll) && Array.isArray(payload.tuLuanRows)) {
+        payload.tuLuanRows.forEach(function(rowArray) {
+          if (Array.isArray(rowArray) && rowArray.length > 0) {
+            const copyTL = rowArray.slice(0);
+            copyTL[1] = lopToSave;
+            sheetTL.appendRow(copyTL);
+            tlUpdated++;
+          }
+        });
       }
     }
 

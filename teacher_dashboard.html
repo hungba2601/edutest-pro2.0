@@ -2576,6 +2576,17 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
               <option value="">-- Đang nạp danh sách lớp từ hệ thống... --</option>
             </select>
 
+            <!-- Thẻ trạng thái kết nối máy chủ Google Sheet của Giáo viên phụ trách lớp nguồn -->
+            <div id="transferSourceTeacherNotice"
+              style="display: none; background: #eff6ff; border: 1px dashed #93c5fd; border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; color: #1e40af; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span>👨‍🏫 <strong>GV phụ trách:</strong></span>
+                <span id="transferSourceTeacherName" style="font-weight: 700;">-</span>
+              </div>
+              <span id="transferSourceServerStatusBadge"
+                style="font-size: 0.72rem; padding: 1px 7px; border-radius: 5px; background: #dbeafe; color: #1d4ed8; font-weight: 700;">🌐 Máy chủ GV</span>
+            </div>
+
             <!-- Ô tìm kiếm nhanh học sinh lớp nguồn -->
             <div style="position: relative;">
               <input type="text" id="inputSearchTransferSourceStudent" class="form-input"
@@ -2628,6 +2639,17 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
               </select>
               <input type="text" id="inputTransferCustomTargetClass" class="form-input" placeholder="Nhập tên lớp mới..."
                 style="display: none; width: 140px; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1.5px solid #f59e0b; font-size: 0.85rem; font-weight: 700; color: #78350f;">
+            </div>
+
+            <!-- Thẻ trạng thái kết nối máy chủ Google Sheet của Giáo viên tiếp nhận lớp đích -->
+            <div id="transferTargetTeacherNotice"
+              style="display: none; background: #fff7ed; border: 1px dashed #fdba74; border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; color: #9a3412; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span>🎯 <strong>GV tiếp nhận:</strong></span>
+                <span id="transferTargetTeacherName" style="font-weight: 700;">-</span>
+              </div>
+              <span id="transferTargetServerStatusBadge"
+                style="font-size: 0.72rem; padding: 1px 7px; border-radius: 5px; background: #fed7aa; color: #9a3412; font-weight: 700;">🌐 Máy chủ GV</span>
             </div>
 
             <!-- Bảng học sinh hiện tại của lớp đích (để quan sát cấu trúc và STT) -->

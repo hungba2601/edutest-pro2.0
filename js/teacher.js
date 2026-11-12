@@ -11946,12 +11946,16 @@ async function executeCopyExamSubmit() {
 /**
  * ============================================================================
  * QUẢN TRỊ VIÊN (ADMIN) - TÍNH NĂNG CHUYỂN LỚP HỌC SINH TOÀN DIỆN
+ * Nạp động dữ liệu học sinh từ URL máy chủ/Google Sheet của Giáo viên phụ trách
  * Đồng bộ lớp, điểm số trắc nghiệm, bài thi tự luận trên Sheet Trung Tâm & Sheet GV
  * ============================================================================
  */
 let transferClassModalData = {
   classes: [],
-  students: []
+  classTeachers: {},
+  teachers: [],
+  sourceStudents: [],
+  targetStudents: []
 };
 let selectedTransferStudent = null;
 let isTransferStudentInProgress = false;
@@ -12080,6 +12084,81 @@ function initTransferStudentClassModal() {
   updateTransferButtonVisibility();
 }
 
+/**
+ * Tải danh sách học sinh của một lớp cụ thể theo URL máy chủ hoặc Sheet của Giáo viên phụ trách
+ */
+async function fetchTransferStudentsForClass(className, teacher) {
+  if (!className) return { success: true, students: [] };
+  
+  const payload = {
+    action: "getTransferStudentsByClass",
+    lop: className,
+    usernameGV: teacher ? (teacher.maGV || "") : "",
+    serverUrl: teacher ? (teacher.serverUrl || "") : "",
+    sheetUrl: teacher ? (teacher.sheetUrl || "") : ""
+  };
+
+  // 1. Thử gọi trực tiếp URL Web App của GV nếu có (để nạp tức thì từ Sheet riêng của GV)
+  if (teacher && teacher.serverUrl && teacher.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+    try {
+      const directUrl = `${teacher.serverUrl}${teacher.serverUrl.includes("?") ? "&" : "?"}action=getStudentsForTeacher&lop=${encodeURIComponent(className)}&usernameGV=${encodeURIComponent(teacher.maGV || '')}&_t=${Date.now()}`;
+      const dResp = await fetch(directUrl);
+      if (dResp.ok) {
+        const dTxt = await dResp.text();
+        if (dTxt && !dTxt.trim().startsWith("<")) {
+          const dData = JSON.parse(dTxt);
+          if (dData && dData.success && Array.isArray(dData.students)) {
+            const filtered = dData.students.filter(s => String(s.lop || "").trim().toUpperCase() === className.toUpperCase());
+            filtered.forEach((st, idx) => { st.sttTrongLop = idx + 1; });
+            return {
+              success: true,
+              students: filtered,
+              source: "teacher_direct",
+              teacherName: teacher.hoTenGV || teacher.maGV
+            };
+          }
+        }
+      }
+    } catch (eDirect) {
+      console.warn("Direct fetch from teacher server failed, falling back to central proxy:", eDirect);
+    }
+  }
+
+  // 2. Gọi qua Trạm Trung Tâm (Proxy Central Hub có UrlFetchApp mở được cả Web App lẫn Google Sheet URL)
+  try {
+    let res = null;
+    try {
+      const resp = await fetch(DEFAULT_GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const txt = await resp.text();
+      if (txt && !txt.trim().startsWith("<")) res = JSON.parse(txt);
+    } catch (ePost) {}
+
+    if (!res || !res.success) {
+      const getUrl = `${DEFAULT_GAS_API_URL}?action=getTransferStudentsByClass&lop=${encodeURIComponent(className)}&usernameGV=${encodeURIComponent(payload.usernameGV)}&serverUrl=${encodeURIComponent(payload.serverUrl)}&_t=${Date.now()}`;
+      const getResp = await fetch(getUrl);
+      const getTxt = await getResp.text();
+      if (getTxt && !getTxt.trim().startsWith("<")) res = JSON.parse(getTxt);
+    }
+
+    if (res && res.success && Array.isArray(res.students)) {
+      return {
+        success: true,
+        students: res.students,
+        source: res.source || "central",
+        teacherName: teacher ? (teacher.hoTenGV || teacher.maGV) : ""
+      };
+    }
+  } catch (err) {
+    console.error("Lỗi khi tải học sinh qua proxy trung tâm:", err);
+  }
+
+  return { success: false, students: [], message: "Không thể nạp dữ liệu từ máy chủ giáo viên!" };
+}
+
 async function openTransferStudentClassModal() {
   const modal = document.getElementById("modalTransferStudentClass");
   if (!modal) return;
@@ -12096,6 +12175,8 @@ async function openTransferStudentClassModal() {
   modal.setAttribute("aria-hidden", "false");
   hideTransferAlert();
   selectedTransferStudent = null;
+  transferClassModalData.sourceStudents = [];
+  transferClassModalData.targetStudents = [];
   updateSelectedStudentBoxUI();
 
   const selSource = document.getElementById("selectTransferSourceClass");
@@ -12106,7 +12187,11 @@ async function openTransferStudentClassModal() {
   const searchInput = document.getElementById("inputSearchTransferSourceStudent");
   const posInput = document.getElementById("inputTransferTargetPosition");
   const posDesc = document.getElementById("lblTransferTargetPositionDesc");
+  const noticeSource = document.getElementById("transferSourceTeacherNotice");
+  const noticeTarget = document.getElementById("transferTargetTeacherNotice");
 
+  if (noticeSource) noticeSource.style.display = "none";
+  if (noticeTarget) noticeTarget.style.display = "none";
   if (searchInput) searchInput.value = "";
   if (customTarget) {
     customTarget.style.display = "none";
@@ -12124,7 +12209,7 @@ async function openTransferStudentClassModal() {
     selTarget.disabled = true;
   }
   if (tbodySource) {
-    tbodySource.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;"><div style="display: inline-block; width: 22px; height: 22px; border: 3px solid #2563eb; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px;"></div>Đang tải dữ liệu học sinh toàn trường từ máy chủ trung tâm...</td></tr>';
+    tbodySource.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;"><div style="display: inline-block; width: 22px; height: 22px; border: 3px solid #2563eb; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px;"></div>Đang tải dữ liệu lớp học và danh bạ máy chủ giáo viên từ hệ thống...</td></tr>';
   }
   if (tbodyTarget) {
     tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #a16207;">Chưa chọn lớp chuyển đến</td></tr>';
@@ -12154,7 +12239,10 @@ async function openTransferStudentClassModal() {
     if (res && res.success) {
       transferClassModalData = {
         classes: Array.isArray(res.classes) ? res.classes : [],
-        students: Array.isArray(res.students) ? res.students : []
+        classTeachers: res.classTeachers || {},
+        teachers: Array.isArray(res.teachers) ? res.teachers : [],
+        sourceStudents: [],
+        targetStudents: []
       };
 
       populateTransferClassesDropdowns();
@@ -12198,8 +12286,9 @@ function populateTransferClassesDropdowns() {
   if (selSource) {
     let html = '<option value="">-- Chọn Lớp Nguồn (Hiện tại) --</option>';
     classes.forEach(c => {
-      const count = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === c.toUpperCase()).length;
-      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)} (${count} HS)</option>`;
+      const teachers = transferClassModalData.classTeachers[c] || [];
+      const tInfo = teachers.length > 0 ? ` (GV: ${teachers[0].hoTenGV || teachers[0].maGV})` : "";
+      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}${tInfo}</option>`;
     });
     selSource.innerHTML = html;
   }
@@ -12216,9 +12305,10 @@ function populateTransferTargetDropdown(currentSourceClass) {
 
   classes.forEach(c => {
     const isSame = currentSourceClass && c.toUpperCase() === currentSourceClass.toUpperCase();
-    const count = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === c.toUpperCase()).length;
+    const teachers = transferClassModalData.classTeachers[c] || [];
+    const tInfo = teachers.length > 0 ? ` (GV: ${teachers[0].hoTenGV || teachers[0].maGV})` : "";
     if (!isSame) {
-      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)} (Hiện có ${count} HS)</option>`;
+      html += `<option value="${escapeHtml(c)}">${escapeHtml(c)}${tInfo}</option>`;
     }
   });
 
@@ -12226,18 +12316,82 @@ function populateTransferTargetDropdown(currentSourceClass) {
   selTarget.innerHTML = html;
 }
 
-function handleTransferSourceClassChanged() {
+async function handleTransferSourceClassChanged() {
   const selSource = document.getElementById("selectTransferSourceClass");
-  const sourceClass = selSource ? selSource.value.trim() : "";
+  const sourceClass = selSource ? selSource.value.trim().toUpperCase() : "";
 
   selectedTransferStudent = null;
   updateSelectedStudentBoxUI();
   populateTransferTargetDropdown(sourceClass);
 
+  const noticeEl = document.getElementById("transferSourceTeacherNotice");
+  const nameEl = document.getElementById("transferSourceTeacherName");
+  const badgeEl = document.getElementById("transferSourceServerStatusBadge");
+  const tbody = document.getElementById("transferSourceStudentsTbody");
+  const badgeCount = document.getElementById("transferSourceClassCountBadge");
+
+  if (!sourceClass) {
+    if (noticeEl) noticeEl.style.display = "none";
+    if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #94a3b8;">Vui lòng chọn lớp nguồn ở trên</td></tr>';
+    if (badgeCount) badgeCount.textContent = "0 học sinh";
+    transferClassModalData.sourceStudents = [];
+    return;
+  }
+
+  // Tìm giáo viên phụ trách lớp này
+  const teachers = transferClassModalData.classTeachers[sourceClass] || [];
+  const primaryTeacher = teachers.length > 0 ? teachers[0] : null;
+
+  if (noticeEl && nameEl && badgeEl) {
+    noticeEl.style.display = "flex";
+    if (primaryTeacher) {
+      nameEl.textContent = `${primaryTeacher.hoTenGV || primaryTeacher.maGV} (${primaryTeacher.monDay || 'Bộ môn'})`;
+      if (primaryTeacher.serverUrl) {
+        badgeEl.textContent = "🌐 Đang tải từ Sheet GV...";
+        badgeEl.style.background = "#dbeafe";
+        badgeEl.style.color = "#1d4ed8";
+      } else {
+        badgeEl.textContent = "📁 Dữ liệu Sheet Trung Tâm";
+        badgeEl.style.background = "#f1f5f9";
+        badgeEl.style.color = "#475569";
+      }
+    } else {
+      nameEl.textContent = "Hệ Thống Trung Tâm";
+      badgeEl.textContent = "📁 Sheet Trung Tâm";
+      badgeEl.style.background = "#f1f5f9";
+      badgeEl.style.color = "#475569";
+    }
+  }
+
+  if (tbody) {
+    const tName = primaryTeacher ? (primaryTeacher.hoTenGV || primaryTeacher.maGV) : "Hệ thống";
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: #2563eb;"><div style="display: inline-block; width: 18px; height: 18px; border: 2.5px solid #2563eb; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px;"></div>Đang kết nối URL máy chủ Google Sheet của GV ${escapeHtml(tName)} để nạp dữ liệu lớp ${escapeHtml(sourceClass)}...</td></tr>`;
+  }
+
+  const result = await fetchTransferStudentsForClass(sourceClass, primaryTeacher);
+  transferClassModalData.sourceStudents = result.students || [];
+
+  if (badgeEl) {
+    if (result.source === "teacher_direct" || result.source === "teacher_server") {
+      badgeEl.textContent = "✅ Đã nạp từ Sheet GV riêng";
+      badgeEl.style.background = "#dcfce7";
+      badgeEl.style.color = "#15803d";
+    } else if (result.source === "teacher_sheet") {
+      badgeEl.textContent = "✅ Đã đọc từ Link Sheet GV";
+      badgeEl.style.background = "#dcfce7";
+      badgeEl.style.color = "#15803d";
+    } else {
+      badgeEl.textContent = "📁 Nạp từ Sheet Trung Tâm";
+      badgeEl.style.background = "#eff6ff";
+      badgeEl.style.color = "#1e40af";
+    }
+  }
+
   renderTransferSourceStudents();
 
+  // Reset lớp đích nếu đang chọn trùng lớp nguồn
   const selTarget = document.getElementById("selectTransferTargetClass");
-  if (selTarget && selTarget.value.toUpperCase() === sourceClass.toUpperCase()) {
+  if (selTarget && selTarget.value.toUpperCase() === sourceClass) {
     selTarget.value = "";
     handleTransferTargetClassChanged();
   }
@@ -12257,7 +12411,7 @@ function renderTransferSourceStudents() {
     return;
   }
 
-  let list = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === sourceClass);
+  let list = transferClassModalData.sourceStudents || [];
 
   if (badgeCount) {
     badgeCount.textContent = `${list.length} học sinh`;
@@ -12275,7 +12429,7 @@ function renderTransferSourceStudents() {
   if (list.length === 0) {
     tbody.innerHTML = kw
       ? '<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Không tìm thấy học sinh khớp với từ khóa tìm kiếm</td></tr>'
-      : '<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Lớp này hiện chưa có học sinh nào trên hệ thống</td></tr>';
+      : '<tr><td colspan="5" style="text-align: center; padding: 1.5rem; color: #94a3b8;">Lớp này hiện chưa có học sinh nào trên Google Sheet của GV</td></tr>';
     return;
   }
 
@@ -12298,7 +12452,7 @@ function renderTransferSourceStudents() {
 }
 
 function selectTransferStudentByUsername(username) {
-  const student = transferClassModalData.students.find(s => s.username === username);
+  const student = transferClassModalData.sourceStudents.find(s => s.username === username);
   if (!student) return;
 
   selectedTransferStudent = student;
@@ -12345,13 +12499,16 @@ function updateSelectedStudentBoxUI() {
   }
 }
 
-function handleTransferTargetClassChanged() {
+async function handleTransferTargetClassChanged() {
   const selTarget = document.getElementById("selectTransferTargetClass");
   const customInput = document.getElementById("inputTransferCustomTargetClass");
   const tbodyTarget = document.getElementById("transferTargetStudentsTbody");
   const badgeTarget = document.getElementById("transferTargetClassCountBadge");
   const posInput = document.getElementById("inputTransferTargetPosition");
   const posDesc = document.getElementById("lblTransferTargetPositionDesc");
+  const noticeEl = document.getElementById("transferTargetTeacherNotice");
+  const nameEl = document.getElementById("transferTargetTeacherName");
+  const badgeEl = document.getElementById("transferTargetServerStatusBadge");
 
   if (!selTarget || !tbodyTarget) return;
 
@@ -12367,14 +12524,62 @@ function handleTransferTargetClassChanged() {
   }
 
   if (!targetClass) {
+    if (noticeEl) noticeEl.style.display = "none";
     tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #a16207;">Chưa chọn lớp chuyển đến</td></tr>';
     if (badgeTarget) badgeTarget.textContent = "0 học sinh";
     if (posInput) posInput.value = "1";
     if (posDesc) posDesc.textContent = "(Mặc định: Số cuối lớp)";
+    transferClassModalData.targetStudents = [];
     return;
   }
 
-  const targetStudents = transferClassModalData.students.filter(s => String(s.lop || "").trim().toUpperCase() === targetClass);
+  // Tìm giáo viên phụ trách lớp đích
+  const teachers = transferClassModalData.classTeachers[targetClass] || [];
+  const primaryTeacher = teachers.length > 0 ? teachers[0] : null;
+
+  if (noticeEl && nameEl && badgeEl) {
+    noticeEl.style.display = "flex";
+    if (primaryTeacher) {
+      nameEl.textContent = `${primaryTeacher.hoTenGV || primaryTeacher.maGV} (${primaryTeacher.monDay || 'Bộ môn'})`;
+      if (primaryTeacher.serverUrl) {
+        badgeEl.textContent = "🌐 Đang tải từ Sheet GV tiếp nhận...";
+        badgeEl.style.background = "#fef3c7";
+        badgeEl.style.color = "#92400e";
+      } else {
+        badgeEl.textContent = "📁 Dữ liệu Sheet Trung Tâm";
+        badgeEl.style.background = "#f1f5f9";
+        badgeEl.style.color = "#475569";
+      }
+    } else {
+      nameEl.textContent = "Lớp Mới / Chưa gán GV cụ thể";
+      badgeEl.textContent = "📁 Tự động đồng bộ toàn hệ thống";
+      badgeEl.style.background = "#f1f5f9";
+      badgeEl.style.color = "#475569";
+    }
+  }
+
+  const tName = primaryTeacher ? (primaryTeacher.hoTenGV || primaryTeacher.maGV) : "Giáo viên";
+  tbodyTarget.innerHTML = `<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #d97706;"><div style="display: inline-block; width: 16px; height: 16px; border: 2px solid #d97706; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px;"></div>Đang kết nối URL Google Sheet của GV ${escapeHtml(tName)} để nạp danh sách lớp ${escapeHtml(targetClass)}...</td></tr>`;
+
+  const result = await fetchTransferStudentsForClass(targetClass, primaryTeacher);
+  const targetStudents = result.students || [];
+  transferClassModalData.targetStudents = targetStudents;
+
+  if (badgeEl) {
+    if (result.source === "teacher_direct" || result.source === "teacher_server") {
+      badgeEl.textContent = "✅ Đã nạp từ Sheet GV tiếp nhận";
+      badgeEl.style.background = "#dcfce7";
+      badgeEl.style.color = "#15803d";
+    } else if (result.source === "teacher_sheet") {
+      badgeEl.textContent = "✅ Đã đọc từ Link Sheet GV";
+      badgeEl.style.background = "#dcfce7";
+      badgeEl.style.color = "#15803d";
+    } else {
+      badgeEl.textContent = "📁 Nạp từ Sheet Trung Tâm";
+      badgeEl.style.background = "#fef3c7";
+      badgeEl.style.color = "#92400e";
+    }
+  }
 
   if (badgeTarget) {
     badgeTarget.textContent = `${targetStudents.length} học sinh`;
@@ -12388,11 +12593,11 @@ function handleTransferTargetClassChanged() {
   if (posDesc) {
     posDesc.textContent = targetStudents.length === 0
       ? "(Học sinh đầu tiên của lớp: Vị trí 1)"
-      : `(Mặc định: Số cuối lớp - Vị trí ${nextPos}/${nextPos})`;
+      : `(Mặc định: Số cuối lớp - Vị trí ${nextPos}/${nextPos} trên Sheet của GV)`;
   }
 
   if (targetStudents.length === 0) {
-    tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #15803d; font-weight: 600;">✨ Lớp này hiện chưa có học sinh nào. Học sinh mới chuyển đến sẽ ở vị trí STT số 1.</td></tr>';
+    tbodyTarget.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 1.5rem; color: #15803d; font-weight: 600;">✨ Lớp này hiện chưa có học sinh nào trên Google Sheet của GV. Học sinh mới chuyển đến sẽ ở vị trí STT số 1.</td></tr>';
     return;
   }
 
@@ -12462,17 +12667,24 @@ async function executeTransferStudentClassSubmit() {
     }
   }
 
+  // Lấy thông tin GV nguồn và GV đích
+  const srcTeachers = transferClassModalData.classTeachers[currentClass] || [];
+  const srcGvName = srcTeachers.length > 0 ? (srcTeachers[0].hoTenGV || srcTeachers[0].maGV) : "Hệ thống";
+  const dstTeachers = transferClassModalData.classTeachers[targetClass] || [];
+  const dstGvName = dstTeachers.length > 0 ? (dstTeachers[0].hoTenGV || dstTeachers[0].maGV) : "Hệ thống";
+
   const posText = targetPosition ? `tại vị trí STT #${targetPosition}` : "vào cuối danh sách";
   const confirmMsg =
     `⚠️ XÁC NHẬN CHUYỂN LỚP CHO HỌC SINH:\n\n` +
-    `• Học sinh: ${selectedTransferStudent.hoTen} (Mã: ${selectedTransferStudent.username})\n` +
-    `• Chuyển từ lớp: ${currentClass} ➔ Lớp mới: ${targetClass}\n` +
-    `• Vị trí chèn trong lớp mới: ${posText}\n\n` +
+    `• Học sinh: ${selectedTransferStudent.hoTen} (Mã HS: ${selectedTransferStudent.username})\n` +
+    `• Lớp hiện tại: ${currentClass} (GV phụ trách: ${srcGvName})\n` +
+    `• Lớp chuyển đến: ${targetClass} (GV tiếp nhận: ${dstGvName})\n` +
+    `• Vị trí chèn trong lớp mới: ${posText} trên Sheet của GV tiếp nhận\n\n` +
     `🛡️ Hệ thống sẽ tự động cập nhật và đồng bộ:\n` +
-    `1. Cập nhật vị trí danh sách trong Sheet DATA_HOCSINH\n` +
-    `2. Chuyển toàn bộ điểm trắc nghiệm (DATA_KETQUA) sang lớp ${targetClass}\n` +
-    `3. Chuyển toàn bộ bài thi tự luận (DATA_TULUAN) sang lớp ${targetClass}\n` +
-    `4. Đồng bộ danh sách học sinh tới các Sheet của Giáo viên liên quan\n\n` +
+    `1. Nạp và di chuyển học sinh trên Google Sheet riêng của Giáo viên tiếp nhận\n` +
+    `2. Chuyển toàn bộ điểm trắc nghiệm (DATA_KETQUA) và bài tự luận (DATA_TULUAN) sang lớp mới\n` +
+    `3. Cập nhật và sắp xếp danh sách trong Sheet DATA_HOCSINH Trung Tâm\n` +
+    `4. Đồng bộ tới tất cả các máy chủ Google Sheet của Giáo viên liên quan\n\n` +
     `Thầy/Cô có chắc chắn muốn thực hiện ngay bây giờ?`;
 
   if (!confirm(confirmMsg)) return;
