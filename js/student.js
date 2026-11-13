@@ -852,10 +852,16 @@ function exitFullScreen() {
   }
 }
 
-// Lắng nghe các sự kiện vi phạm (Thoát fullscreen, rời tab, blur)
+// Lắng nghe các sự kiện vi phạm (Thoát fullscreen, rời tab, blur, resize, escape)
 function handleFullscreenChange() {
   if (!isProctoringActive || isSubmittingExam) return;
   if (!isFullScreenActive()) {
+    // Đóng các modal phụ để modal cảnh báo vi phạm nổi lên khóa màn hình
+    const submitModal = document.getElementById("modalConfirmSubmitExam");
+    if (submitModal) submitModal.style.display = "none";
+    const incModal = document.getElementById("modalIncompleteExam");
+    if (incModal) incModal.style.display = "none";
+
     triggerExamViolation("Thoát chế độ toàn màn hình");
   } else {
     // Trình duyệt đang ở chế độ toàn màn hình hợp lệ
@@ -881,6 +887,33 @@ function handleWindowBlur() {
   triggerExamViolation("Rời khỏi cửa sổ phòng thi");
 }
 
+function handleWindowResize() {
+  if (!isProctoringActive || isSubmittingExam) return;
+  if (!isFullScreenActive()) {
+    const submitModal = document.getElementById("modalConfirmSubmitExam");
+    if (submitModal) submitModal.style.display = "none";
+    const incModal = document.getElementById("modalIncompleteExam");
+    if (incModal) incModal.style.display = "none";
+
+    triggerExamViolation("Thu nhỏ kích thước màn hình thi");
+  }
+}
+
+function handleKeyDownProctoring(e) {
+  if (!isProctoringActive || isSubmittingExam) return;
+  if (e.key === "Escape" || e.keyCode === 27) {
+    setTimeout(() => {
+      if (!isFullScreenActive()) {
+        const submitModal = document.getElementById("modalConfirmSubmitExam");
+        if (submitModal) submitModal.style.display = "none";
+        const incModal = document.getElementById("modalIncompleteExam");
+        if (incModal) incModal.style.display = "none";
+        triggerExamViolation("Nhấn phím ESC để thoát toàn màn hình");
+      }
+    }, 50);
+  }
+}
+
 function startProctoringListeners(maxAllowed) {
   isProctoringActive = true;
   currentExamMaxViolations = (Number(maxAllowed) > 0) ? Number(maxAllowed) : 5;
@@ -902,8 +935,10 @@ function startProctoringListeners(maxAllowed) {
   document.addEventListener("MSFullscreenChange", handleFullscreenChange);
   document.addEventListener("visibilitychange", handleVisibilityChange);
   window.addEventListener("blur", handleWindowBlur);
+  window.addEventListener("resize", handleWindowResize);
+  window.addEventListener("keydown", handleKeyDownProctoring, true);
 
-  // WATCHDOG TIMER: Giám sát liên tục mỗi 800ms
+  // WATCHDOG TIMER: Giám sát liên tục mỗi 400ms (nhanh gấp đôi để triệt tiêu mọi kẽ hở)
   // Đảm bảo học sinh KHÔNG THỂ ở chế độ thu nhỏ mà không bị bắt lỗi
   if (proctoringWatchdogTimer) clearInterval(proctoringWatchdogTimer);
   proctoringWatchdogTimer = setInterval(() => {
@@ -914,12 +949,18 @@ function startProctoringListeners(maxAllowed) {
     }
     // Nếu học sinh đang không ở toàn màn hình
     if (!isFullScreenActive()) {
-      // Nếu modal cảnh báo chưa hiển thị -> Kích hoạt bắt lỗi ngay!
-      if (!isViolationModalShowing) {
+      const submitModal = document.getElementById("modalConfirmSubmitExam");
+      if (submitModal) submitModal.style.display = "none";
+      const incModal = document.getElementById("modalIncompleteExam");
+      if (incModal) incModal.style.display = "none";
+
+      const violationModal = document.getElementById("modalExamViolation");
+      if (!isViolationModalShowing || !violationModal || violationModal.style.display !== "flex") {
+        isViolationModalShowing = false;
         triggerExamViolation("Thoát chế độ toàn màn hình");
       }
     }
-  }, 800);
+  }, 400);
 }
 
 function stopProctoringListeners() {
@@ -943,6 +984,8 @@ function stopProctoringListeners() {
   document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
   document.removeEventListener("visibilitychange", handleVisibilityChange);
   window.removeEventListener("blur", handleWindowBlur);
+  window.removeEventListener("resize", handleWindowResize);
+  window.removeEventListener("keydown", handleKeyDownProctoring, true);
 
   exitFullScreen();
 }
@@ -1850,6 +1893,14 @@ function showIncompleteExamModal(status) {
       // Bấm vào chuyển thẳng đến câu chưa làm
       row.addEventListener("click", () => {
         modal.style.display = "none";
+        if (isProctoringActive) {
+          enterFullScreen();
+          setTimeout(() => {
+            if (!isFullScreenActive() && !isViolationModalShowing) {
+              triggerExamViolation("Thoát chế độ toàn màn hình");
+            }
+          }, 250);
+        }
         jumpAndHighlightQuestionCard(item.cardId);
       });
 
@@ -1903,6 +1954,15 @@ function closeIncompleteExamModal() {
   const modal = document.getElementById("modalIncompleteExam");
   if (modal) {
     modal.style.display = "none";
+  }
+  // BẮT BUỘC: Khi học sinh đóng modal quay lại làm tiếp, lập tức khôi phục toàn màn hình & chống gian lận
+  if (isProctoringActive) {
+    enterFullScreen();
+    setTimeout(() => {
+      if (!isFullScreenActive() && !isViolationModalShowing) {
+        triggerExamViolation("Thoát chế độ toàn màn hình");
+      }
+    }, 250);
   }
 }
 window.closeIncompleteExamModal = closeIncompleteExamModal;
@@ -1958,6 +2018,91 @@ if (document.readyState === "loading") {
   initIncompleteExamModalEvents();
 }
 
+// ============================================================================
+// HỘP THOẠI XÁC NHẬN NỘP BÀI (DOM MODAL - BẢO VỆ TOÀN MÀN HÌNH KHÔNG BỊ THU NHỎ)
+// ============================================================================
+function openConfirmSubmitExamModal(status) {
+  const modal = document.getElementById("modalConfirmSubmitExam");
+  if (!modal) {
+    // Fallback: Nếu không tìm thấy DOM modal, dùng confirm nhưng luôn bảo vệ toàn màn hình khi Cancel
+    const confirmMsg = `Bạn đã hoàn thành đầy đủ tất cả ${status.totalQuestionsCount}/${status.totalQuestionsCount} câu hỏi!\nBạn có chắc chắn muốn nộp bài thi ngay bây giờ?`;
+    if (confirm(confirmMsg)) {
+      submitStudentExam(false);
+    } else {
+      if (isProctoringActive) {
+        enterFullScreen();
+        setTimeout(() => {
+          if (!isFullScreenActive() && !isViolationModalShowing) {
+            triggerExamViolation("Thoát chế độ toàn màn hình khi hủy nộp bài");
+          }
+        }, 250);
+      }
+    }
+    return;
+  }
+
+  // Điền dữ liệu vào modal xác nhận
+  const subTitle = document.getElementById("confirmSubmitExamSubtitle");
+  if (subTitle) {
+    subTitle.textContent = `Bạn đã hoàn thành đầy đủ tất cả ${status.totalQuestionsCount}/${status.totalQuestionsCount} câu hỏi!`;
+  }
+  const statsText = document.getElementById("confirmSubmitStatsText");
+  if (statsText) {
+    statsText.textContent = `${status.totalQuestionsCount}/${status.totalQuestionsCount} câu (100% Đầy đủ)`;
+  }
+  const timeEl = document.getElementById("confirmSubmitTimeRemaining");
+  if (timeEl) {
+    const mins = Math.floor(remainingSeconds / 60);
+    const secs = remainingSeconds % 60;
+    timeEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  initConfirmSubmitExamModalEvents();
+  modal.style.display = "flex";
+}
+
+function closeConfirmSubmitExamModal() {
+  const modal = document.getElementById("modalConfirmSubmitExam");
+  if (modal) {
+    modal.style.display = "none";
+  }
+  // QUAN TRỌNG: Khi học sinh nhấn "Hủy / Làm tiếp" hoặc đóng hộp thoại:
+  // LẬP TỨC kiểm tra và khôi phục Toàn Màn Hình.
+  // Nếu màn hình đang ở trạng thái thu nhỏ -> LẬP TỨC kích hoạt CẢNH BÁO VI PHẠM!
+  if (isProctoringActive) {
+    enterFullScreen();
+    setTimeout(() => {
+      if (!isFullScreenActive() && !isViolationModalShowing) {
+        triggerExamViolation("Thoát chế độ toàn màn hình khi hủy nộp bài");
+      }
+    }, 250);
+  }
+}
+window.closeConfirmSubmitExamModal = closeConfirmSubmitExamModal;
+
+function initConfirmSubmitExamModalEvents() {
+  const btnCancel = document.getElementById("btnCancelSubmitExam");
+  if (btnCancel) {
+    btnCancel.onclick = closeConfirmSubmitExamModal;
+  }
+  const btnConfirm = document.getElementById("btnConfirmSubmitExamFinal");
+  if (btnConfirm) {
+    btnConfirm.onclick = () => {
+      const modal = document.getElementById("modalConfirmSubmitExam");
+      if (modal) modal.style.display = "none";
+      submitStudentExam(false);
+    };
+  }
+  const modal = document.getElementById("modalConfirmSubmitExam");
+  if (modal) {
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        closeConfirmSubmitExamModal();
+      }
+    };
+  }
+}
+
 btnSubmitExam.addEventListener("click", () => {
   // Nếu nút đang ở chế độ "Thử nộp lại", ưu tiên gửi bài ngay mà không cần xác nhận lại
   const isRetry = btnSubmitExam.innerText.includes("nộp lại") || btnSubmitExam.innerText.includes("Gửi lại");
@@ -1974,12 +2119,8 @@ btnSubmitExam.addEventListener("click", () => {
     return;
   }
 
-  // Đã làm đủ 100% tất cả các câu
-  const confirmMsg = `Bạn đã hoàn thành đầy đủ tất cả ${status.totalQuestionsCount}/${status.totalQuestionsCount} câu hỏi!\nBạn có chắc chắn muốn nộp bài thi ngay bây giờ?`;
-
-  if (confirm(confirmMsg)) {
-    submitStudentExam(false);
-  }
+  // Đã làm đủ 100% tất cả các câu -> Mở modal xác nhận nộp bài (DOM modal, an toàn, không bị thu nhỏ màn hình)
+  openConfirmSubmitExamModal(status);
 });
 
 let isSubmittingExam = false;
@@ -1991,7 +2132,9 @@ async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false,
   // Dừng hệ thống giám sát thi & thoát toàn màn hình an toàn
   stopProctoringListeners();
 
-  // Đóng modal cảnh báo chưa làm xong nếu đang mở
+  // Đóng mọi modal nếu đang mở
+  const confirmSubmitModal = document.getElementById("modalConfirmSubmitExam");
+  if (confirmSubmitModal) confirmSubmitModal.style.display = "none";
   const incModal = document.getElementById("modalIncompleteExam");
   if (incModal) incModal.style.display = "none";
 
