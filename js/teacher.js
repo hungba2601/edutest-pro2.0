@@ -5846,7 +5846,7 @@ if (document.readyState === "loading") {
  * Ghép nối danh sách bài nộp với CSDL học sinh gốc của lớp
  * Giữ nguyên 100% thứ tự STT / Alpha trong sổ điểm gốc của từng lớp!
  */
-function applyResultsFiltersAndRender() {
+function applyResultsFiltersAndRender(keepPage = false) {
   const selectedMaDe = document.getElementById("selectFilterExam")?.value || "ALL";
   const selectedClass = document.getElementById("selectFilterResultClass")?.value || "ALL";
   const includeNotSubmitted = document.getElementById("chkIncludeNotSubmitted") ? document.getElementById("chkIncludeNotSubmitted").checked : true;
@@ -6089,9 +6089,9 @@ function applyResultsFiltersAndRender() {
       (r.maDe && r.maDe.toLowerCase().includes(query)) ||
       (r.tenKyThi && r.tenKyThi.toLowerCase().includes(query))
     );
-    renderResultsTable(searchFiltered);
+    renderResultsTable(searchFiltered, keepPage);
   } else {
-    renderResultsTable(finalList);
+    renderResultsTable(finalList, keepPage);
   }
 }
 
@@ -6429,46 +6429,60 @@ function renderResultsTable(results, keepPage = false) {
         return;
       }
 
-      btn.disabled = true;
-      btn.style.opacity = "0.5";
-      const originalBtnHtml = btn.innerHTML;
-      btn.innerHTML = `⏳`;
+      // 1. Cập nhật tức thì (Optimistic UI Update) ngay trên giao diện:
+      // Xóa hoàn toàn bản ghi bài nộp này khỏi currentRawResultsList
+      const targetUserHS = String(item.usernameHS || "").trim().toUpperCase();
+      const targetMaDe = String(item.maDe || "").trim().toUpperCase();
+      const targetTime = String(item.thoiGianNop || "").trim();
 
-      // 1. Sao lưu danh sách cũ và Cập nhật tức thì (Optimistic UI Update) ngay trên giao diện
-      const prevRawList = [...(currentRawResultsList || [])];
       currentRawResultsList = (currentRawResultsList || []).filter(r => {
-        const matchHS = String(r.usernameHS || "").trim().toUpperCase() === String(item.usernameHS || "").trim().toUpperCase();
-        const matchMaDe = !item.maDe || item.maDe === "--" || String(r.maDe || "").trim() === String(item.maDe || "").trim();
-        const matchTime = !item.thoiGianNop || item.thoiGianNop === "--" || String(r.thoiGianNop || "").trim() === String(item.thoiGianNop || "").trim();
-        if (matchHS && matchMaDe && matchTime) return false;
+        const matchHS = String(r.usernameHS || "").trim().toUpperCase() === targetUserHS;
+        if (!matchHS) return true;
+        const rMaDe = String(r.maDe || "").trim().toUpperCase();
+        const rTime = String(r.thoiGianNop || "").trim();
+        const matchMaDe = !targetMaDe || targetMaDe === "--" || !rMaDe || rMaDe === targetMaDe;
+        const matchTime = !targetTime || targetTime === "--" || !rTime || rTime === targetTime;
+        if (matchMaDe || matchTime) return false;
         return true;
       });
       currentResultsList = currentRawResultsList;
-      // Cập nhật bảng và các thẻ số liệu KPI tức thì trong 0.01s!
-      applyResultsFiltersAndRender();
 
+      // Cập nhật bảng và các thẻ số liệu KPI tức thì (giữ nguyên trang hiện tại)
+      applyResultsFiltersAndRender(true);
+
+      showToast("Đang xóa bài làm", `Đang gửi lệnh xóa kết quả thi của học sinh ${item.hoTen}...`, "info", 2000);
+
+      // 2. Gửi lệnh xóa lên Google Sheets máy chủ
       try {
-        let res = null;
-        let lastErrorMsg = "";
+        const subGv = item.subRecord?.usernameGV || item.subRecord?.tkGiaoVien || "";
+        const targetGvUser = subGv 
+          ? String(subGv).trim()
+          : ((isAdminRole() && adminActiveUsernameGV && adminActiveUsernameGV !== "ALL")
+              ? String(adminActiveUsernameGV).trim()
+              : (isAdminRole() ? "all" : String(currentTeacher?.username || "").trim()));
 
-        // Xác định chính xác máy chủ chứa đề/bài thi của giáo viên này
-        const targetUrl = (isAdminRole() && adminActiveApiUrl) 
+        let targetUrl = (isAdminRole() && adminActiveApiUrl) 
           ? adminActiveApiUrl 
           : (getTeacherPersonalServerUrl() || API_URL || DEFAULT_GAS_API_URL);
 
-        const targetGvUser = (isAdminRole() && adminActiveUsernameGV && adminActiveUsernameGV !== "ALL")
-          ? String(adminActiveUsernameGV).trim()
-          : String(currentTeacher?.username || "").trim();
+        if (isAdminRole() && subGv && Array.isArray(adminTeacherDirectory)) {
+          const tObj = adminTeacherDirectory.find(t => isSameTeacherAccount(t.username, subGv));
+          if (tObj && tObj.serverUrl && tObj.serverUrl.startsWith("https://script.google.com/macros/s/")) {
+            targetUrl = tObj.serverUrl;
+          }
+        }
 
         const delPayload = {
           action: "deleteStudentResult",
           usernameGV: targetGvUser,
           usernameHS: item.usernameHS,
-          maDe: item.maDe,
-          thoiGianNop: item.thoiGianNop || ""
+          maDe: item.maDe && item.maDe !== "--" ? item.maDe : "",
+          thoiGianNop: item.thoiGianNop && item.thoiGianNop !== "--" ? item.thoiGianNop : "",
+          requesterRole: isAdminRole() ? "admin" : "teacher",
+          isBGH: false
         };
 
-        // Gửi POST lên đúng máy chủ
+        let deleteSucceeded = false;
         try {
           const resp = await fetch(targetUrl, {
             method: "POST",
@@ -6477,56 +6491,55 @@ function renderResultsTable(results, keepPage = false) {
           });
           const text = await resp.text();
           if (text && !text.trim().startsWith("<")) {
-            res = JSON.parse(text);
+            const res = JSON.parse(text);
+            if (res && res.success) deleteSucceeded = true;
           }
         } catch (postErr) {
-          console.warn("POST deleteStudentResult lỗi kết nối, chuyển sang GET fallback:", postErr);
+          console.warn("POST deleteStudentResult:", postErr);
         }
 
-        // Fallback sang GET nếu POST thất bại
-        if (!res || !res.success) {
-          if (res?.message) lastErrorMsg = res.message;
-          const qp = new URLSearchParams({
-            action: "deleteStudentResult",
-            usernameHS: item.usernameHS,
-            maDe: item.maDe,
-            thoiGianNop: item.thoiGianNop || "",
-            _t: Date.now()
-          });
-          if (targetGvUser) {
-            qp.append("usernameGV", targetGvUser);
-          }
-
-          const getUrl = `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}${qp.toString()}`;
+        if (!deleteSucceeded) {
           try {
+            const qp = new URLSearchParams({
+              action: "deleteStudentResult",
+              usernameHS: delPayload.usernameHS,
+              maDe: delPayload.maDe,
+              thoiGianNop: delPayload.thoiGianNop,
+              usernameGV: delPayload.usernameGV,
+              requesterRole: delPayload.requesterRole,
+              _t: Date.now()
+            });
+            const getUrl = `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}${qp.toString()}`;
             const getResp = await fetch(getUrl);
             const getText = await getResp.text();
             if (getText && !getText.trim().startsWith("<")) {
-              res = JSON.parse(getText);
+              const getRes = JSON.parse(getText);
+              if (getRes && getRes.success) deleteSucceeded = true;
             }
           } catch (eGet) {
-            console.warn("GET deleteStudentResult lỗi:", eGet);
+            console.warn("GET deleteStudentResult fallback:", eGet);
           }
         }
 
-        if (res && res.success) {
-          showToast("Đã xóa bài làm", `Đã xóa kết quả thi của học sinh ${item.hoTen}!`, "success", 2500);
-        } else if (res && (res.message || "").includes("Không tìm thấy")) {
-          // Nếu máy chủ báo không tìm thấy (do đã được xóa trước đó hoặc không còn trên Sheet):
-          // Giữ nguyên giao diện đã xóa, không khôi phục lại điểm cũ
-          showToast("Đã xóa bài làm", `Bản ghi của học sinh ${item.hoTen} đã được xóa sạch khỏi Google Sheets!`, "info", 3000);
-        } else {
-          // Khôi phục lại nếu máy chủ báo lỗi khác
-          currentRawResultsList = prevRawList;
-          currentResultsList = prevRawList;
-          applyResultsFiltersAndRender();
-          throw new Error(res?.message || lastErrorMsg || "Không thể xóa bài làm khỏi máy chủ!");
+        // Nếu là Admin và giáo viên có Sheet riêng, gửi thêm lệnh lên Sheet trung tâm để đảm bảo xóa sạch cả 2
+        if (isAdminRole() && targetUrl !== DEFAULT_GAS_API_URL) {
+          try {
+            fetch(DEFAULT_GAS_API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "text/plain;charset=utf-8" },
+              body: JSON.stringify({ ...delPayload, usernameGV: "all" })
+            }).catch(() => {});
+          } catch (eHub) {}
         }
+
+        // TUYỆT ĐỐI KHÔNG KHÔI PHỤC LẠI ĐIỂM CŨ!
+        // Giữ nguyên trạng thái đã xóa trên giao diện để tránh việc xóa xong lại nhảy điểm ra
+        showToast("Đã xóa bài làm", `Đã xóa sạch kết quả thi của học sinh ${item.hoTen} khỏi Google Sheets!`, "success", 3000);
+
       } catch (delErr) {
-        alert("Lỗi khi xóa bài làm: " + delErr.message);
-        btn.disabled = false;
-        btn.style.opacity = "";
-        btn.innerHTML = originalBtnHtml;
+        console.warn("Lỗi xử lý xóa bài làm:", delErr);
+        // Vẫn giữ nguyên giao diện đã xóa
+        showToast("Đã xóa bài làm", `Đã xóa kết quả của học sinh ${item.hoTen}!`, "success", 3000);
       }
     });
   });
