@@ -1350,67 +1350,6 @@ body {
   box-shadow: 0 3px 8px rgba(5, 150, 105, 0.3);
 }
 
-.student-essay-input-container {
-  position: relative;
-  width: 100%;
-}
-
-/* Rèm che tự động khi rời ô làm bài (Cách 1: Auto-Curtain on Blur / Inactivity) */
-.essay-privacy-curtain {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(248, 250, 252, 0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1.5px dashed #94a3b8;
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 4;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-  user-select: none;
-}
-.essay-privacy-curtain:hover {
-  background: rgba(241, 245, 249, 0.96);
-  border-color: #059669;
-}
-.essay-privacy-curtain.is-hidden {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-.curtain-lock-bubble {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  background: #ffffff;
-  padding: 0.85rem 1.35rem;
-  border-radius: 14px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
-  border: 1.5px solid #e2e8f0;
-  text-align: center;
-  pointer-events: none;
-}
-.curtain-lock-icon {
-  font-size: 1.4rem;
-}
-.curtain-lock-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #1e293b;
-}
-.curtain-lock-sub {
-  font-size: 0.76rem;
-  color: #059669;
-  font-weight: 600;
-}
-
 .student-essay-textarea {
   width: 100%;
   min-height: 140px;
@@ -1434,19 +1373,20 @@ body {
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
-/* Kiểu chữ chống nhìn trộm: Ngụy trang giảm tương phản (Cách 2 - BỎ GẠCH GIỮA THEO YÊU CẦU) */
+/* Kiểu chữ chống nhìn trộm (gạch giữa + chữ nhỏ lại) */
 .student-essay-textarea.anti-peep-mode {
-  font-size: 0.88rem !important;
-  letter-spacing: -0.1px;
-  text-decoration: none !important; /* ĐÃ BỎ GẠCH GIỮA */
-  color: #64748b !important; /* Xám trung tính tiệp nền, làm mờ độ tương phản góc nghiêng */
+  font-size: 0.82rem !important;
+  letter-spacing: -0.2px;
+  text-decoration: line-through !important;
+  text-decoration-color: #64748b !important;
+  text-decoration-thickness: 1.5px !important;
+  color: #475569 !important;
   background: #f8fafc !important;
   transition: font-size 0.15s ease, color 0.15s ease;
 }
 .student-essay-textarea.anti-peep-mode:focus {
   background: #ffffff !important;
   border-color: #059669 !important;
-  color: #475569 !important; /* Trực diện gõ dễ nhìn, nghiêng khó thấy */
 }
 
 /* Kiểu chữ rõ ràng khi học sinh bấm mắt để xem lại */
@@ -1912,7 +1852,7 @@ body.palette-modal-open {
     min-height: 120px !important;
   }
   .student-essay-textarea.anti-peep-mode {
-    font-size: 0.88rem !important;
+    font-size: 0.82rem !important;
   }
   .student-essay-textarea.clear-mode {
     font-size: 16px !important;
