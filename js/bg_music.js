@@ -3,7 +3,7 @@
  * BACKGROUND MUSIC SYSTEM - EDUTEST PRO 2.0
  * Icon Cái Loa Nhỏ Phía Trên Bên Phải (Gọn gàng & Hiện Popup Đầy Đủ Tính Năng)
  * Tự động phát nhạc nhẹ 30% khi đã đăng nhập (Admin, Giáo viên & Học sinh)
- * Danh sách phát ngẫu nhiên: "Love Story" & "Sealed With a Kiss"
+ * Danh sách phát ngẫu nhiên: "Love Story", "Sealed With a Kiss" & "Woman in Love"
  * ============================================================================
  */
 
@@ -23,12 +23,18 @@
       title: "Sealed With a Kiss",
       artist: "Brian Hyland (Du dương)",
       src: encodeURI("Sealed with a kiss.m4a")
+    },
+    {
+      id: "womaninlove",
+      title: "Woman in Love",
+      artist: "Barbra Streisand (Du dương)",
+      src: encodeURI("Woman in Love.mp3")
     }
   ];
 
   const DEFAULT_VOLUME = 0.3; // Mặc định 30% âm lượng theo yêu cầu
 
-  // Chọn ngẫu nhiên 1 trong 2 bài khi mở trang
+  // Chọn ngẫu nhiên 1 trong các bài khi mở trang
   let currentTrackIndex = Math.floor(Math.random() * PLAYLIST.length);
   let bgAudio = null;
   let isPlaying = false;
@@ -460,7 +466,7 @@
           </button>
 
           <!-- Nút Đổi bài tiếp theo (Next / Shuffle) -->
-          <button type="button" class="btn-popover-next" id="btnPopoverNext" title="Chuyển sang bài tiếp theo (Love Story ↔ Sealed With a Kiss)">
+          <button type="button" class="btn-popover-next" id="btnPopoverNext" title="Chuyển sang bài tiếp theo (Love Story ↔ Sealed With a Kiss ↔ Woman in Love)">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="5 4 15 12 5 20 5 4"/>
               <line x1="19" y1="5" x2="19" y2="19"/>
