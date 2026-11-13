@@ -6417,6 +6417,9 @@ function renderResultsTable(results, keepPage = false) {
   // Gắn sự kiện xóa kết quả
   tbody.querySelectorAll(".btn-delete-result").forEach(btn => {
     btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
       if (isBGHAccount()) {
         alert("Tài khoản Ban Giám Hiệu chỉ có quyền xem thống kê, không được phép xóa kết quả thi!");
         return;
@@ -6425,14 +6428,22 @@ function renderResultsTable(results, keepPage = false) {
       const item = pageItems[idx];
       if (!item) return;
 
-      if (!confirm(`Bạn có chắc chắn muốn xóa kết quả thi của học sinh "${item.hoTen}" (${item.usernameHS}) khỏi Google Sheets không?`)) {
+      if (!confirm(`Bạn có chắc chắn muốn xóa kết quả thi của học sinh "${item.hoTen}" (${item.usernameHS || item.lop}) khỏi Google Sheets không?`)) {
         return;
       }
 
-      // 1. Cập nhật tức thì (Optimistic UI Update) ngay trên giao diện:
+      const rowEl = btn.closest("tr");
       const subRec = item.subRecord;
 
-      // Đánh dấu ngay đối tượng item hiện tại thành chưa nộp bài
+      // Thu thập mọi thông tin nhận diện bài làm này TRƯỚC KHI MUTATE
+      const targetUser1 = String(subRec?.usernameHS || "").trim().toUpperCase();
+      const targetUser2 = String(item.usernameHS || "").trim().toUpperCase();
+      const targetName = String(subRec?.hoTen || item.hoTen || "").trim().toLowerCase();
+      const targetClass = normalizeClassName(subRec?.lop || item.lop || "");
+      const targetMaDe = String(subRec?.maDe || item.maDe || "").trim().toUpperCase();
+      const targetTime = String(subRec?.thoiGianNop || item.thoiGianNop || "").trim();
+
+      // 1. Đánh dấu ngay đối tượng item hiện tại thành chưa nộp bài
       item.isSubmitted = false;
       item.diemTong = "";
       item.soCauDungSai = "";
@@ -6441,17 +6452,30 @@ function renderResultsTable(results, keepPage = false) {
       item.chiTietTraLoi = "[]";
       item.baiLamTuLuan = [];
 
-      // Thu thập mọi thông tin nhận diện bài làm này
-      const targetUser1 = String(subRec?.usernameHS || "").trim().toUpperCase();
-      const targetUser2 = String(item.usernameHS || "").trim().toUpperCase();
-      const targetName = String(subRec?.hoTen || item.hoTen || "").trim().toLowerCase();
-      const targetClass = normalizeClassName(subRec?.lop || item.lop || "");
-      const targetMaDe = String(subRec?.maDe || item.maDe || "").trim().toUpperCase();
-      const targetTime = String(subRec?.thoiGianNop || item.thoiGianNop || "").trim();
+      // 2. CẬP NHẬT TRỰC TIẾP TRÊN DOM NGAY TỨC THÌ (ĐẢM BẢO KHÔNG THỂ BỊ HIỆN LẠI)
+      const chkIncludeNotSubmitted = document.getElementById("chkIncludeNotSubmitted") ? document.getElementById("chkIncludeNotSubmitted").checked : true;
+      const isOnlySubmittedView = (currentSubmissionStatusFilter === "SUBMITTED") || (!chkIncludeNotSubmitted && currentSubmissionStatusFilter === "ALL");
 
-      // Loại bỏ triệt để bài nộp này khỏi currentRawResultsList
+      if (isOnlySubmittedView) {
+        // Nếu đang ở chế độ chỉ xem bài đã làm: Xóa luôn dòng khỏi bảng!
+        if (rowEl) rowEl.remove();
+      } else {
+        // Nếu đang ở chế độ xem đủ danh sách lớp: Chuyển dòng sang trạng thái Chưa làm bài vĩnh viễn!
+        if (rowEl) {
+          rowEl.style.background = "#fcfdfd";
+          const cells = rowEl.querySelectorAll("td");
+          if (cells.length >= 9) {
+            cells[5].innerHTML = `<span class="score-badge not-submitted" style="background: #f1f5f9; color: #64748b; border: 1.5px dashed #cbd5e1; font-weight: 700; font-size: 0.76rem; padding: 3px 8px; border-radius: 6px;">Chưa làm bài</span>`;
+            cells[6].innerHTML = `<span style="color: #cbd5e1;">--</span>`;
+            cells[7].innerHTML = `<span style="font-size: 0.78rem; color: #94a3b8; font-style: italic;">Chưa nộp</span>`;
+            cells[8].innerHTML = `<span style="font-size: 0.78rem; color: #cbd5e1; font-style: italic;">Chưa có bài thi</span>`;
+          }
+        }
+      }
+
+      // 3. LOẠI BỎ TRIỆT ĐỂ BÀI NỘP NÀY KHỎI TOÀN BỘ CÁC BIẾN BỘ NHỚ
+      // a) currentRawResultsList
       currentRawResultsList = (currentRawResultsList || []).filter(r => {
-        // Khớp chính xác đối tượng reference
         if (subRec && r === subRec) return false;
 
         const rUser = String(r.usernameHS || "").trim().toUpperCase();
@@ -6461,28 +6485,55 @@ function renderResultsTable(results, keepPage = false) {
         const matchUser = (targetUser1 && rUser === targetUser1) || (targetUser2 && rUser === targetUser2);
         const matchNameClass = (targetName && rName === targetName && (!targetClass || rClass === targetClass));
 
-        // Nếu không khớp học sinh nào thì giữ lại
         if (!matchUser && !matchNameClass) return true;
 
-        // Nếu đúng học sinh: kiểm tra mã đề hoặc thời gian nộp
         const rMaDe = String(r.maDe || "").trim().toUpperCase();
-        const rTime = String(r.thoiGianNop || "").trim();
-        const matchMaDe = !targetMaDe || targetMaDe === "--" || !rMaDe || rMaDe === targetMaDe;
-        const matchTime = !targetTime || targetTime === "--" || !rTime || rTime === targetTime;
-
-        if (matchMaDe || matchTime) {
-          return false; // Loại bỏ bản ghi này!
+        if (!targetMaDe || targetMaDe === "--" || !rMaDe || rMaDe === targetMaDe) {
+          return false; // Loại bỏ sạch mọi bản ghi của học sinh này đối với đề thi này!
         }
         return true;
       });
       currentResultsList = currentRawResultsList;
 
-      // Cập nhật bảng và các thẻ số liệu KPI tức thì (giữ nguyên trang hiện tại)
-      applyResultsFiltersAndRender(true);
+      // b) currentDisplayedResultsList & lastFullResultsData
+      [currentDisplayedResultsList, lastFullResultsData].forEach(arr => {
+        if (!Array.isArray(arr)) return;
+        arr.forEach(d => {
+          if (!d) return;
+          const dUser = String(d.usernameHS || "").trim().toUpperCase();
+          const dName = String(d.hoTen || "").trim().toLowerCase();
+          const dClass = normalizeClassName(d.lop || "");
+          const match = (d === item) || (targetUser2 && dUser === targetUser2) || (targetName && dName === targetName && (!targetClass || dClass === targetClass));
+          if (match) {
+            d.isSubmitted = false;
+            d.diemTong = "";
+            d.soCauDungSai = "";
+            d.thoiGianNop = "";
+            d.subRecord = null;
+            d.chiTietTraLoi = "[]";
+            d.baiLamTuLuan = [];
+          }
+        });
+      });
+
+      // 4. CẬP NHẬT CÁC CON SỐ KPI VÀ BADGE
+      const badgeSub = document.getElementById("badgeCountSubmitted");
+      const badgeNot = document.getElementById("badgeCountNotSubmitted");
+      if (badgeSub) {
+        const curSub = parseInt(badgeSub.textContent) || 0;
+        if (curSub > 0) badgeSub.textContent = curSub - 1;
+      }
+      if (badgeNot) {
+        const curNot = parseInt(badgeNot.textContent) || 0;
+        badgeNot.textContent = curNot + 1;
+      }
+      if (typeof computeAndRenderMetrics === "function") {
+        computeAndRenderMetrics(currentDisplayedResultsList || []);
+      }
 
       showToast("Đang xóa bài làm", `Đang gửi lệnh xóa kết quả thi của học sinh ${item.hoTen}...`, "info", 2000);
 
-      // 2. Gửi lệnh xóa lên Google Sheets máy chủ
+      // 5. Gửi lệnh xóa lên Google Sheets máy chủ
       try {
         const subGv = item.subRecord?.usernameGV || item.subRecord?.tkGiaoVien || "";
         const targetGvUser = subGv 
