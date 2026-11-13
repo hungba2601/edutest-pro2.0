@@ -1267,6 +1267,89 @@ body {
   margin-top: 1rem;
   position: relative;
 }
+
+/* Thanh điều khiển bảo mật & chống nhìn trộm tự luận */
+.student-essay-privacy-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+.essay-privacy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.essay-privacy-badge.is-shielded {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+.essay-privacy-badge.is-clear {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+.btn-essay-eye-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 4px 11px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  user-select: none;
+}
+.btn-essay-eye-toggle:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+.btn-essay-eye-toggle.is-revealed {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.btn-toggle-all-peep {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #065f46;
+  color: #ffffff;
+  border: 1px solid #047857;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.2);
+  user-select: none;
+}
+.btn-toggle-all-peep:hover {
+  background: #047857;
+  box-shadow: 0 3px 8px rgba(5, 150, 105, 0.3);
+}
+
 .student-essay-textarea {
   width: 100%;
   min-height: 140px;
@@ -1289,6 +1372,33 @@ body {
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
+
+/* Kiểu chữ chống nhìn trộm (gạch giữa + chữ nhỏ lại) */
+.student-essay-textarea.anti-peep-mode {
+  font-size: 0.82rem !important;
+  letter-spacing: -0.2px;
+  text-decoration: line-through !important;
+  text-decoration-color: #64748b !important;
+  text-decoration-thickness: 1.5px !important;
+  color: #475569 !important;
+  background: #f8fafc !important;
+  transition: font-size 0.15s ease, color 0.15s ease;
+}
+.student-essay-textarea.anti-peep-mode:focus {
+  background: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+/* Kiểu chữ rõ ràng khi học sinh bấm mắt để xem lại */
+.student-essay-textarea.clear-mode {
+  font-size: 0.98rem !important;
+  letter-spacing: normal !important;
+  text-decoration: none !important;
+  color: #0f172a !important;
+  background: #ffffff !important;
+  transition: font-size 0.15s ease, color 0.15s ease;
+}
+
 .student-essay-meta-row {
   display: flex;
   justify-content: space-between;
@@ -1296,6 +1406,14 @@ body {
   margin-top: 0.5rem;
   font-size: 0.78rem;
   color: #64748b;
+}
+.essay-privacy-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  color: #059669;
+  font-weight: 600;
 }
 .essay-word-counter {
   font-weight: 600;
@@ -1732,6 +1850,12 @@ body.palette-modal-open {
     padding: 0.75rem 0.85rem !important;
     border-radius: 10px !important;
     min-height: 120px !important;
+  }
+  .student-essay-textarea.anti-peep-mode {
+    font-size: 0.82rem !important;
+  }
+  .student-essay-textarea.clear-mode {
+    font-size: 16px !important;
   }
   .student-essay-meta-row {
     flex-direction: column !important;
