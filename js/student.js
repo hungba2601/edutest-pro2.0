@@ -1432,13 +1432,22 @@ function renderExamQuestions(questions, essayData) {
             <span class="essay-privacy-badge is-shielded" id="privacy_badge_${essayId}">
               <span class="badge-icon">🙈</span> <span>Đang chống nhìn trộm</span>
             </span>
-            <button type="button" class="btn-essay-eye-toggle" id="btn_essay_eye_${essayId}" data-essay-id="${essayId}" title="Bấm để Hiện rõ/Che lại bài làm hoặc nhấn giữ để xem nhanh">
+            <button type="button" class="btn-essay-eye-toggle" id="btn_essay_eye_${essayId}" data-essay-id="${essayId}" title="Bấm để Hiện rõ hoặc Bật lại chế độ che bảo vệ">
               <span class="eye-icon">👁️</span> <span class="eye-label">Xem lại bài (Hiện rõ)</span>
             </button>
           </div>
-          <textarea class="student-essay-textarea anti-peep-mode" id="essay_textarea_${essayId}" data-essay-id="${essayId}" placeholder="Nhập bài làm tự luận của bạn cho câu ${essayId} tại đây...">${savedAnswer}</textarea>
+          <div class="student-essay-input-container">
+            <textarea class="student-essay-textarea anti-peep-mode" id="essay_textarea_${essayId}" data-essay-id="${essayId}" placeholder="Nhập bài làm tự luận của bạn cho câu ${essayId} tại đây...">${savedAnswer}</textarea>
+            <div class="essay-privacy-curtain ${savedAnswer.trim() ? '' : 'is-hidden'}" id="curtain_${essayId}" data-essay-id="${essayId}" title="Nhấp vào đây để tiếp tục gõ bài">
+              <div class="curtain-lock-bubble">
+                <span class="curtain-lock-icon">🔒</span>
+                <span class="curtain-lock-title">Bài làm đang được che bảo vệ</span>
+                <span class="curtain-lock-sub">Bấm vào ô để tiếp tục làm bài</span>
+              </div>
+            </div>
+          </div>
           <div class="student-essay-meta-row">
-            <span class="essay-privacy-hint">🔒 Chữ gạch giữa & thu nhỏ để chống nhìn trộm. Bấm nút mắt 👁️ (hoặc nhấn giữ) để đọc lại rõ.</span>
+            <span class="essay-privacy-hint">🛡️ Tự động phủ rèm khi rời chuột & ngụy trang màu chữ khi gõ. Bấm nút mắt 👁️ để đọc lại rõ.</span>
             <span class="essay-word-counter" id="essay_word_counter_${essayId}">0 từ (0 ký tự)</span>
           </div>
         </div>
@@ -1598,16 +1607,45 @@ function attachStudentAnswerEvents() {
     if (textarea.value) {
       handleInput();
     }
+
+    // Khi gõ/focus vào ô tự luận: Ẩn rèm che ngay
+    textarea.addEventListener("focus", () => {
+      const curtain = document.getElementById(`curtain_${essayId}`);
+      if (curtain) curtain.classList.add("is-hidden");
+    });
+
+    // Khi rời chuột ra ngoài ô tự luận (Blur): Tự động phủ rèm che nếu có chữ & đang bật bảo vệ (Cách 1)
+    textarea.addEventListener("blur", () => {
+      const isClear = textarea.classList.contains("clear-mode");
+      const hasText = textarea.value.trim().length > 0;
+      const curtain = document.getElementById(`curtain_${essayId}`);
+      if (!isClear && hasText && curtain) {
+        curtain.classList.remove("is-hidden");
+      }
+    });
   });
 
   // ==========================================================================
-  // CHỐNG NHÌN TRỘM BÀI LÀM TỰ LUẬN (ANTI-PEEP PRIVACY TOGGLE)
+  // CHỐNG NHÌN TRỘM BÀI LÀM TỰ LUẬN (CÁCH 1: RÈM CHE BLUR & CÁCH 2: NGỤY TRANG CHỮ)
   // ==========================================================================
-  // Nút con mắt từng câu: Bật/Tắt chế độ gạch giữa + chữ nhỏ chống nhìn trộm
+  // Nhấp vào rèm che để mở ô và gõ tiếp
+  document.querySelectorAll(".essay-privacy-curtain").forEach(curtain => {
+    curtain.addEventListener("click", () => {
+      const essayId = curtain.dataset.essayId;
+      const textarea = document.getElementById(`essay_textarea_${essayId}`);
+      curtain.classList.add("is-hidden");
+      if (textarea) {
+        textarea.focus();
+      }
+    });
+  });
+
+  // Nút con mắt từng câu: Bật/Tắt chế độ bảo vệ chống nhìn trộm
   document.querySelectorAll(".btn-essay-eye-toggle").forEach(btn => {
     const essayId = btn.dataset.essayId;
     const textarea = document.getElementById(`essay_textarea_${essayId}`);
     const badge = document.getElementById(`privacy_badge_${essayId}`);
+    const curtain = document.getElementById(`curtain_${essayId}`);
     const iconSpan = btn.querySelector(".eye-icon");
     const labelSpan = btn.querySelector(".eye-label");
 
@@ -1617,6 +1655,7 @@ function attachStudentAnswerEvents() {
         textarea.classList.remove("anti-peep-mode");
         textarea.classList.add("clear-mode");
         btn.classList.add("is-revealed");
+        if (curtain) curtain.classList.add("is-hidden"); // Ẩn rèm che hoàn toàn khi xem lại
         if (iconSpan) iconSpan.textContent = "🙈";
         if (labelSpan) labelSpan.textContent = "Bật chống nhìn trộm";
         if (badge) {
@@ -1632,6 +1671,10 @@ function attachStudentAnswerEvents() {
         if (badge) {
           badge.className = "essay-privacy-badge is-shielded";
           badge.innerHTML = `<span class="badge-icon">🙈</span> <span>Đang chống nhìn trộm</span>`;
+        }
+        // Nếu không đang focus và có chữ thì phủ rèm che lại
+        if (document.activeElement !== textarea && textarea.value.trim().length > 0 && curtain) {
+          curtain.classList.remove("is-hidden");
         }
       }
     };
@@ -1665,13 +1708,16 @@ function attachStudentAnswerEvents() {
         const eid = b.dataset.essayId;
         const ta = document.getElementById(`essay_textarea_${eid}`);
         const bd = document.getElementById(`privacy_badge_${eid}`);
+        const cur = document.getElementById(`curtain_${eid}`);
         const ic = b.querySelector(".eye-icon");
         const lb = b.querySelector(".eye-label");
         if (!ta) return;
         if (!allPeepActive) {
+          // Hiện rõ tất cả
           ta.classList.remove("anti-peep-mode");
           ta.classList.add("clear-mode");
           b.classList.add("is-revealed");
+          if (cur) cur.classList.add("is-hidden");
           if (ic) ic.textContent = "🙈";
           if (lb) lb.textContent = "Bật chống nhìn trộm";
           if (bd) {
@@ -1679,6 +1725,7 @@ function attachStudentAnswerEvents() {
             bd.innerHTML = `<span class="badge-icon">👁️</span> <span>Đang hiện rõ</span>`;
           }
         } else {
+          // Bật bảo vệ tất cả
           ta.classList.remove("clear-mode");
           ta.classList.add("anti-peep-mode");
           b.classList.remove("is-revealed");
@@ -1687,6 +1734,9 @@ function attachStudentAnswerEvents() {
           if (bd) {
             bd.className = "essay-privacy-badge is-shielded";
             bd.innerHTML = `<span class="badge-icon">🙈</span> <span>Đang chống nhìn trộm</span>`;
+          }
+          if (document.activeElement !== ta && ta.value.trim().length > 0 && cur) {
+            cur.classList.remove("is-hidden");
           }
         }
       });
