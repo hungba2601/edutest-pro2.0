@@ -2,8 +2,8 @@
  * ============================================================================
  * BACKGROUND MUSIC SYSTEM - EDUTEST PRO 2.0
  * Icon Cái Loa Nhỏ Phía Trên Bên Phải (Gọn gàng & Hiện Popup Đầy Đủ Tính Năng)
- * Tự động phát nhạc nhẹ 30% khi đã đăng nhập (Admin, Giáo viên & Học sinh)
- * Danh sách phát ngẫu nhiên: "Love Story", "Sealed With a Kiss" & "Woman in Love"
+ * Tự động phát nhạc khi đã đăng nhập (Admin, Giáo viên & Học sinh)
+ * Danh sách phát ngẫu nhiên: "Woman in Love" (50%), "Love Story" (30%), "Sealed With a Kiss" (30%)
  * ============================================================================
  */
 
@@ -16,30 +16,39 @@
       id: "lovestory",
       title: "Love Story",
       artist: "Taylor Swift (Du dương)",
-      src: encodeURI("love story.mp3")
+      src: encodeURI("love story.mp3"),
+      defaultVolume: 0.3 // 30% âm lượng
     },
     {
       id: "sealedwithakiss",
       title: "Sealed With a Kiss",
       artist: "Brian Hyland (Du dương)",
-      src: encodeURI("Sealed with a kiss.m4a")
+      src: encodeURI("Sealed with a kiss.m4a"),
+      defaultVolume: 0.3 // 30% âm lượng
     },
     {
       id: "womaninlove",
       title: "Woman in Love",
       artist: "Barbra Streisand (Du dương)",
-      src: encodeURI("Woman in Love.mp3")
+      src: encodeURI("Woman in Love.mp3"),
+      defaultVolume: 0.5 // Riêng bài này phát 50% âm lượng theo yêu cầu
     }
   ];
 
-  const DEFAULT_VOLUME = 0.3; // Mặc định 30% âm lượng theo yêu cầu
+  /**
+   * Lấy mức âm lượng chuẩn cho từng bài (Woman in Love: 50%, các bài khác: 30%)
+   */
+  function getDefaultVolumeForTrack(track) {
+    if (!track) track = getCurrentTrack();
+    return (track && typeof track.defaultVolume === "number") ? track.defaultVolume : 0.3;
+  }
 
   // Chọn ngẫu nhiên 1 trong các bài khi mở trang
   let currentTrackIndex = Math.floor(Math.random() * PLAYLIST.length);
   let bgAudio = null;
   let isPlaying = false;
   let isMuted = false;
-  let currentVolume = DEFAULT_VOLUME;
+  let currentVolume = getDefaultVolumeForTrack(PLAYLIST[currentTrackIndex]);
   let isPopoverOpen = false;
 
   /**
@@ -84,12 +93,9 @@
     bgAudio.loop = true; // Luôn phát đi phát lại duy nhất bài đã chọn ngẫu nhiên
     bgAudio.preload = "auto";
 
-    // Luôn luôn cố định mặc định âm lượng ở mức 30% (0.3) theo đúng yêu cầu
-    currentVolume = DEFAULT_VOLUME;
+    // Thiết lập mức âm lượng chuẩn theo từng bài (Woman in Love: 50%, các bài khác: 30%)
+    currentVolume = getDefaultVolumeForTrack(track);
     bgAudio.volume = currentVolume;
-    try {
-      localStorage.setItem("edutest_bg_music_vol", "0.3");
-    } catch (e) {}
 
     bgAudio.addEventListener("play", () => {
       isPlaying = true;
@@ -130,6 +136,9 @@
     try {
       bgAudio.pause();
     } catch (e) {}
+
+    // Cập nhật âm lượng chuẩn theo bài mới (Woman in Love: 50%, các bài khác: 30%)
+    currentVolume = getDefaultVolumeForTrack(nextTrack);
 
     bgAudio.src = nextTrack.src;
     bgAudio.currentTime = 0;
@@ -402,13 +411,14 @@
     if (document.getElementById("navMusicWidgetWrapper")) return;
 
     const curTrack = getCurrentTrack();
+    const initVolPercent = Math.round(getDefaultVolumeForTrack(curTrack) * 100);
     const widget = document.createElement("div");
     widget.id = "navMusicWidgetWrapper";
     widget.className = "nav-music-widget-wrapper";
 
     widget.innerHTML = `
       <!-- Nút Icon Hình Cái Loa Nhỏ -->
-      <button type="button" class="btn-nav-speaker" id="btnNavSpeaker" title="Nhạc nền du dương: ${curTrack.title} (Bấm để tùy chỉnh)">
+      <button type="button" class="btn-nav-speaker" id="btnNavSpeaker" title="Nhạc nền du dương: ${curTrack.title} (${initVolPercent}%) (Bấm để tùy chỉnh)">
         <!-- Icon Loa Phát Tiếng -->
         <svg id="speakerIconHigh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -438,7 +448,7 @@
             <!-- Tên bài hát & Trạng thái -->
             <div class="popover-track-info">
               <span class="popover-track-title" id="popoverTrackTitle">🎵 ${curTrack.title}</span>
-              <span class="popover-track-sub" id="popoverTrackSub">${curTrack.artist} • 30%</span>
+              <span class="popover-track-sub" id="popoverTrackSub">${curTrack.artist} • ${initVolPercent}%</span>
             </div>
           </div>
 
@@ -490,22 +500,22 @@
         <div class="popover-volume-section">
           <div class="volume-row-top">
             <span>Âm lượng</span>
-            <span id="popoverVolPercentText" style="color: #0284c7;">30%</span>
+            <span id="popoverVolPercentText" style="color: #0284c7;">${initVolPercent}%</span>
           </div>
-          <input type="range" id="popoverVolSlider" class="popover-vol-slider" min="0" max="100" value="30" aria-label="Âm lượng nhạc nền" />
+          <input type="range" id="popoverVolSlider" class="popover-vol-slider" min="0" max="100" value="${initVolPercent}" aria-label="Âm lượng nhạc nền" />
           
           <!-- Các nấc âm lượng nhanh -->
           <div class="popover-vol-presets">
             <button type="button" class="btn-vol-preset" data-val="15">15% Nhẹ</button>
-            <button type="button" class="btn-vol-preset is-active" data-val="30">30% Chuẩn</button>
-            <button type="button" class="btn-vol-preset" data-val="50">50% Vừa</button>
+            <button type="button" class="btn-vol-preset ${initVolPercent === 30 ? 'is-active' : ''}" data-val="30">30% Chuẩn</button>
+            <button type="button" class="btn-vol-preset ${initVolPercent === 50 ? 'is-active' : ''}" data-val="50">50% Vừa</button>
             <button type="button" class="btn-vol-preset" data-val="80">80% To</button>
           </div>
         </div>
 
         <!-- Ghi chú chân bảng -->
         <p class="popover-footer-tip">
-          🎶 Mỗi phiên mở trang chọn ngẫu nhiên 1 bản nhạc và phát lặp lại liên tục.
+          🎶 Mỗi phiên mở trang chọn ngẫu nhiên 1 bản nhạc (Woman in Love: 50%, các bài khác: 30%) và phát lặp lại liên tục.
         </p>
 
       </div>
