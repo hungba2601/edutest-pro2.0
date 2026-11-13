@@ -6430,19 +6430,49 @@ function renderResultsTable(results, keepPage = false) {
       }
 
       // 1. Cập nhật tức thì (Optimistic UI Update) ngay trên giao diện:
-      // Xóa hoàn toàn bản ghi bài nộp này khỏi currentRawResultsList
-      const targetUserHS = String(item.usernameHS || "").trim().toUpperCase();
-      const targetMaDe = String(item.maDe || "").trim().toUpperCase();
-      const targetTime = String(item.thoiGianNop || "").trim();
+      const subRec = item.subRecord;
 
+      // Đánh dấu ngay đối tượng item hiện tại thành chưa nộp bài
+      item.isSubmitted = false;
+      item.diemTong = "";
+      item.soCauDungSai = "";
+      item.thoiGianNop = "";
+      item.subRecord = null;
+      item.chiTietTraLoi = "[]";
+      item.baiLamTuLuan = [];
+
+      // Thu thập mọi thông tin nhận diện bài làm này
+      const targetUser1 = String(subRec?.usernameHS || "").trim().toUpperCase();
+      const targetUser2 = String(item.usernameHS || "").trim().toUpperCase();
+      const targetName = String(subRec?.hoTen || item.hoTen || "").trim().toLowerCase();
+      const targetClass = normalizeClassName(subRec?.lop || item.lop || "");
+      const targetMaDe = String(subRec?.maDe || item.maDe || "").trim().toUpperCase();
+      const targetTime = String(subRec?.thoiGianNop || item.thoiGianNop || "").trim();
+
+      // Loại bỏ triệt để bài nộp này khỏi currentRawResultsList
       currentRawResultsList = (currentRawResultsList || []).filter(r => {
-        const matchHS = String(r.usernameHS || "").trim().toUpperCase() === targetUserHS;
-        if (!matchHS) return true;
+        // Khớp chính xác đối tượng reference
+        if (subRec && r === subRec) return false;
+
+        const rUser = String(r.usernameHS || "").trim().toUpperCase();
+        const rName = String(r.hoTen || "").trim().toLowerCase();
+        const rClass = normalizeClassName(r.lop || "");
+
+        const matchUser = (targetUser1 && rUser === targetUser1) || (targetUser2 && rUser === targetUser2);
+        const matchNameClass = (targetName && rName === targetName && (!targetClass || rClass === targetClass));
+
+        // Nếu không khớp học sinh nào thì giữ lại
+        if (!matchUser && !matchNameClass) return true;
+
+        // Nếu đúng học sinh: kiểm tra mã đề hoặc thời gian nộp
         const rMaDe = String(r.maDe || "").trim().toUpperCase();
         const rTime = String(r.thoiGianNop || "").trim();
         const matchMaDe = !targetMaDe || targetMaDe === "--" || !rMaDe || rMaDe === targetMaDe;
         const matchTime = !targetTime || targetTime === "--" || !rTime || rTime === targetTime;
-        if (matchMaDe || matchTime) return false;
+
+        if (matchMaDe || matchTime) {
+          return false; // Loại bỏ bản ghi này!
+        }
         return true;
       });
       currentResultsList = currentRawResultsList;
@@ -6475,9 +6505,11 @@ function renderResultsTable(results, keepPage = false) {
         const delPayload = {
           action: "deleteStudentResult",
           usernameGV: targetGvUser,
-          usernameHS: item.usernameHS,
-          maDe: item.maDe && item.maDe !== "--" ? item.maDe : "",
-          thoiGianNop: item.thoiGianNop && item.thoiGianNop !== "--" ? item.thoiGianNop : "",
+          usernameHS: targetUser1 || targetUser2,
+          hoTen: item.hoTen || subRec?.hoTen || "",
+          lop: item.lop || subRec?.lop || "",
+          maDe: targetMaDe && targetMaDe !== "--" ? targetMaDe : (item.maDe && item.maDe !== "--" ? item.maDe : ""),
+          thoiGianNop: targetTime && targetTime !== "--" ? targetTime : (item.thoiGianNop && item.thoiGianNop !== "--" ? item.thoiGianNop : ""),
           requesterRole: isAdminRole() ? "admin" : "teacher",
           isBGH: false
         };
