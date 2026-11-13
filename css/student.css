@@ -1373,14 +1373,13 @@ body {
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
-/* Kiểu chữ chống nhìn trộm (gạch giữa + chữ siêu nhỏ chống nhìn trộm) */
+/* Kiểu chữ chống nhìn trộm (gạch giữa + chữ nhỏ lại) */
 .student-essay-textarea.anti-peep-mode {
-  font-size: 0.70rem !important; /* Thu nhỏ hơn nữa (~11px) để chống nhìn trộm triệt để */
-  line-height: 1.45 !important;
-  letter-spacing: -0.3px !important;
+  font-size: 0.82rem !important;
+  letter-spacing: -0.2px;
   text-decoration: line-through !important;
-  text-decoration-color: #475569 !important;
-  text-decoration-thickness: 1.8px !important;
+  text-decoration-color: #64748b !important;
+  text-decoration-thickness: 1.5px !important;
   color: #475569 !important;
   background: #f8fafc !important;
   transition: font-size 0.15s ease, color 0.15s ease;
@@ -1853,7 +1852,7 @@ body.palette-modal-open {
     min-height: 120px !important;
   }
   .student-essay-textarea.anti-peep-mode {
-    font-size: 0.70rem !important;
+    font-size: 0.82rem !important;
   }
   .student-essay-textarea.clear-mode {
     font-size: 16px !important;
