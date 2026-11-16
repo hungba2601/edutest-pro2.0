@@ -1436,7 +1436,7 @@ function renderExamQuestions(questions, essayData) {
               <span class="eye-icon">👁️</span> <span class="eye-label">Xem lại bài (Hiện rõ)</span>
             </button>
           </div>
-          <textarea class="student-essay-textarea anti-peep-mode" id="essay_textarea_${essayId}" data-essay-id="${essayId}" placeholder="Nhập bài làm tự luận của bạn cho câu ${essayId} tại đây...">${savedAnswer}</textarea>
+          <textarea class="student-essay-textarea anti-peep-mode" id="essay_textarea_${essayId}" data-essay-id="${essayId}" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Nhập bài làm tự luận của bạn cho câu ${essayId} tại đây...">${savedAnswer}</textarea>
           <div class="student-essay-meta-row">
             <span class="essay-privacy-hint">🔒 Chữ gạch giữa & thu nhỏ để chống nhìn trộm. Bấm nút mắt 👁️ (hoặc nhấn giữ) để đọc lại rõ.</span>
             <span class="essay-word-counter" id="essay_word_counter_${essayId}">0 từ (0 ký tự)</span>
@@ -1578,6 +1578,13 @@ function attachStudentAnswerEvents() {
 
   // Tự luận: Học sinh gõ bài làm
   document.querySelectorAll(".student-essay-textarea").forEach(textarea => {
+    // Tắt triệt để kiểm tra chính tả của trình duyệt (gạch lượn sóng màu đỏ)
+    textarea.spellcheck = false;
+    textarea.setAttribute("spellcheck", "false");
+    textarea.setAttribute("autocomplete", "off");
+    textarea.setAttribute("autocorrect", "off");
+    textarea.setAttribute("autocapitalize", "off");
+
     const essayId = textarea.dataset.essayId;
     const counterEl = document.getElementById(`essay_word_counter_${essayId}`);
 

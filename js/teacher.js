@@ -2648,14 +2648,14 @@ function renderEssayQuestionsEditor() {
       </div>
       <div style="margin-bottom: 0.5rem;">
         <label style="font-size: 0.78rem; font-weight: 700; color: #475569; display: block; margin-bottom: 0.2rem;">Nội dung đề bài tự luận ${eq.id}:</label>
-        <textarea class="form-textarea essay-content-input" data-index="${idx}" rows="3" placeholder="Nhập nội dung đề bài câu hỏi tự luận ${eq.id}..." style="font-size: 0.9rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 8px; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.noiDung || '')}</textarea>
+        <textarea class="form-textarea essay-content-input" data-index="${idx}" rows="3" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Nhập nội dung đề bài câu hỏi tự luận ${eq.id}..." style="font-size: 0.9rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 8px; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.noiDung || '')}</textarea>
       </div>
       <div style="margin-top: 0.5rem; background: #ecfdf5; border: 1.5px solid #a7f3d0; border-radius: 8px; padding: 0.6rem 0.85rem;">
         <label style="font-size: 0.8rem; font-weight: 700; color: #065f46; display: flex; align-items: center; gap: 5px; margin-bottom: 0.25rem;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           <span>Đáp án đúng / Lời giải mẫu (hiện khi học sinh ôn tập, học bài):</span>
         </label>
-        <textarea class="form-textarea essay-answer-input" data-index="${idx}" rows="3" placeholder="Nhập đáp án chuẩn, gợi ý trả lời hoặc lời giải chi tiết cho câu tự luận ${eq.id}..." style="font-size: 0.88rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 6px; border: 1px solid #6ee7b7; color: #064e3b; font-weight: 500; line-height: 1.45; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</textarea>
+        <textarea class="form-textarea essay-answer-input" data-index="${idx}" rows="3" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder="Nhập đáp án chuẩn, gợi ý trả lời hoặc lời giải chi tiết cho câu tự luận ${eq.id}..." style="font-size: 0.88rem; width: 100%; box-sizing: border-box; background: #ffffff; border-radius: 6px; border: 1px solid #6ee7b7; color: #064e3b; font-weight: 500; line-height: 1.45; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(eq.dapAn || eq.dapAnDung || '')}</textarea>
       </div>
     `;
 
