@@ -843,7 +843,7 @@ function renderExamList(availableExams) {
         </div>
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-          <span>Chế độ kỳ thi: <strong style="color: ${isAllowReview ? '#10b981' : '#f59e0b'};">${isAllowReview ? 'Ôn tập (Làm nhiều lần, lấy điểm lần cuối)' : 'Thi chính thức (Chỉ làm 1 lần)'}</strong></span>
+          <span>Chế độ kỳ thi: <strong style="color: ${isChinhThuc ? '#0284c7' : '#10b981'};">${isChinhThuc ? 'Thi chính thức (Chỉ làm 1 lần)' : 'Ôn tập (Làm nhiều lần, lấy điểm lần cuối)'}</strong></span>
         </div>
         <div class="exam-meta-row">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
