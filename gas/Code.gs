@@ -2640,6 +2640,7 @@ function handleGetTeacherResults(payload) {
 
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
   const maDeFilter = String(payload.maDe || "").trim();
+  const usernameHSFilter = String(payload.usernameHS || payload.maHS || "").trim().toLowerCase();
   const isAllGV = (!usernameGV || usernameGV === "all");
 
   const data = sheetKetQua.getDataRange().getValues();
@@ -2649,6 +2650,12 @@ function handleGetTeacherResults(payload) {
     const row = data[i];
     const rowGV = String(row[colMap.colGV] || "").trim().toLowerCase();
     const rowMaDe = String(row[colMap.colMaDe] || "").trim();
+    const rowHS = String(row[colMap.colHS] || "").trim().toLowerCase();
+
+    // Tối ưu hóa siêu tốc: Nếu có lọc theo học sinh, bỏ qua ngay các dòng khác mà không cần parse JSON
+    if (usernameHSFilter && !isSameStudentAccount(rowHS, usernameHSFilter)) {
+      continue;
+    }
 
     if (isAllGV || isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {

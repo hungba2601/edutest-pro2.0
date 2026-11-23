@@ -486,12 +486,30 @@ function isReviewAllowedCheck(exam) {
 // ============================================================================
 async function loadAvailableExams() {
   const grid = document.getElementById("studentExamsGrid");
-  grid.innerHTML = `
-    <div class="loading-state-card">
-      <div class="spinner" style="display: block; width: 30px; height: 30px; margin: 0 auto 1rem;"></div>
-      <p>Đang tải danh sách bài kiểm tra cho lớp ${escapeHtml(currentStudent.lop)}...</p>
-    </div>
-  `;
+
+  // 1. Tối ưu Instant Cache: Hiển thị ngay lập tức danh sách đề thi cũ từ bộ nhớ tạm (0.01s)
+  const cacheKey = "EduTest_CachedAvailableExams_" + (currentStudent?.username || "").trim().toUpperCase();
+  let hasCachedRender = false;
+  try {
+    const rawCache = localStorage.getItem(cacheKey);
+    if (rawCache) {
+      const parsedCache = JSON.parse(rawCache);
+      if (Array.isArray(parsedCache) && parsedCache.length > 0) {
+        availableExams = parsedCache;
+        renderExamList(availableExams);
+        hasCachedRender = true;
+      }
+    }
+  } catch (eCache) {}
+
+  if (!hasCachedRender && grid) {
+    grid.innerHTML = `
+      <div class="loading-state-card">
+        <div class="spinner" style="display: block; width: 30px; height: 30px; margin: 0 auto 1rem;"></div>
+        <p>Đang tải danh sách bài kiểm tra cho lớp ${escapeHtml(currentStudent.lop)}...</p>
+      </div>
+    `;
+  }
 
   let exams = [];
 
@@ -511,10 +529,19 @@ async function loadAvailableExams() {
   }
 
   let serverData = null;
+  const getUrl = `${API_URL}?action=getStudentExams&lop=${encodeURIComponent(currentStudent.lop)}&usernameHS=${encodeURIComponent(currentStudent.username)}&_t=${Date.now()}`;
   try {
-    // 1. Thử gửi POST lên Google Sheet của giáo viên phụ trách phòng thi
+    // 2. Ưu tiên GET trực tiếp siêu tốc (tránh redirect và preflight của POST trên Google Apps Script)
+    const getRes = await fetch(getUrl);
+    const getText = await getRes.text();
+    if (getText && !getText.trim().startsWith("<")) {
+      serverData = JSON.parse(getText);
+    }
+  } catch (getErr) {
+    console.warn("GET getStudentExams thất bại, thử POST fallback:", getErr);
+    // 3. Dự phòng POST nếu GET bị lỗi kết nối
     try {
-      const res = await fetch(API_URL, {
+      const postRes = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
@@ -523,67 +550,21 @@ async function loadAvailableExams() {
           usernameHS: currentStudent.username
         })
       });
-      const text = await res.text();
-      if (text && !text.trim().startsWith("<")) {
-        serverData = JSON.parse(text);
+      const postText = await postRes.text();
+      if (postText && !postText.trim().startsWith("<")) {
+        serverData = JSON.parse(postText);
       }
     } catch (postErr) {
-      console.warn("POST getStudentExams thất bại, thử GET fallback:", postErr);
+      console.warn("POST getStudentExams cũng thất bại:", postErr);
     }
-
-    // 2. Tự động fallback sang GET nếu POST bị redirect hoặc lỗi CORS
-    if (!serverData || !serverData.success) {
-      const getUrl = `${API_URL}?action=getStudentExams&lop=${encodeURIComponent(currentStudent.lop)}&usernameHS=${encodeURIComponent(currentStudent.username)}&_t=${Date.now()}`;
-      const getRes = await fetch(getUrl);
-      const getText = await getRes.text();
-      if (getText && !getText.trim().startsWith("<")) {
-        serverData = JSON.parse(getText);
-      }
-    }
-
-    if (serverData && Array.isArray(serverData.exams)) {
-      exams = serverData.exams;
-    }
-  } catch (err) {
-    console.warn("Không thể tải danh sách bài kiểm tra từ máy chủ:", err);
   }
 
-  // Tự động đồng bộ điểm tự luận (TL) và trắc nghiệm (TN) chuẩn từ DATA_KETQUA cho các đề đã nộp
-  if (Array.isArray(exams) && currentStudent?.username) {
-    const hasSubmitted = exams.some(e => e.daLam || (e.diemCu !== null && e.diemCu !== undefined));
-    if (hasSubmitted) {
-      try {
-        const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&_t=${Date.now()}`);
-        const textKq = await resKq.text();
-        if (textKq && !textKq.trim().startsWith("<")) {
-          const jsonKq = JSON.parse(textKq);
-          if (jsonKq && Array.isArray(jsonKq.results)) {
-            const studentResults = jsonKq.results.filter(r => isSameStudentAccount(r.usernameHS, currentStudent.username));
-            studentResults.forEach(r => {
-              const matchedExam = exams.find(e => e.maDe === r.maDe);
-              if (matchedExam) {
-                if (r.diemTracNghiem !== undefined && r.diemTracNghiem !== null && String(r.diemTracNghiem).trim() !== "") {
-                  matchedExam.diemTN = Number(r.diemTracNghiem);
-                }
-                if (r.diemTuLuan !== undefined && r.diemTuLuan !== null && String(r.diemTuLuan).trim() !== "") {
-                  matchedExam.diemTL = Number(r.diemTuLuan);
-                } else {
-                  matchedExam.diemTL = null;
-                }
-                if (r.tongDiem !== undefined && r.tongDiem !== null && String(r.tongDiem).trim() !== "") {
-                  matchedExam.tongDiem = Number(r.tongDiem);
-                  matchedExam.diemCu = Number(r.tongDiem);
-                }
-              }
-            });
-          }
-        }
-      } catch (eKq) {
-        console.warn("Không thể đồng bộ điểm tự luận từ getTeacherResults:", eKq);
-      }
-    }
+  if (serverData && Array.isArray(serverData.exams)) {
+    exams = serverData.exams;
+  }
 
-    // Dự phòng tính điểm trắc nghiệm từ chi tiết câu hỏi nếu máy chủ chưa trả về diemTN riêng
+  // Dự phòng tính điểm trắc nghiệm từ chi tiết câu hỏi nếu máy chủ chưa trả về diemTN riêng
+  if (Array.isArray(exams) && currentStudent?.username) {
     exams.forEach(exam => {
       if (exam.daLam) {
         if (exam.diemTN === undefined && Array.isArray(exam.chiTietKetQua) && exam.chiTietKetQua.length > 0) {
@@ -641,10 +622,12 @@ async function loadAvailableExams() {
     }
   });
 
-  // Danh sách đề thi CHỈ lấy từ đúng máy chủ Google Sheets của giáo viên phụ trách phòng thi!
+  // Cập nhật danh sách đề thi chuẩn và lưu vào cache tức thì cho lần mở sau
   availableExams = exams;
-
   renderExamList(availableExams);
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(availableExams));
+  } catch (eSaveCache) {}
 }
 
 /**
