@@ -21,7 +21,7 @@
 const SPREADSHEET_URL = ""; 
 
 // PHIÊN BẢN BACKEND HIỆN TẠI DÀNH CHO GIÁO VIÊN (DẠNG SỐ: 2.1, 2.2, 2.3, 2.4,...)
-const TEACHER_BACKEND_VERSION = "2.8"; 
+const TEACHER_BACKEND_VERSION = "2.9"; 
 
 // ĐỊNH NGHĨA TÊN CÁC SHEET DỮ LIỆU
 const SHEETS = {
@@ -29,7 +29,8 @@ const SHEETS = {
   GIAOVIEN: "DATA_GIAOVIEN",
   DETHI: "DATA_DETHI",
   KETQUA: "DATA_KETQUA",
-  TULUAN: "DATA_TULUAN"
+  TULUAN: "DATA_TULUAN",
+  HUB_SERVERS: "HUB_SERVERS"
 };
 
 /**
@@ -1341,16 +1342,24 @@ function handleGetTeacherResults(payload) {
 
   const usernameGV = String(payload.usernameGV || "").trim().toLowerCase();
   const maDeFilter = String(payload.maDe || "").trim();
+  const usernameHSFilter = String(payload.usernameHS || payload.maHS || "").trim().toLowerCase();
+  const isAllGV = (!usernameGV || usernameGV === "all");
 
   const data = sheetKetQua.getDataRange().getValues();
   const results = [];
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const rowGV = String(row[colMap.colGV]).trim().toLowerCase();
-    const rowMaDe = String(row[colMap.colMaDe]).trim();
+    const rowGV = String(row[colMap.colGV] || "").trim().toLowerCase();
+    const rowMaDe = String(row[colMap.colMaDe] || "").trim();
+    const rowHS = String(row[colMap.colHS] || "").trim().toLowerCase();
 
-    if (!usernameGV || usernameGV === "all" || isSameTeacherAccount(rowGV, usernameGV) || !rowGV) {
+    // Tối ưu hóa siêu tốc: Nếu có lọc theo học sinh, bỏ qua ngay các dòng khác mà không cần parse JSON
+    if (usernameHSFilter && !isSameStudentAccount(rowHS, usernameHSFilter)) {
+      continue;
+    }
+
+    if (isAllGV || isSameTeacherAccount(rowGV, usernameGV)) {
       if (!maDeFilter || maDeFilter === "ALL" || rowMaDe === maDeFilter) {
         let chiTietParsed = [];
         let baiLamTuLuan = [];
@@ -1396,15 +1405,15 @@ function handleGetTeacherResults(payload) {
         }
 
         results.push({
-          usernameHS: String(row[colMap.colHS]),
-          lop: formatClassValue(row[colMap.colLop]),
-          hoTen: String(row[colMap.colHoTen]),
+          usernameHS: String(row[colMap.colHS] || ""),
+          lop: String(row[colMap.colLop] || ""),
+          hoTen: String(row[colMap.colHoTen] || ""),
           ngaySinh: formatBirthDateValue(row[colMap.colNgaySinh]),
-          gioiTinh: String(row[colMap.colGioiTinh]),
-          truong: String(row[colMap.colTruong]),
+          gioiTinh: String(row[colMap.colGioiTinh] || ""),
+          truong: String(row[colMap.colTruong] || ""),
           thoiGianDangNhap: formatDateValue(row[colMap.colDangNhap]),
           maDe: rowMaDe,
-          usernameGV: String(row[colMap.colGV]),
+          usernameGV: String(row[colMap.colGV] || ""),
           diemTong: diemTN,
           diemTracNghiem: diemTN,
           diemTuLuan: diemTL,
@@ -1451,13 +1460,19 @@ function handleImportEssayScores(payload) {
   const updatedRecords = [];
 
   scoresList.forEach(item => {
-    const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null && item.diemTuLuan !== "") ? item.diemTuLuan : item.diem;
-    if (rawScore === undefined || rawScore === null || String(rawScore).trim() === "") return;
+    const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null) ? item.diemTuLuan : item.diem;
+    const isBlank = (rawScore === "" || rawScore === null || rawScore === undefined || String(rawScore).trim() === "");
 
-    const parsedScore = parseFloat(String(rawScore).replace(",", "."));
-    if (isNaN(parsedScore)) return;
+    let scoreTL = null;
+    if (!isBlank) {
+      const parsedScore = parseFloat(String(rawScore).replace(",", "."));
+      if (!isNaN(parsedScore)) {
+        scoreTL = Math.round(parsedScore * 100) / 100;
+      } else {
+        return; // Bỏ qua nếu điểm không hợp lệ
+      }
+    }
 
-    const scoreTL = Math.round(parsedScore * 100) / 100;
     const itemHS = String(item.usernameHS || item.taiKhoanHS || item.maHS || item.username || "").trim().toLowerCase();
     const itemName = String(item.hoTen || item.name || "").trim().toLowerCase();
     const itemClass = String(item.lop || "").trim().toUpperCase();
@@ -1500,17 +1515,28 @@ function handleImportEssayScores(payload) {
           if (!isNaN(parsedTN)) diemTN = parsedTN;
         }
 
-        const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+        if (scoreTL !== null) {
+          // Có ghi điểm (kể cả số 0): ghi số điểm vào Sheet
+          const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+          sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue(scoreTL);
+          sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(tongDiem);
 
-        // Ghi điểm tự luận vào cột K và tổng điểm vào cột L
-        sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue(scoreTL);
-        sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(tongDiem);
+          data[i][colMap.colDiemTL] = scoreTL;
+          data[i][colMap.colTongDiem] = tongDiem;
 
-        data[i][colMap.colDiemTL] = scoreTL;
-        data[i][colMap.colTongDiem] = tongDiem;
+          updatedCount++;
+          updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: scoreTL, tongDiem: tongDiem });
+        } else {
+          // Trong file cột điểm tự luận KHÔNG CÓ (ô trống): KHÔNG ghi 0 vào Sheet mà ĐỂ TRỐNG ô ("")
+          sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue("");
+          sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(diemTN);
 
-        updatedCount++;
-        updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: scoreTL, tongDiem: tongDiem });
+          data[i][colMap.colDiemTL] = "";
+          data[i][colMap.colTongDiem] = diemTN;
+
+          updatedCount++;
+          updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: "", tongDiem: diemTN });
+        }
         break;
       }
     }
@@ -1537,11 +1563,14 @@ function handleImportEssayScores(payload) {
 
       if (colDiemTL_InTuLuan !== -1) {
         scoresList.forEach(item => {
-          const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null && item.diemTuLuan !== "") ? item.diemTuLuan : item.diem;
-          if (rawScore === undefined || rawScore === null || String(rawScore).trim() === "") return;
-          const parsedScore = parseFloat(String(rawScore).replace(",", "."));
-          if (isNaN(parsedScore)) return;
-          const scoreTL = Math.round(parsedScore * 100) / 100;
+          const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null) ? item.diemTuLuan : item.diem;
+          const isBlank = (rawScore === "" || rawScore === null || rawScore === undefined || String(rawScore).trim() === "");
+          let scoreTL = null;
+          if (!isBlank) {
+            const parsedScore = parseFloat(String(rawScore).replace(",", "."));
+            if (!isNaN(parsedScore)) scoreTL = Math.round(parsedScore * 100) / 100;
+          }
+
           const itemHS = String(item.usernameHS || item.taiKhoanHS || item.maHS || "").trim().toLowerCase();
           const itemMaDe = String(item.maDe || maDeFilter || "").trim().toLowerCase();
           const itemNhanXet = String(item.nhanXet || "").trim();
@@ -1551,7 +1580,11 @@ function handleImportEssayScores(payload) {
             const rHS = String(row[colHS_TL] || "").trim().toLowerCase();
             const rMaDe = String(row[colMaDe_TL] || "").trim().toLowerCase();
             if (rHS === itemHS && (!itemMaDe || itemMaDe === "all" || rMaDe === itemMaDe)) {
-              sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue(scoreTL);
+              if (scoreTL !== null) {
+                sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue(scoreTL);
+              } else {
+                sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue("");
+              }
               if (colNhanXet_InTuLuan !== -1 && itemNhanXet) {
                 sheetTuLuan.getRange(i + 1, colNhanXet_InTuLuan + 1).setValue(itemNhanXet);
               }
@@ -1889,6 +1922,7 @@ function handleGetStudentExams(payload) {
   const cols = getDeThiColumnIndexes(sheetDeThi);
 
   const studentClass = formatClassValue(payload.lop || "").trim().toUpperCase();
+  const requestedTeacher = String(payload.usernameGV || "").trim();
   const usernameHS = String(payload.usernameHS || "").trim();
 
   // Tra cứu lịch sử nộp bài của học sinh này từ DATA_KETQUA
@@ -1901,9 +1935,9 @@ function handleGetStudentExams(payload) {
       const kqData = sheetKetQua.getDataRange().getValues();
 
       for (let r = 1; r < kqData.length; r++) {
-        const rHs = String(kqData[r][colMap.colHS] !== null && kqData[r][colMap.colHS] !== undefined ? kqData[r][colMap.colHS] : "").trim();
+        const rHs = String(kqData[r][colMap.colHS] || "").trim();
         const rMaDe = String(kqData[r][colMap.colMaDe] || "").trim();
-        if (isSameStudentAccount(rHs, usernameHS) && rMaDe) {
+        if (rMaDe && isSameStudentAccount(rHs, usernameHS)) {
           const rawDiemTN = kqData[r][colMap.colDiemTN];
           let numDiemTN = null;
           if (rawDiemTN !== "" && rawDiemTN !== null && rawDiemTN !== undefined) {
@@ -1967,11 +2001,11 @@ function handleGetStudentExams(payload) {
         }
       }
     } catch (eKq) {
-      Logger.log("Lỗi tra cứu DATA_KETQUA trong Teacher_Code getStudentExams: " + eKq);
+      Logger.log("Lỗi tra cứu DATA_KETQUA trong getStudentExams: " + eKq);
     }
   }
 
-  // Lập bản đồ tra cứu Họ tên Giáo viên từ DATA_GIAOVIEN (Ưu tiên lấy tên GV, không lấy SĐT/Mã GV)
+  // Lập bản đồ tra cứu Họ tên Giáo viên từ DATA_GIAOVIEN và HUB_SERVERS (Ưu tiên lấy tên GV, không lấy SĐT/Mã GV)
   const teacherNameMap = {};
   const sheetGV = ss.getSheetByName(SHEETS.GIAOVIEN);
   if (sheetGV) {
@@ -2001,8 +2035,24 @@ function handleGetStudentExams(payload) {
         }
       }
     } catch (eGv) {
-      Logger.log("Lỗi tra cứu DATA_GIAOVIEN trong Teacher_Code getStudentExams: " + eGv);
+      Logger.log("Lỗi tra cứu DATA_GIAOVIEN trong Code getStudentExams: " + eGv);
     }
+  }
+
+  const sheetHub = ss.getSheetByName(SHEETS.HUB_SERVERS);
+  if (sheetHub) {
+    try {
+      const hubData = sheetHub.getDataRange().getValues();
+      for (let r = 1; r < hubData.length; r++) {
+        const uStr = String(hubData[r][0] || "").trim().toLowerCase();
+        const nameStr = String(hubData[r][1] || "").trim();
+        if (uStr && nameStr) {
+          teacherNameMap[uStr] = nameStr;
+          teacherNameMap[uStr.replace(/^0+/, "")] = nameStr;
+          teacherNameMap["0" + uStr.replace(/^0+/, "")] = nameStr;
+        }
+      }
+    } catch (eHub) {}
   }
 
   const data = sheetDeThi.getDataRange().getValues();
@@ -2024,6 +2074,13 @@ function handleGetStudentExams(payload) {
       } else {
         const classList = allowedClasses.split(/[,;\s]+/).map(c => formatClassValue(c).trim().toUpperCase()).filter(Boolean);
         isAllowed = classList.includes(studentClass);
+      }
+
+      // Nếu client gửi kèm usernameGV thì lọc theo đúng giáo viên đó
+      if (isAllowed && requestedTeacher) {
+        if (!isSameTeacherAccount(row[2], requestedTeacher)) {
+          isAllowed = false;
+        }
       }
 
       if (isAllowed) {
