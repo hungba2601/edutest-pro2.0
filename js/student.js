@@ -386,6 +386,87 @@ function removeLocalSubmittedExam(usernameHS, maDe) {
   } catch (e) {}
 }
 
+/**
+ * Kiểm tra xem một đề thi là "Thi / Kiểm tra chính thức" hay "Ôn tập / Luyện tập"
+ * Đảm bảo nhận diện chính xác 100% trong mọi trường hợp, ngay cả khi Google Sheets chưa cập nhật Apps Script.
+ */
+function isOfficialExamCheck(exam) {
+  if (!exam) return false;
+
+  // 1. Kiểm tra trực tiếp từ trường cheDoThi (do Backend trả về hoặc object đề thi đã có)
+  if (exam.cheDoThi === "chinh_thuc" || exam.duLieuDe?.cheDoThi === "chinh_thuc") return true;
+  if (exam.cheDoThi === "on_tap" || exam.duLieuDe?.cheDoThi === "on_tap") return false;
+
+  // 2. Tra cứu cấu hình đã lưu trong localStorage (đồng bộ từ Bảng điều khiển Giáo viên)
+  try {
+    const examConfigMap = JSON.parse(localStorage.getItem("EduTest_AllExamsConfig") || "{}");
+    const mCode = exam.maDe || exam.code;
+    if (mCode && examConfigMap[mCode]) {
+      const conf = examConfigMap[mCode];
+      if (conf.cheDoThi === "chinh_thuc") return true;
+      if (conf.cheDoThi === "on_tap") return false;
+    }
+  } catch (e) {}
+
+  // 3. Tra cứu lịch sử bài đã làm của học sinh (nếu học sinh đã nộp đề này dưới dạng thi chính thức)
+  try {
+    const usernameHS = (typeof currentStudent !== "undefined" && currentStudent?.username) ? currentStudent.username : "";
+    if (usernameHS && typeof getLocalSubmittedExams === "function") {
+      const localMap = getLocalSubmittedExams(usernameHS);
+      if (localMap && localMap[exam.maDe]?.cheDoThi) {
+        if (localMap[exam.maDe].cheDoThi === "chinh_thuc") return true;
+        if (localMap[exam.maDe].cheDoThi === "on_tap") return false;
+      }
+    }
+  } catch (e) {}
+
+  // 4. Nếu có cấu hình số lần vi phạm cảnh báo (chỉ đề thi chính thức mới có giám sát vi phạm)
+  if (Number(exam.soLanViPhamChoPhep) > 0 || Number(exam.duLieuDe?.soLanViPhamChoPhep) > 0) {
+    return true;
+  }
+
+  // 5. Nếu đề thi khóa xem bài (choXemLaiBai === false) -> chắc chắn 100% là thi chính thức
+  if (exam.choXemLaiBai === false || exam.duLieuDe?.choXemLaiBai === false) {
+    return true;
+  }
+
+  // 6. Nhận diện thông minh qua tên kỳ kiểm tra (tenKyThi)
+  const title = (exam.tenKyThi || "").toUpperCase().trim();
+  const isPracticeTitle = title.includes("ÔN TẬP") || title.includes("LUYỆN TẬP") || title.includes("BÀI TẬP") || title.includes("RÈN LUYỆN");
+  if (isPracticeTitle) {
+    return false;
+  }
+
+  const isOfficialTitle = title.includes("KIỂM TRA") || title.includes("THI GIỮA") || title.includes("THI CUỐI") || title.includes("HỌC KỲ") || title.includes("15 PHÚT") || title.includes("1 TIẾT") || title.includes("CHÍNH THỨC");
+  if (isOfficialTitle) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Kiểm tra xem đề thi có được phép xem lại bài làm & đáp án hay không
+ */
+function isReviewAllowedCheck(exam) {
+  if (!exam) return false;
+
+  // 1. Tra cứu cấu hình đã lưu trong localStorage (đồng bộ từ Bảng điều khiển Giáo viên)
+  try {
+    const examConfigMap = JSON.parse(localStorage.getItem("EduTest_AllExamsConfig") || "{}");
+    const mCode = exam.maDe || exam.code;
+    if (mCode && examConfigMap[mCode] && examConfigMap[mCode].choXemLaiBai !== undefined) {
+      return examConfigMap[mCode].choXemLaiBai !== false;
+    }
+  } catch (e) {}
+
+  if (exam.choXemLaiBai === false || exam.duLieuDe?.choXemLaiBai === false) {
+    return false;
+  }
+
+  return true;
+}
+
 // ============================================================================
 // 2. TẢI DANH SÁCH BÀI KIỂM TRA ĐANG MỞ
 // ============================================================================
@@ -462,6 +543,7 @@ async function loadAvailableExams() {
       if (exam.daLam) {
         // Server xác nhận đã nộp bài
         saveLocalSubmittedExam(currentStudent.username, exam.maDe, {
+          cheDoThi: isOfficialExamCheck(exam) ? "chinh_thuc" : "on_tap",
           diemCu: exam.diemCu,
           thoiGianNopCu: exam.thoiGianNopCu
         });
@@ -616,9 +698,8 @@ function renderExamList(availableExams) {
 
     const essayCount = getExamEssayCount(exam);
     const hasGoogleForm = !!(exam.tuLuan && exam.tuLuan.linkForm);
-    const cheDoThi = exam.cheDoThi || exam.duLieuDe?.cheDoThi || (exam.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
-    const isChinhThuc = (cheDoThi === "chinh_thuc");
-    const isAllowReview = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
+    const isChinhThuc = isOfficialExamCheck(exam);
+    const isAllowReview = isReviewAllowedCheck(exam);
     const isAllowScore = (exam.choXemDiem !== false);
     const hasDone = !!(exam.daLam || (exam.diemCu !== null && exam.diemCu !== undefined));
     const formattedSubmitTime = formatSubmitTimeDisplay(exam.thoiGianNopCu);
@@ -791,8 +872,7 @@ function renderExamList(availableExams) {
         return;
       }
 
-      const cheDoThi = exam.cheDoThi || exam.duLieuDe?.cheDoThi || (exam.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
-      const isOfficial = (cheDoThi === "chinh_thuc");
+      const isOfficial = isOfficialExamCheck(exam);
       if (isOfficial && exam.daLam) {
         showToast("Đã hoàn thành", "Bạn đã nộp bài kiểm tra chính thức này rồi! Kỳ thi chính thức chỉ được làm bài 1 lần duy nhất.", "error", 5000);
         alert(`⚠️ THÔNG BÁO:\n\nBạn đã hoàn thành bài kiểm tra chính thức: "${exam.tenKyThi}" rồi!\n\nKỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để đảm bảo tính công bằng. Bạn không thể làm lại.`);
@@ -808,7 +888,7 @@ function renderExamList(availableExams) {
     const directExamCode = urlParams.get("exam");
     if (directExamCode) {
       const directExam = availableExams.find(e => e.maDe === directExamCode);
-      if (directExam && directExam.choXemLaiBai === false && directExam.daLam) {
+      if (directExam && isOfficialExamCheck(directExam) && directExam.daLam) {
         showToast("Đã hoàn thành", `Bạn đã hoàn thành bài kiểm tra "${directExam.tenKyThi}" rồi!`, "error", 6000);
         setTimeout(() => {
           alert(`⚠️ BẠN ĐÃ LÀM BÀI NÀY RỒI!\n\nBài kiểm tra: "${directExam.tenKyThi}" (${directExam.maDe}) là kỳ thi chính thức (chỉ được làm 1 lần).\nĐiểm số của bạn đã được ghi nhận vào hệ thống. Bạn không thể làm lại.`);
@@ -1142,11 +1222,12 @@ function openStartExamConfirmationModal(exam) {
 // 3. VÀO PHÒNG THI TẬP TRUNG & BẬT ĐỒNG HỒ ĐẾM NGƯỢC
 // ============================================================================
 function enterExamRoom(exam) {
-  const isAllowReview = (exam.choXemLaiBai !== false);
+  const isOfficial = isOfficialExamCheck(exam);
+  const isAllowReview = isReviewAllowedCheck(exam);
   const isAllowScore = (exam.choXemDiem !== false);
 
   // CHẶN KHÔNG CHO VÀO PHÒNG THI NẾU ĐÃ LÀM BÀI THI CHÍNH THỨC
-  if (!isAllowReview && exam.daLam) {
+  if (isOfficial && exam.daLam) {
     alert(`⚠️ BẠN ĐÃ HOÀN THÀNH BÀI THI NÀY RỒI!\n\nBài kiểm tra: "${exam.tenKyThi}" là kỳ thi chính thức (chỉ được làm 1 lần duy nhất).\nĐiểm số đã được ghi nhận. Bạn không thể vào làm lại.`);
     return;
   }
@@ -1155,7 +1236,10 @@ function enterExamRoom(exam) {
   const essayCount = getExamEssayCount(exam);
   const essayInfoText = essayCount > 0 ? `\n• Số câu tự luận: ${essayCount} câu.` : '';
 
-  if (isAllowReview) {
+  if (isOfficial) {
+    // CHẾ ĐỘ THI / KIỂM TRA CHÍNH THỨC: BẬT MODAL NỘI QUY & YÊU CẦU TOÀN MÀN HÌNH
+    openStartExamConfirmationModal(exam);
+  } else {
     // CHẾ ĐỘ ÔN TẬP / LUYỆN TẬP: KHÔNG ÁP DỤNG GIÁM SÁT THI, HỌC SINH LÀM THOẢI MÁI
     if (exam.daLam) {
       if (!confirm(`Bạn có chắc chắn muốn làm lại bài ôn tập: "${exam.tenKyThi}"?\n• Thời gian: ${exam.thoiGian} phút.\n• Số câu trắc nghiệm: ${exam.soCauHoi || 0} câu.${essayInfoText}\n• Chế độ: Ôn tập (Được làm lại nhiều lần).\n• LƯU Ý QUAN TRỌNG: Kết quả nộp bài sẽ ghi nhận lần làm bài cuối cùng này!`)) {
@@ -1168,9 +1252,6 @@ function enterExamRoom(exam) {
       }
     }
     proceedIntoExamRoom(exam, false);
-  } else {
-    // CHẾ ĐỘ THI / KIỂM TRA CHÍNH THỨC: BẬT MODAL NỘI QUY & YÊU CẦU TOÀN MÀN HÌNH
-    openStartExamConfirmationModal(exam);
   }
 }
 
@@ -1230,15 +1311,15 @@ function proceedIntoExamRoom(exam, isProctoring = false) {
   scrollToTopExam();
 
   // Cập nhật thông tin phòng thi
-  const isAllowReview = (exam.choXemLaiBai !== false);
+  const isOfficial = isOfficialExamCheck(exam);
   const activeTag = document.getElementById("roomExamActiveTag") || document.querySelector(".exam-active-tag");
   if (activeTag) {
-    if (isAllowReview) {
-      activeTag.className = "exam-active-tag review-mode";
-      activeTag.innerHTML = `🟢 Đang ôn luyện`;
-    } else {
+    if (isOfficial) {
       activeTag.className = "exam-active-tag exam-mode";
       activeTag.innerHTML = `🔴 Đang thi`;
+    } else {
+      activeTag.className = "exam-active-tag review-mode";
+      activeTag.innerHTML = `🟢 Đang ôn luyện`;
     }
   }
   document.getElementById("roomExamTitle").textContent = exam.tenKyThi;
@@ -2367,6 +2448,7 @@ async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false,
 
         saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
           daLam: true,
+          cheDoThi: isOfficialExamCheck(activeExam) ? "chinh_thuc" : "on_tap",
           diemCu: resolvedScore,
           diemTong: resolvedScore,
           diemTracNghiem: resolvedScore,
@@ -2425,6 +2507,7 @@ async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false,
         activeExam.diemCu = resolvedScore;
         saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
           daLam: true,
+          cheDoThi: isOfficialExamCheck(activeExam) ? "chinh_thuc" : "on_tap",
           diemCu: resolvedScore,
           diemTong: resolvedScore,
           diemTracNghiem: resolvedScore,
@@ -2740,8 +2823,7 @@ function showExamResultScreen(result) {
   //   + Nếu GV cấu hình "Cho xem lại bài sau thi", học sinh có thể quay lại Màn hình chính (Bảng điều khiển) để xem chi tiết.
   //   + Nếu GV cấu hình "Không cho xem lại bài", học sinh không được xem lại bài ở cả màn hình kết quả lẫn màn hình chính.
   // ==========================================================================
-  const cheDoThi = activeExam?.cheDoThi || activeExam?.duLieuDe?.cheDoThi || (activeExam?.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
-  const isOfficialExam = (cheDoThi === "chinh_thuc");
+  const isOfficialExam = isOfficialExamCheck(activeExam);
   const btnReview = document.getElementById("btnReviewExamDetail");
   const lockedNotice = document.getElementById("resultReviewLockedNotice");
 
@@ -2749,7 +2831,7 @@ function showExamResultScreen(result) {
     if (btnReview) btnReview.style.display = "none";
     if (lockedNotice) {
       lockedNotice.style.display = "block";
-      const isReviewAllowedLater = (activeExam?.choXemLaiBai !== false && activeExam?.duLieuDe?.choXemLaiBai !== false);
+      const isReviewAllowedLater = isReviewAllowedCheck(activeExam);
       if (isReviewAllowedLater) {
         lockedNotice.innerHTML = `ℹ️ <strong>Bài thi chính thức đã được ghi nhận an toàn!</strong><br>Để bảo mật phòng thi, bài làm và đáp án chưa hiển thị tại đây. Thầy/Cô đã mở quyền xem lại, bạn có thể quay lại <strong>Màn hình chính (Bảng điều khiển)</strong> để xem chi tiết bài làm & đáp án.`;
         lockedNotice.style.borderColor = "#bae6fd";
@@ -3116,8 +3198,8 @@ function openExamReviewModal() {
 
   if (modalTitle) modalTitle.textContent = `Chi Tiết Bài Làm: ${activeExam.tenKyThi || activeExam.maDe}`;
   const isAllowScore = (activeExam?.choXemDiem !== false && lastExamResult?.choXemDiem !== false);
-  const cheDoThiModal = activeExam?.cheDoThi || activeExam?.duLieuDe?.cheDoThi || (activeExam?.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
-  const cheDoBadgeHtml = (cheDoThiModal === "chinh_thuc")
+  const isOfficial = isOfficialExamCheck(activeExam);
+  const cheDoBadgeHtml = isOfficial
     ? `<strong style="color: #0284c7;">🔒 Thi chính thức (Xem lại sau thi)</strong>`
     : `<strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
 
