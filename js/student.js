@@ -718,14 +718,25 @@ function renderExamList(availableExams) {
         if (isAllowReview) {
           // GIÁO VIÊN CẤU HÌNH CHO XEM LẠI BÀI (SAU KHI THI XONG)
           statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #e0f2fe; color: #0369a1; border: 1.5px solid #bae6fd; font-weight: 800;">👁️ ĐÃ THI (ĐƯỢC XEM BÀI)</span>`;
+          const hasTLScore = (exam.diemTL !== null && exam.diemTL !== undefined && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)));
+          const cardDisplayScore = (exam.tongDiem !== null && exam.tongDiem !== undefined && exam.tongDiem !== "")
+            ? exam.tongDiem
+            : ((exam.diemCu !== null && exam.diemCu !== undefined) ? exam.diemCu : 0);
+          const scoreDetailSubText = hasTLScore
+            ? `<div style="font-size: 0.75rem; color: #0284c7; margin-top: 2px; font-weight: 600;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ + TL: ${exam.diemTL}đ)</div>`
+            : ((essayCount > 0) ? `<div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ - Chờ điểm TL)</div>` : '');
+
           noticeAlertHtml = `
             <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; color: #0369a1; font-size: 0.82rem;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
                 <span style="font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 4px;">
                   ✅ Đã nộp bài (Giáo viên đã mở xem lại)
                 </span>
-                ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
-                  <span style="font-weight: 800; color: #0284c7; font-size: 1rem;">${exam.diemCu} điểm</span>
+                ${(cardDisplayScore !== null && cardDisplayScore !== undefined && isAllowScore) ? `
+                  <div style="text-align: right;">
+                    <span style="font-weight: 800; color: #0284c7; font-size: 1rem;">${cardDisplayScore} điểm</span>
+                    ${scoreDetailSubText}
+                  </div>
                 ` : ''}
               </div>
               ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
@@ -740,14 +751,25 @@ function renderExamList(availableExams) {
         } else {
           // GIÁO VIÊN CẤU HÌNH KHÔNG CHO XEM LẠI BÀI (ĐANG TRONG THỜI GIAN THI)
           statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; font-weight: 800;">🚫 ĐÃ THI (KHÓA LÀM LẠI)</span>`;
+          const hasTLScore = (exam.diemTL !== null && exam.diemTL !== undefined && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)));
+          const cardDisplayScore = (exam.tongDiem !== null && exam.tongDiem !== undefined && exam.tongDiem !== "")
+            ? exam.tongDiem
+            : ((exam.diemCu !== null && exam.diemCu !== undefined) ? exam.diemCu : 0);
+          const scoreDetailSubText = hasTLScore
+            ? `<div style="font-size: 0.75rem; color: #dc2626; margin-top: 2px; font-weight: 600;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ + TL: ${exam.diemTL}đ)</div>`
+            : ((essayCount > 0) ? `<div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ - Chờ điểm TL)</div>` : '');
+
           noticeAlertHtml = `
             <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
                 <span style="font-weight: 700; color: #dc2626; display: flex; align-items: center; gap: 4px;">
                   ⚠️ Đã nộp bài (Khóa làm lại & xem bài)
                 </span>
-                ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
-                  <span style="font-weight: 800; color: #dc2626; font-size: 1rem;">${exam.diemCu} điểm</span>
+                ${(cardDisplayScore !== null && cardDisplayScore !== undefined && isAllowScore) ? `
+                  <div style="text-align: right;">
+                    <span style="font-weight: 800; color: #dc2626; font-size: 1rem;">${cardDisplayScore} điểm</span>
+                    ${scoreDetailSubText}
+                  </div>
                 ` : ''}
               </div>
               ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
@@ -3170,6 +3192,16 @@ async function openExamReviewFromDashboard(exam) {
           if (json.diemTong !== undefined && json.diemTong !== null) {
             exam.diemCu = json.diemTong;
           }
+          if (json.tongDiem !== undefined && json.tongDiem !== null) {
+            exam.tongDiem = json.tongDiem;
+            exam.diemCu = json.tongDiem;
+          }
+          if (json.diemTN !== undefined && json.diemTN !== null) {
+            exam.diemTN = json.diemTN;
+          }
+          if (json.diemTL !== undefined && json.diemTL !== null) {
+            exam.diemTL = json.diemTL;
+          }
           if (json.soCauDungSai) {
             exam.soCauDungSaiCu = json.soCauDungSai;
           }
@@ -3222,9 +3254,28 @@ async function openExamReviewFromDashboard(exam) {
     calculatedSoCauDung = chiTietKetQua.filter(it => it.dung === true).length;
   }
 
-  const resolvedScore = (exam.diemCu !== null && exam.diemCu !== undefined)
-    ? exam.diemCu
-    : (localData.diemTracNghiem !== undefined ? localData.diemTracNghiem : 0);
+  const rawScoreTN = (exam.diemTN !== undefined && exam.diemTN !== null && exam.diemTN !== "")
+    ? Number(exam.diemTN)
+    : (localData.diemTN !== undefined && localData.diemTN !== null && localData.diemTN !== ""
+        ? Number(localData.diemTN)
+        : (localData.diemTracNghiem !== undefined && localData.diemTracNghiem !== null ? Number(localData.diemTracNghiem) : (exam.diemCu !== null && exam.diemCu !== undefined ? Number(exam.diemCu) : 0)));
+
+  const rawScoreTL = (exam.diemTL !== undefined && exam.diemTL !== null && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)))
+    ? Number(exam.diemTL)
+    : ((localData.diemTL !== undefined && localData.diemTL !== null && localData.diemTL !== "" && !isNaN(Number(localData.diemTL)))
+        ? Number(localData.diemTL)
+        : ((localData.diemTuLuan !== undefined && localData.diemTuLuan !== null && localData.diemTuLuan !== "" && !isNaN(Number(localData.diemTuLuan))) ? Number(localData.diemTuLuan) : null));
+
+  let resolvedScoreTong = null;
+  if (exam.tongDiem !== undefined && exam.tongDiem !== null && exam.tongDiem !== "" && !isNaN(Number(exam.tongDiem))) {
+    resolvedScoreTong = Number(exam.tongDiem);
+  } else if (localData.tongDiem !== undefined && localData.tongDiem !== null && localData.tongDiem !== "" && !isNaN(Number(localData.tongDiem))) {
+    resolvedScoreTong = Number(localData.tongDiem);
+  } else if (rawScoreTL !== null && rawScoreTN !== null) {
+    resolvedScoreTong = Math.round((rawScoreTN + rawScoreTL) * 100) / 100;
+  } else {
+    resolvedScoreTong = rawScoreTN;
+  }
 
   let resolvedSoCauDung = calculatedSoCauDung;
   if (exam.soCauDungSaiCu && typeof exam.soCauDungSaiCu === "string" && exam.soCauDungSaiCu.includes("câu đúng")) {
@@ -3241,8 +3292,12 @@ async function openExamReviewFromDashboard(exam) {
   lastExamResult = {
     ...localData,
     success: true,
-    diemTong: resolvedScore,
-    diemTracNghiem: resolvedScore,
+    diemTong: resolvedScoreTong,
+    tongDiem: resolvedScoreTong,
+    diemTracNghiem: rawScoreTN,
+    diemTN: rawScoreTN,
+    diemTuLuan: rawScoreTL,
+    diemTL: rawScoreTL,
     tongDiemTracNghiem: localData.tongDiemTracNghiem || (activeExam.cauHoi ? activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0) : 10),
     soCauDung: resolvedSoCauDung,
     tongSoCau: totalQuestions,
@@ -3282,10 +3337,21 @@ function openExamReviewModal() {
   const modalScoreStats = document.getElementById("reviewModalScoreStats");
   const modalBody = document.getElementById("reviewModalBody");
 
-  const rawReviewScore = (lastExamResult.diemTracNghiem !== undefined && lastExamResult.diemTracNghiem !== null)
-    ? Number(lastExamResult.diemTracNghiem)
-    : Number(lastExamResult.diemTong || 0);
+  const rawReviewScore = (lastExamResult.diemTN !== undefined && lastExamResult.diemTN !== null && lastExamResult.diemTN !== "")
+    ? Number(lastExamResult.diemTN)
+    : ((lastExamResult.diemTracNghiem !== undefined && lastExamResult.diemTracNghiem !== null && lastExamResult.diemTracNghiem !== "")
+        ? Number(lastExamResult.diemTracNghiem)
+        : Number(lastExamResult.diemTong || 0));
   const displayReviewScore = Math.round(rawReviewScore * 100) / 100;
+
+  const rawTL = (lastExamResult.diemTL !== undefined && lastExamResult.diemTL !== null && lastExamResult.diemTL !== "" && !isNaN(Number(lastExamResult.diemTL)))
+    ? Number(lastExamResult.diemTL)
+    : ((lastExamResult.diemTuLuan !== undefined && lastExamResult.diemTuLuan !== null && lastExamResult.diemTuLuan !== "" && !isNaN(Number(lastExamResult.diemTuLuan)))
+        ? Number(lastExamResult.diemTuLuan)
+        : (activeExam.diemTL !== undefined && activeExam.diemTL !== null && activeExam.diemTL !== "" && !isNaN(Number(activeExam.diemTL)) ? Number(activeExam.diemTL) : null));
+
+  const hasGradedEssay = (rawTL !== null && rawTL !== undefined && !isNaN(rawTL));
+  const displayTL = hasGradedEssay ? (Math.round(rawTL * 100) / 100) : null;
 
   let maxTracNghiemScore = 0;
   if (lastExamResult.tongDiemTracNghiem !== undefined && lastExamResult.tongDiemTracNghiem !== null && Number(lastExamResult.tongDiemTracNghiem) > 0) {
@@ -3297,6 +3363,33 @@ function openExamReviewModal() {
     maxTracNghiemScore = 10;
   }
 
+  const questions = activeExam.cauHoi || [];
+  const detailedList = lastExamResult.chiTietKetQua || [];
+  const part1Questions = questions.filter(q => q.loaiCauHoi !== "true_false");
+  const part2Questions = questions.filter(q => q.loaiCauHoi === "true_false");
+  const essayList = getExamEssayQuestions(activeExam.tuLuan);
+  const hasEssayPart = essayList.length > 0 || !!(activeExam?.tuLuan && activeExam.tuLuan.linkForm);
+
+  let maxTuLuanScore = 0;
+  if (essayList.length > 0) {
+    maxTuLuanScore = essayList.reduce((sum, eq) => sum + (Number(eq.diem) || 0), 0);
+    maxTuLuanScore = Math.round(maxTuLuanScore * 100) / 100;
+  }
+  if (hasEssayPart && maxTuLuanScore <= 0 && maxTracNghiemScore < 10) {
+    maxTuLuanScore = Math.round((10 - maxTracNghiemScore) * 100) / 100;
+  }
+
+  const maxTotalScore = Math.round((maxTracNghiemScore + (hasEssayPart ? maxTuLuanScore : 0)) * 100) / 100 || 10;
+
+  let displayTongDiem = 0;
+  if (lastExamResult.tongDiem !== undefined && lastExamResult.tongDiem !== null && lastExamResult.tongDiem !== "" && !isNaN(Number(lastExamResult.tongDiem))) {
+    displayTongDiem = Math.round(Number(lastExamResult.tongDiem) * 100) / 100;
+  } else if (hasGradedEssay) {
+    displayTongDiem = Math.round((displayReviewScore + rawTL) * 100) / 100;
+  } else {
+    displayTongDiem = displayReviewScore;
+  }
+
   if (modalTitle) modalTitle.textContent = `Chi Tiết Bài Làm: ${activeExam.tenKyThi || activeExam.maDe}`;
   const isAllowScore = (activeExam?.choXemDiem !== false && lastExamResult?.choXemDiem !== false);
   const isOfficial = isOfficialExamCheck(activeExam);
@@ -3305,21 +3398,21 @@ function openExamReviewModal() {
     : `<strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
 
   if (modalScoreStats) {
-    if (isAllowScore) {
-      modalScoreStats.innerHTML = `Điểm phần trắc nghiệm: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} điểm</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: ${cheDoBadgeHtml}`;
+    if (!isAllowScore) {
+      modalScoreStats.innerHTML = `Điểm số: <strong style="color: #b45309;">🔒 Giáo viên đã khóa xem điểm</strong> | Đúng: <strong style="color: #16a34a;">Đã bảo mật</strong> | Chế độ: ${cheDoBadgeHtml}`;
+    } else if (hasEssayPart) {
+      if (hasGradedEssay) {
+        modalScoreStats.innerHTML = `Điểm TN: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} đ</strong> (<span style="color: #16a34a; font-weight: 600;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0} câu đúng</span>) | Điểm TL: <strong style="color: #059669;">✓ ${displayTL}${maxTuLuanScore > 0 ? ` / ${maxTuLuanScore}` : ''} đ</strong> | Tổng điểm: <strong style="color: #7c3aed; font-size: 0.95rem; background: #f5f3ff; padding: 2px 8px; border-radius: 6px; border: 1px solid #ddd6fe;">🎯 ${displayTongDiem} / ${maxTotalScore} đ</strong> | Chế độ: ${cheDoBadgeHtml}`;
+      } else {
+        modalScoreStats.innerHTML = `Điểm TN: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} đ</strong> (<span style="color: #16a34a; font-weight: 600;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0} câu đúng</span>) | Điểm TL: <strong style="color: #d97706; background: #fffbeb; padding: 1px 6px; border-radius: 4px; border: 1px solid #fde68a;">⏳ Chờ GV chấm${maxTuLuanScore > 0 ? ` (Tối đa ${maxTuLuanScore} đ)` : ''}</strong> | Tổng điểm: <strong style="color: #2563eb;">${displayReviewScore} đ</strong> <span style="color: #d97706; font-size: 0.82rem;">(+ Chờ điểm TL)</span> | Chế độ: ${cheDoBadgeHtml}`;
+      }
     } else {
-      modalScoreStats.innerHTML = `Điểm số: <strong style="color: #b45309;">🔒 Giáo viên đã khóa xem điểm</strong> | Đúng: <strong style="color: #16a34a;">Đã bảo mật</strong> | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: ${cheDoBadgeHtml}`;
+      modalScoreStats.innerHTML = `Tổng điểm: <strong style="color: #2563eb; font-size: 0.95rem;">🎯 ${displayReviewScore} / ${maxTracNghiemScore} đ</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Chế độ: ${cheDoBadgeHtml}`;
     }
   }
 
   modalBody.innerHTML = "";
   modalBody.scrollTop = 0;
-
-  const questions = activeExam.cauHoi || [];
-  const detailedList = lastExamResult.chiTietKetQua || [];
-  const part1Questions = questions.filter(q => q.loaiCauHoi !== "true_false");
-  const part2Questions = questions.filter(q => q.loaiCauHoi === "true_false");
-  const essayList = getExamEssayQuestions(activeExam.tuLuan);
 
   // Render Phần I trong modal
   if (part1Questions.length > 0) {
@@ -3358,10 +3451,13 @@ function openExamReviewModal() {
     const p3Hdr = document.createElement("div");
     p3Hdr.className = "student-section-header part-3";
     p3Hdr.style.margin = "1.25rem 0 0.75rem";
+    const essayDescText = hasGradedEssay
+      ? `Giáo viên đã chấm điểm tự luận (${displayTL}${maxTuLuanScore > 0 ? `/${maxTuLuanScore}` : ''} đ) và cập nhật vào tổng điểm bài thi của bạn. Bên dưới hiển thị bài làm và đáp án đúng để bạn đối chiếu, học bài.`
+      : `Bài làm tự luận của bạn sẽ được giáo viên chấm thủ công. Bên dưới có hiển thị đáp án đúng để bạn ôn tập, học bài.`;
     p3Hdr.innerHTML = `
       <div class="section-hdr-left">
         <div class="section-hdr-title">PHẦN III: BÀI LÀM TỰ LUẬN</div>
-        <div class="section-hdr-desc">Bài làm tự luận của bạn sẽ được giáo viên chấm thủ công. Bên dưới có hiển thị đáp án đúng để bạn ôn tập, học bài.</div>
+        <div class="section-hdr-desc">${essayDescText}</div>
       </div>
       <div class="section-hdr-badge">${essayList.length} câu</div>
     `;
@@ -3422,13 +3518,17 @@ function openExamReviewModal() {
         </div>
       `;
 
+      const essayBadgeHtml = hasGradedEssay
+        ? `<span class="review-badge-status" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; font-weight: 700;">✓ Tự luận - GV đã chấm</span>`
+        : `<span class="review-badge-status" style="background: #fffbeb; color: #b45309; border: 1px solid #fde68a; font-weight: 700;">⏳ Tự luận - Chờ GV chấm</span>`;
+
       card.innerHTML = `
         <div class="review-q-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span style="font-weight: 800; font-size: 0.95rem; color: #064e3b;">Câu ${essayId} (Tự luận)</span>
             ${pointBadge}
           </div>
-          <span class="review-badge-status" style="background: #f0fdf4; color: #047857; border: 1px solid #a7f3d0;">📝 Tự luận - Chờ GV chấm</span>
+          ${essayBadgeHtml}
         </div>
         <div style="font-size: 0.95rem; font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; line-height: 1.5; white-space: pre-wrap !important; word-break: break-word;">${escapeHtml(item.noiDung || "Chưa có đề bài.")}</div>
         <div style="font-size: 0.85rem; font-weight: 700; color: #475569; margin-bottom: 0.35rem;">✍️ Bài làm của bạn:</div>

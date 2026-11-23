@@ -3201,18 +3201,36 @@ function handleGetStudentExams(payload) {
         const rHs = String(kqData[r][colMap.colHS] || "").trim();
         const rMaDe = String(kqData[r][colMap.colMaDe] || "").trim();
         if (rMaDe && isSameStudentAccount(rHs, usernameHS)) {
-          let rawDiem = kqData[r][colMap.colDiemTN];
-          if (colMap.colTongDiem !== -1) {
-            const rawTD = kqData[r][colMap.colTongDiem];
-            if (rawTD !== "" && rawTD !== null && rawTD !== undefined) {
-              rawDiem = rawTD;
+          const rawDiemTN = kqData[r][colMap.colDiemTN];
+          let numDiemTN = null;
+          if (rawDiemTN !== "" && rawDiemTN !== null && rawDiemTN !== undefined) {
+            const parsedTN = parseFloat(String(rawDiemTN).replace(",", "."));
+            if (!isNaN(parsedTN)) numDiemTN = Math.round(parsedTN * 100) / 100;
+          }
+
+          let numDiemTL = null;
+          if (colMap.colDiemTL !== -1) {
+            const rawTL = kqData[r][colMap.colDiemTL];
+            if (rawTL !== "" && rawTL !== null && rawTL !== undefined) {
+              const parsedTL = parseFloat(String(rawTL).replace(",", "."));
+              if (!isNaN(parsedTL)) numDiemTL = Math.round(parsedTL * 100) / 100;
             }
           }
 
-          let numDiem = null;
-          if (rawDiem !== "" && rawDiem !== null && rawDiem !== undefined) {
-            const parsed = parseFloat(String(rawDiem).replace(",", "."));
-            if (!isNaN(parsed)) numDiem = Math.round(parsed * 100) / 100;
+          let numTongDiem = null;
+          if (colMap.colTongDiem !== -1) {
+            const rawTD = kqData[r][colMap.colTongDiem];
+            if (rawTD !== "" && rawTD !== null && rawTD !== undefined) {
+              const parsedTD = parseFloat(String(rawTD).replace(",", "."));
+              if (!isNaN(parsedTD)) numTongDiem = Math.round(parsedTD * 100) / 100;
+            }
+          }
+          if (numTongDiem === null) {
+            if (numDiemTL !== null && numDiemTN !== null) {
+              numTongDiem = Math.round((numDiemTN + numDiemTL) * 100) / 100;
+            } else if (numDiemTN !== null) {
+              numTongDiem = numDiemTN;
+            }
           }
 
           let chiTietParsed = [];
@@ -3234,7 +3252,10 @@ function handleGetStudentExams(payload) {
 
           submittedExamsMap[rMaDe] = {
             daLam: true,
-            diemTong: (numDiem !== null ? numDiem : rawDiem),
+            diemTong: numTongDiem,
+            tongDiem: numTongDiem,
+            diemTN: (numDiemTN !== null ? numDiemTN : 0),
+            diemTL: numDiemTL,
             soCauDungSai: String(kqData[r][colMap.colSoCau] || ""),
             thoiGianNop: formatDateValue(kqData[r][colMap.colThoiGianNop]),
             chiTietKetQua: chiTietParsed,
@@ -3450,6 +3471,9 @@ function handleGetStudentExams(payload) {
           tuLuan: safeTuLuan,
           daLam: daLam,
           diemCu: submittedInfo ? submittedInfo.diemTong : null,
+          diemTN: submittedInfo ? submittedInfo.diemTN : null,
+          diemTL: submittedInfo ? submittedInfo.diemTL : null,
+          tongDiem: submittedInfo ? submittedInfo.tongDiem : null,
           soCauDungSaiCu: submittedInfo ? submittedInfo.soCauDungSai : null,
           thoiGianNopCu: submittedInfo ? submittedInfo.thoiGianNop : null,
           chiTietKetQua: (daLam && choXemLaiBai && submittedInfo) ? (submittedInfo.chiTietKetQua || []) : [],
@@ -3518,22 +3542,48 @@ function handleGetStudentSubmissionDetail(payload) {
     }
   }
 
-  let rawDiem = foundRow[colMap.colDiemTN];
-  if (colMap.colTongDiem !== -1 && foundRow[colMap.colTongDiem] !== "" && foundRow[colMap.colTongDiem] !== null && foundRow[colMap.colTongDiem] !== undefined) {
-    rawDiem = foundRow[colMap.colTongDiem];
+  const rawDiemTN = foundRow[colMap.colDiemTN];
+  let numDiemTN = null;
+  if (rawDiemTN !== "" && rawDiemTN !== null && rawDiemTN !== undefined) {
+    const parsedTN = parseFloat(String(rawDiemTN).replace(",", "."));
+    if (!isNaN(parsedTN)) numDiemTN = Math.round(parsedTN * 100) / 100;
   }
-  let numDiem = null;
-  if (rawDiem !== "" && rawDiem !== null && rawDiem !== undefined) {
-    const parsed = parseFloat(String(rawDiem).replace(",", "."));
-    if (!isNaN(parsed)) numDiem = Math.round(parsed * 100) / 100;
+
+  let numDiemTL = null;
+  if (colMap.colDiemTL !== -1) {
+    const rawTL = foundRow[colMap.colDiemTL];
+    if (rawTL !== "" && rawTL !== null && rawTL !== undefined) {
+      const parsedTL = parseFloat(String(rawTL).replace(",", "."));
+      if (!isNaN(parsedTL)) numDiemTL = Math.round(parsedTL * 100) / 100;
+    }
+  }
+
+  let numTongDiem = null;
+  if (colMap.colTongDiem !== -1) {
+    const rawTD = foundRow[colMap.colTongDiem];
+    if (rawTD !== "" && rawTD !== null && rawTD !== undefined) {
+      const parsedTD = parseFloat(String(rawTD).replace(",", "."));
+      if (!isNaN(parsedTD)) numTongDiem = Math.round(parsedTD * 100) / 100;
+    }
+  }
+  if (numTongDiem === null) {
+    if (numDiemTL !== null && numDiemTN !== null) {
+      numTongDiem = Math.round((numDiemTN + numDiemTL) * 100) / 100;
+    } else if (numDiemTN !== null) {
+      numTongDiem = numDiemTN;
+    }
   }
 
   return createJsonResponse({
     success: true,
     maDe: maDe,
     usernameHS: usernameHS,
-    diemTong: numDiem !== null ? numDiem : rawDiem,
-    diemTracNghiem: numDiem !== null ? numDiem : rawDiem,
+    diemTong: numTongDiem !== null ? numTongDiem : numDiemTN,
+    tongDiem: numTongDiem !== null ? numTongDiem : numDiemTN,
+    diemTracNghiem: numDiemTN !== null ? numDiemTN : 0,
+    diemTN: numDiemTN !== null ? numDiemTN : 0,
+    diemTuLuan: numDiemTL,
+    diemTL: numDiemTL,
     soCauDungSai: String(foundRow[colMap.colSoCau] || ""),
     thoiGianNop: formatDateValue(foundRow[colMap.colThoiGianNop]),
     chiTietKetQua: chiTietParsed,
