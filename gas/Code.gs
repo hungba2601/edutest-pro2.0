@@ -2280,22 +2280,32 @@ function handleSaveExam(payload) {
   const trangThai = String(payload.trangThai || "Mở").trim();
   const choXemLaiBai = (payload.choXemLaiBai !== false);
   const choXemDiem = (payload.choXemDiem !== false);
+  const cheDoThi = payload.cheDoThi || payload.duLieuDe?.cheDoThi || (choXemLaiBai === false ? "chinh_thuc" : "on_tap");
   const cauHinhDiemDungSai = (payload.cauHinhDiemDungSai === "chia_deu" || payload.duLieuDe?.cauHinhDiemDungSai === "chia_deu") ? "chia_deu" : "bo_gddt";
-  const cheDoXemText = choXemLaiBai ? "Cho xem lại bài" : "Khóa xem lại bài";
+
+  let cheDoXemText = "";
+  if (cheDoThi === "chinh_thuc") {
+    cheDoXemText = choXemLaiBai ? "Thi chính thức (Cho xem sau thi)" : "Thi chính thức (Khóa xem bài)";
+  } else {
+    cheDoXemText = choXemLaiBai ? "Ôn tập (Cho xem lại bài)" : "Ôn tập (Khóa xem lại bài)";
+  }
   const cheDoXemDiemText = choXemDiem ? "Cho xem điểm" : "Khóa xem điểm";
 
   let duLieuDeObj = payload.duLieuDe || {};
   if (typeof duLieuDeObj === "string") {
     try { duLieuDeObj = JSON.parse(duLieuDeObj); } catch (e) { duLieuDeObj = {}; }
   }
+  duLieuDeObj.cheDoThi = cheDoThi;
   duLieuDeObj.choXemLaiBai = choXemLaiBai;
   duLieuDeObj.choXemDiem = choXemDiem;
   duLieuDeObj.cauHinhDiemDungSai = cauHinhDiemDungSai;
-  duLieuDeObj.soLanViPhamChoPhep = (!choXemLaiBai) ? (Number(payload.soLanViPhamChoPhep) > 0 ? Number(payload.soLanViPhamChoPhep) : 5) : 0;
+  duLieuDeObj.soLanViPhamChoPhep = (cheDoThi === "chinh_thuc") ? (Number(payload.soLanViPhamChoPhep) > 0 ? Number(payload.soLanViPhamChoPhep) : 5) : 0;
   if (payload.hoTenGV) {
     duLieuDeObj.hoTenGV = String(payload.hoTenGV).trim();
   }
   const duLieuDeStr = JSON.stringify(duLieuDeObj);
+
+  const canhBaoViPhamText = (cheDoThi === "chinh_thuc") ? ((Number(payload.soLanViPhamChoPhep) > 0 ? Number(payload.soLanViPhamChoPhep) : 5) + " lần") : "Không giới hạn";
 
   let maDe = String(payload.maDe || "").trim();
 
@@ -2420,6 +2430,15 @@ function handleGetTeacherExams(payload) {
       const soCauTuLuan = essayList.length > 0 ? essayList.length : (duLieuDeParsed.tuLuan && duLieuDeParsed.tuLuan.noiDung ? 1 : 0);
       const hasTuLuan = !!(duLieuDeParsed.tuLuan && (duLieuDeParsed.tuLuan.noiDung || duLieuDeParsed.tuLuan.linkForm || essayList.length > 0));
 
+      let cheDoThi = "on_tap";
+      if (duLieuDeParsed.cheDoThi) {
+        cheDoThi = duLieuDeParsed.cheDoThi;
+      } else if (cheDoXemText && (cheDoXemText.indexOf("Thi") !== -1 || cheDoXemText.indexOf("chính thức") !== -1)) {
+        cheDoThi = "chinh_thuc";
+      } else if (choXemLaiBai === false) {
+        cheDoThi = "chinh_thuc";
+      }
+
       exams.push({
         maDe: String(row[0]),
         tenKyThi: String(row[1]),
@@ -2427,10 +2446,11 @@ function handleGetTeacherExams(payload) {
         lopChoPhep: String(row[3]),
         thoiGian: Number(row[4]) || 45,
         trangThai: String(row[5] || "Mở"),
+        cheDoThi: cheDoThi,
         choXemLaiBai: choXemLaiBai,
         choXemDiem: choXemDiem,
         cauHinhDiemDungSai: duLieuDeParsed.cauHinhDiemDungSai || "bo_gddt",
-        soLanViPhamChoPhep: (!choXemLaiBai ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
+        soLanViPhamChoPhep: (cheDoThi === "chinh_thuc" ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
         soCauHoi: (duLieuDeParsed.cauHoi || []).length,
         soCauTuLuan: soCauTuLuan,
         hasTuLuan: hasTuLuan,
@@ -3240,6 +3260,18 @@ function handleGetStudentExams(payload) {
           choXemDiem = (duLieuDeParsed.choXemDiem !== false);
         }
 
+        let cheDoThi = "on_tap";
+        if (duLieuDeParsed.cheDoThi) {
+          cheDoThi = duLieuDeParsed.cheDoThi;
+        } else if (cheDoXemText && (cheDoXemText.indexOf("Thi") !== -1 || cheDoXemText.indexOf("chính thức") !== -1)) {
+          cheDoThi = "chinh_thuc";
+        } else if (choXemLaiBai === false) {
+          cheDoThi = "chinh_thuc";
+        }
+
+        const submittedInfo = submittedExamsMap[maDe] || null;
+        const daLam = !!submittedInfo;
+
         const safeQuestions = (duLieuDeParsed.cauHoi || []).map((q, idx) => {
           const safeQ = {
             id: q.id || (idx + 1),
@@ -3248,11 +3280,23 @@ function handleGetStudentExams(payload) {
             diem: q.diem || 1
           };
 
+          if (daLam && choXemLaiBai) {
+            safeQ.dapAnDung = q.dapAnDung;
+            safeQ.loiGiai = q.loiGiai || "";
+          }
+
           if (q.loaiCauHoi === "true_false") {
-            safeQ.y = (q.y || []).map(item => ({
-              key: item.key,
-              noiDung: item.noiDung
-            }));
+            safeQ.y = (q.y || []).map(item => {
+              const yItem = {
+                key: item.key,
+                noiDung: item.noiDung
+              };
+              if (daLam && choXemLaiBai) {
+                yItem.dung = item.dung;
+                yItem.dapAnDung = item.dapAnDung;
+              }
+              return yItem;
+            });
           } else {
             safeQ.luaChon = (q.luaChon || []).map(opt => ({
               key: opt.key,
@@ -3266,19 +3310,23 @@ function handleGetStudentExams(payload) {
         const safeTuLuan = {
           linkForm: rawTuLuan.linkForm || "",
           noiDung: rawTuLuan.noiDung || "",
-          danhSachCauHoi: (rawTuLuan.danhSachCauHoi || []).map((eq, eqIdx) => ({
-            id: eq.id || (eqIdx + 1),
-            noiDung: eq.noiDung,
-            diem: eq.diem !== undefined ? eq.diem : 1
-          }))
+          danhSachCauHoi: (rawTuLuan.danhSachCauHoi || []).map((eq, eqIdx) => {
+            const eqItem = {
+              id: eq.id || (eqIdx + 1),
+              noiDung: eq.noiDung,
+              diem: eq.diem !== undefined ? eq.diem : 1
+            };
+            if (daLam && choXemLaiBai) {
+              eqItem.dapAn = eq.dapAn || eq.dapAnDung || "";
+              eqItem.dapAnDung = eq.dapAn || eq.dapAnDung || "";
+            }
+            return eqItem;
+          })
         };
 
         const essayList = (safeTuLuan.danhSachCauHoi && Array.isArray(safeTuLuan.danhSachCauHoi)) ? safeTuLuan.danhSachCauHoi : [];
         const soCauTuLuan = essayList.length > 0 ? essayList.length : (safeTuLuan.noiDung && String(safeTuLuan.noiDung).trim().length > 0 ? 1 : 0);
         const hasTuLuan = !!(safeTuLuan.noiDung || safeTuLuan.linkForm || essayList.length > 0);
-
-        const submittedInfo = submittedExamsMap[maDe] || null;
-        const daLam = !!submittedInfo;
 
         const rawGV = String(row[2] || "").trim();
         const rawGVKey = rawGV.toLowerCase();
@@ -3303,10 +3351,11 @@ function handleGetStudentExams(payload) {
           soCauTuLuan: soCauTuLuan,
           hasTuLuan: hasTuLuan,
           cauHoi: safeQuestions,
+          cheDoThi: cheDoThi,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
           cauHinhDiemDungSai: duLieuDeParsed.cauHinhDiemDungSai || "bo_gddt",
-          soLanViPhamChoPhep: (!choXemLaiBai ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
+          soLanViPhamChoPhep: (cheDoThi === "chinh_thuc" ? (Number(duLieuDeParsed.soLanViPhamChoPhep) || 5) : 0),
           tuLuan: safeTuLuan,
           daLam: daLam,
           diemCu: submittedInfo ? submittedInfo.diemTong : null,
@@ -3657,6 +3706,8 @@ function handleSubmitExam(payload) {
   }
 
   const choXemDiem = (originalExamData.choXemDiem !== false);
+  const cheDoThi = originalExamData.cheDoThi || (choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+  const isChinhThuc = (cheDoThi === "chinh_thuc");
 
   return createJsonResponse({
     success: true,
@@ -3670,11 +3721,12 @@ function handleSubmitExam(payload) {
     tongSoCau: questions.length,
     soCauDungSai: soCauDungSaiText,
     thoiGianNop: thoiGianNop,
-    choXemLaiBai: choXemLaiBai,
+    cheDoThi: cheDoThi,
+    choXemLaiBai: isChinhThuc ? false : choXemLaiBai,
     choXemDiem: choXemDiem,
-    chiTietKetQua: choXemLaiBai ? detailedResults : [],
-    baiLamTuLuan: essayDetailsForStudent,
-    danhSachCauHoiTuLuan: choXemLaiBai ? essayQuestions : [],
+    chiTietKetQua: isChinhThuc ? [] : (choXemLaiBai ? detailedResults : []),
+    baiLamTuLuan: isChinhThuc ? [] : essayDetailsForStudent,
+    danhSachCauHoiTuLuan: isChinhThuc ? [] : (choXemLaiBai ? essayQuestions : []),
     linkTuLuan: (originalExamData.tuLuan && originalExamData.tuLuan.linkForm) ? originalExamData.tuLuan.linkForm : ""
   });
 }

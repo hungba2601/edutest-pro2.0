@@ -267,9 +267,44 @@
                       <span class="mode-emoji">🔒</span>
                       <strong>Thi / Kiểm tra chính thức</strong>
                     </div>
-                    <p class="mode-explanation">Học sinh <strong>chỉ được làm 1 lần duy nhất</strong> (đã nộp bài sẽ bị khóa, không cho làm lại). Khóa xem lại bài làm & đáp án.</p>
+                    <p class="mode-explanation">Học sinh <strong>chỉ được làm 1 lần duy nhất</strong> (đã nộp bài sẽ bị khóa, không cho làm lại). Bật giám sát toàn màn hình.</p>
                   </div>
                 </label>
+              </div>
+
+              <!-- CẤU HÌNH 2 CHẾ ĐỘ XEM LẠI BÀI KHI THI CHÍNH THỨC (DÀNH CHO HỌC SINH) -->
+              <div id="officialExamReviewConfig" class="official-review-config-box" style="display: none; margin-top: 0.85rem; padding: 0.85rem 1rem; background: #fffaf5; border: 1.5px solid #fed7aa; border-radius: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 4px;">
+                  <span style="font-size: 0.82rem; font-weight: 700; color: #9a3412; display: inline-flex; align-items: center; gap: 5px;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.5"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Quyền xem lại bài thi chính thức (Học sinh):
+                  </span>
+                  <span id="badgeOfficialReviewSub" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; font-weight: 700; background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;">🔒 KHÔNG CHO XEM BÀI</span>
+                </div>
+
+                <div class="exam-sub-review-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem;">
+                  <label class="sub-review-card selected" id="optOfficialNoReview" style="display: block; padding: 0.65rem 0.75rem; border: 1.5px solid #ea580c; border-radius: 8px; background: #ffffff; cursor: pointer; transition: all 0.2s;">
+                    <input type="radio" name="officialExamReviewOption" id="radioOfficialNoReview" value="false" checked style="display: none;">
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                      <span style="font-size: 1.15rem; line-height: 1;">🔒</span>
+                      <div>
+                        <strong style="display: block; font-size: 0.82rem; color: #9a3412;">Không cho xem bài</strong>
+                        <span style="display: block; font-size: 0.72rem; color: #64748b; line-height: 1.35; margin-top: 2px;">Lúc nộp bài & màn hình chính đều <strong>khóa</strong>. (Dùng khi đang thi)</span>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label class="sub-review-card" id="optOfficialAllowReview" style="display: block; padding: 0.65rem 0.75rem; border: 1.5px solid #cbd5e1; border-radius: 8px; background: #f8fafc; cursor: pointer; transition: all 0.2s;">
+                    <input type="radio" name="officialExamReviewOption" id="radioOfficialAllowReview" value="true" style="display: none;">
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                      <span style="font-size: 1.15rem; line-height: 1;">👁️</span>
+                      <div>
+                        <strong style="display: block; font-size: 0.82rem; color: #0f172a;">Cho xem lại bài (Sau thi)</strong>
+                        <span style="display: block; font-size: 0.72rem; color: #64748b; line-height: 1.35; margin-top: 2px;">Lúc nộp bài <strong>vẫn khóa</strong>; ra màn hình chính có nút <strong>"Xem lại bài"</strong>.</span>
+                      </div>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               <!-- CẤU HÌNH GIÁM SÁT THI & CHỐNG GIAN LẬN (CHỈ HIỆN KHI CHỌN THI / KIỂM TRA CHÍNH THỨC) -->
@@ -2975,6 +3010,6 @@ b) Mặt trời mọc ở hướng Tây (Sai)"></textarea>
     </div>
   </div>
 
-  <script src="js/teacher.js?v=14.0"></script>
+  <script src="js/teacher.js?v=14.1"></script>
 </body>
 </html>

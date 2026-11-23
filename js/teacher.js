@@ -561,13 +561,14 @@ function syncAllPreviewInputsToState() {
 }
 
 // Cập nhật giao diện chuyển chế độ Xem lại bài
-function updateReviewModeDisplay(isAllow) {
+function updateReviewModeDisplay(isPractice) {
   const optReview = document.getElementById("optModeReview");
   const optExam = document.getElementById("optModeExam");
   const badgeMode = document.getElementById("badgeReviewMode");
   const antiCheatGroup = document.getElementById("antiCheatConfigGroup");
+  const officialReviewGroup = document.getElementById("officialExamReviewConfig");
 
-  if (isAllow) {
+  if (isPractice) {
     if (optReview) optReview.classList.add("selected");
     if (optExam) optExam.classList.remove("selected");
     if (badgeMode) {
@@ -580,19 +581,79 @@ function updateReviewModeDisplay(isAllow) {
     if (antiCheatGroup) {
       antiCheatGroup.style.display = "none";
     }
+    if (officialReviewGroup) {
+      officialReviewGroup.style.display = "none";
+    }
   } else {
     if (optReview) optReview.classList.remove("selected");
     if (optExam) optExam.classList.add("selected");
-    if (badgeMode) {
-      badgeMode.textContent = "🔒 THI (KHÓA XEM BÀI)";
-      badgeMode.classList.add("locked", "badge-orange");
-      badgeMode.style.background = "#fff7ed";
-      badgeMode.style.color = "#c2410c";
-      badgeMode.style.borderColor = "#fed7aa";
-    }
     if (antiCheatGroup) {
       antiCheatGroup.style.display = "block";
       updateAntiCheatHint();
+    }
+    if (officialReviewGroup) {
+      officialReviewGroup.style.display = "block";
+    }
+    const rOfficialAllow = document.getElementById("radioOfficialAllowReview");
+    const isAllowOfficial = rOfficialAllow ? rOfficialAllow.checked : false;
+    updateOfficialReviewOptionDisplay(isAllowOfficial);
+  }
+}
+
+// Cập nhật giao diện 2 lựa chọn xem lại bài của Thi chính thức
+function updateOfficialReviewOptionDisplay(isAllowReview) {
+  const optNo = document.getElementById("optOfficialNoReview");
+  const optAllow = document.getElementById("optOfficialAllowReview");
+  const badgeSub = document.getElementById("badgeOfficialReviewSub");
+  const badgeMain = document.getElementById("badgeReviewMode");
+  const rAllowExam = document.getElementById("radioAllowReview");
+  const isPractice = rAllowExam ? rAllowExam.checked : false;
+
+  if (isAllowReview) {
+    if (optAllow) {
+      optAllow.classList.add("selected");
+      optAllow.style.borderColor = "#0284c7";
+      optAllow.style.background = "#f0f9ff";
+    }
+    if (optNo) {
+      optNo.classList.remove("selected");
+      optNo.style.borderColor = "#cbd5e1";
+      optNo.style.background = "#f8fafc";
+    }
+    if (badgeSub) {
+      badgeSub.textContent = "👁️ CHO XEM LẠI BÀI (MÀN HÌNH CHÍNH)";
+      badgeSub.style.background = "#e0f2fe";
+      badgeSub.style.color = "#0369a1";
+      badgeSub.style.borderColor = "#bae6fd";
+    }
+    if (!isPractice && badgeMain) {
+      badgeMain.textContent = "👁️ THI (XEM LẠI SAU THI)";
+      badgeMain.style.background = "#eff6ff";
+      badgeMain.style.color = "#1d4ed8";
+      badgeMain.style.borderColor = "#bfdbfe";
+    }
+  } else {
+    if (optNo) {
+      optNo.classList.add("selected");
+      optNo.style.borderColor = "#ea580c";
+      optNo.style.background = "#fff7ed";
+    }
+    if (optAllow) {
+      optAllow.classList.remove("selected");
+      optAllow.style.borderColor = "#cbd5e1";
+      optAllow.style.background = "#f8fafc";
+    }
+    if (badgeSub) {
+      badgeSub.textContent = "🔒 KHÔNG CHO XEM BÀI";
+      badgeSub.style.background = "#fee2e2";
+      badgeSub.style.color = "#dc2626";
+      badgeSub.style.borderColor = "#fecaca";
+    }
+    if (!isPractice && badgeMain) {
+      badgeMain.textContent = "🔒 THI (KHÓA XEM BÀI)";
+      badgeMain.style.background = "#fff7ed";
+      badgeMain.style.color = "#c2410c";
+      badgeMain.style.borderColor = "#fed7aa";
     }
   }
 }
@@ -612,6 +673,8 @@ function updateAntiCheatHint() {
 function initReviewModeSelector() {
   const radioAllow = document.getElementById("radioAllowReview");
   const radioDisallow = document.getElementById("radioDisallowReview");
+  const radioOfficialNo = document.getElementById("radioOfficialNoReview");
+  const radioOfficialAllow = document.getElementById("radioOfficialAllowReview");
   const maxViolationsInput = document.getElementById("examMaxViolations");
 
   if (radioAllow) {
@@ -619,6 +682,12 @@ function initReviewModeSelector() {
   }
   if (radioDisallow) {
     radioDisallow.addEventListener("change", () => updateReviewModeDisplay(false));
+  }
+  if (radioOfficialNo) {
+    radioOfficialNo.addEventListener("change", () => updateOfficialReviewOptionDisplay(false));
+  }
+  if (radioOfficialAllow) {
+    radioOfficialAllow.addEventListener("change", () => updateOfficialReviewOptionDisplay(true));
   }
   if (maxViolationsInput) {
     maxViolationsInput.addEventListener("input", updateAntiCheatHint);
@@ -3671,13 +3740,18 @@ btnSaveExam.addEventListener("click", async () => {
     }
   }
 
-  // Lấy cấu hình Chế độ xem lại bài (Ôn tập vs Thi chính thức)
+  // Lấy cấu hình Chế độ thi (Ôn tập vs Thi chính thức)
   const radioAllow = document.getElementById("radioAllowReview");
-  const choXemLaiBai = radioAllow ? radioAllow.checked : true;
+  const isPracticeMode = radioAllow ? radioAllow.checked : true;
+  const cheDoThi = isPracticeMode ? "on_tap" : "chinh_thuc";
 
-  // Lấy cấu hình số lần vi phạm cho phép khi thi chính thức
+  // Lấy cấu hình Quyền xem lại bài và số lần vi phạm cho phép
+  let choXemLaiBai = true;
   let soLanViPhamChoPhep = 0;
-  if (!choXemLaiBai) {
+  if (!isPracticeMode) {
+    const radioOfficialAllow = document.getElementById("radioOfficialAllowReview");
+    choXemLaiBai = radioOfficialAllow ? radioOfficialAllow.checked : false;
+
     const inputViolations = document.getElementById("examMaxViolations");
     soLanViPhamChoPhep = inputViolations ? (parseInt(inputViolations.value, 10) || 5) : 5;
     if (soLanViPhamChoPhep < 1) soLanViPhamChoPhep = 1;
@@ -3702,12 +3776,14 @@ btnSaveExam.addEventListener("click", async () => {
     thoiGian: thoiGian,
     trangThai: trangThai,
     lopChoPhep: selectedClasses,
+    cheDoThi: cheDoThi,
     choXemLaiBai: choXemLaiBai,
     choXemDiem: choXemDiem,
     cauHinhDiemDungSai: cauHinhDiemDungSai,
     soLanViPhamChoPhep: soLanViPhamChoPhep,
     duLieuDe: {
       cauHoi: parsedQuestions,
+      cheDoThi: cheDoThi,
       choXemLaiBai: choXemLaiBai,
       choXemDiem: choXemDiem,
       cauHinhDiemDungSai: cauHinhDiemDungSai,
@@ -3921,14 +3997,25 @@ function openExamForEditing(maDe) {
   }
   renderEssayQuestionsEditor();
 
-  // 5. Điền lại chế độ xem lại bài (Ôn tập vs Thi)
+  // 5. Điền lại chế độ thi (Ôn tập vs Thi chính thức) và Quyền xem lại bài
+  const cheDoThi = exam.cheDoThi || exam.duLieuDe?.cheDoThi || (exam.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+  const isPractice = (cheDoThi === "on_tap");
   const isAllowReview = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
+
   const radioAllow = document.getElementById("radioAllowReview");
   const radioDisallow = document.getElementById("radioDisallowReview");
   if (radioAllow && radioDisallow) {
-    radioAllow.checked = isAllowReview;
-    radioDisallow.checked = !isAllowReview;
-    updateReviewModeDisplay(isAllowReview);
+    radioAllow.checked = isPractice;
+    radioDisallow.checked = !isPractice;
+    updateReviewModeDisplay(isPractice);
+  }
+
+  const rOfficialNo = document.getElementById("radioOfficialNoReview");
+  const rOfficialAllow = document.getElementById("radioOfficialAllowReview");
+  if (rOfficialNo && rOfficialAllow) {
+    rOfficialNo.checked = !isAllowReview;
+    rOfficialAllow.checked = isAllowReview;
+    updateOfficialReviewOptionDisplay(isAllowReview);
   }
 
   // 5.1. Điền lại chế độ xem điểm (Cho xem điểm vs Không cho xem điểm)
@@ -4029,6 +4116,13 @@ function cancelEditingMode() {
     rAllow.checked = true;
     rDisallow.checked = false;
     updateReviewModeDisplay(true);
+  }
+  const rOffNo = document.getElementById("radioOfficialNoReview");
+  const rOffAllow = document.getElementById("radioOfficialAllowReview");
+  if (rOffNo && rOffAllow) {
+    rOffNo.checked = true;
+    rOffAllow.checked = false;
+    updateOfficialReviewOptionDisplay(false);
   }
 
   // Reset số lần vi phạm về mặc định 5
@@ -5186,10 +5280,21 @@ function renderTeacherExamsTable(examsList, isFromCache) {
   tbody.innerHTML = "";
   examsList.forEach(exam => {
     const isOpening = exam.trangThai === "Mở";
+    const cheDoThi = exam.cheDoThi || exam.duLieuDe?.cheDoThi || (exam.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+    const isPractice = (cheDoThi === "on_tap");
     const isReviewAllowed = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
     const isScoreAllowed = (exam.choXemDiem !== false && exam.duLieuDe?.choXemDiem !== false);
     const isTfChiaDeu = (exam.cauHinhDiemDungSai === "chia_deu" || exam.duLieuDe?.cauHinhDiemDungSai === "chia_deu");
     const essayCount = getExamEssayCount(exam);
+
+    let reviewBadgeHtml = "";
+    if (isPractice) {
+      reviewBadgeHtml = '<span class="badge-table-review allowed" title="Chế độ Ôn tập (Làm nhiều lần, cho học sinh xem lại bài & đáp án sau khi nộp)">📖 Ôn tập (Xem bài)</span>';
+    } else if (isReviewAllowed) {
+      reviewBadgeHtml = '<span class="badge-table-review" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;" title="Chế độ Thi chính thức 1 lần (Cho học sinh xem lại bài ở màn hình chính sau khi thi xong)">👁️ Thi (Xem lại sau thi)</span>';
+    } else {
+      reviewBadgeHtml = '<span class="badge-table-review locked" title="Chế độ Thi chính thức 1 lần (Khóa xem bài cả lúc nộp và ở màn hình chính)">🔒 Thi (Khóa xem bài)</span>';
+    }
 
     let tuLuanBadge = '<span style="color: #94a3b8; font-weight: 500;">Không</span>';
     if (essayCount > 0) {
@@ -5228,9 +5333,7 @@ function renderTeacherExamsTable(examsList, isFromCache) {
       <td>${tuLuanBadge}</td>
       <td>
         <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">
-          ${isReviewAllowed 
-            ? '<span class="badge-table-review allowed" title="Học sinh được xem lại bài và đáp án sau khi nộp (Chế độ Ôn tập)">📖 Cho xem bài</span>' 
-            : '<span class="badge-table-review locked" title="Học sinh bị khóa xem lại bài và đáp án (Chế độ Thi chính thức)">🔒 Khóa xem bài</span>'}
+          ${reviewBadgeHtml}
           ${isScoreAllowed
             ? '<span class="badge-table-review" style="background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;" title="Học sinh xem được điểm số ngay sau khi nộp bài">👁️ Cho xem điểm</span>'
             : '<span class="badge-table-review" style="background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;" title="Khóa hiển thị điểm số khi nộp bài">🔒 Khóa xem điểm</span>'}
@@ -11705,7 +11808,13 @@ function initCopyExamModal() {
         const thoiGian = parseInt(document.getElementById("examDuration")?.value, 10) || 45;
         const selectedClasses = typeof getSelectedClasses === "function" ? getSelectedClasses() : "ALL";
         const radioAllow = document.getElementById("radioAllowReview");
-        const choXemLaiBai = radioAllow ? radioAllow.checked : true;
+        const isPracticeMode = radioAllow ? radioAllow.checked : true;
+        const cheDoThi = isPracticeMode ? "on_tap" : "chinh_thuc";
+        let choXemLaiBai = true;
+        if (!isPracticeMode) {
+          const radioOfficialAllow = document.getElementById("radioOfficialAllowReview");
+          choXemLaiBai = radioOfficialAllow ? radioOfficialAllow.checked : false;
+        }
         const radioAllowScore = document.getElementById("radioAllowViewScore");
         const choXemDiem = radioAllowScore ? radioAllowScore.checked : true;
         const radioTfChiaDeu = document.getElementById("radioTfScoreChiaDeu");
@@ -11718,6 +11827,7 @@ function initCopyExamModal() {
           thoiGian: thoiGian,
           lopChoPhep: selectedClasses,
           trangThai: "Đóng",
+          cheDoThi: cheDoThi,
           choXemLaiBai: choXemLaiBai,
           choXemDiem: choXemDiem,
           cauHinhDiemDungSai: cauHinhDiemDungSai,
@@ -11725,6 +11835,7 @@ function initCopyExamModal() {
           soCauTuLuan: (parsedEssayQuestions || []).length,
           duLieuDe: {
             cauHoi: parsedQuestions || [],
+            cheDoThi: cheDoThi,
             choXemLaiBai: choXemLaiBai,
             choXemDiem: choXemDiem,
             cauHinhDiemDungSai: cauHinhDiemDungSai,
@@ -11919,10 +12030,14 @@ async function executeCopyExamSubmit() {
     const teacherFullName = currentTeacher?.hoTenGV || currentTeacher?.hoTen || currentTeacher?.tenGV || "";
     duLieuDeCloned.hoTenGV = teacherFullName;
 
+    const cheDoThi = currentExamToCopy.cheDoThi || duLieuDeCloned.cheDoThi || (currentExamToCopy.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
     const choXemLaiBai = (currentExamToCopy.choXemLaiBai !== false);
     const choXemDiem = (currentExamToCopy.choXemDiem !== false);
     const cauHinhDiemDungSai = currentExamToCopy.cauHinhDiemDungSai || duLieuDeCloned.cauHinhDiemDungSai || "bo_gddt";
     const soLanViPhamChoPhep = currentExamToCopy.soLanViPhamChoPhep !== undefined ? currentExamToCopy.soLanViPhamChoPhep : (duLieuDeCloned.soLanViPhamChoPhep || 0);
+
+    duLieuDeCloned.cheDoThi = cheDoThi;
+    duLieuDeCloned.choXemLaiBai = choXemLaiBai;
 
     // Chuẩn bị payload gửi lên Google Apps Script
     const copyPayload = {
@@ -11934,6 +12049,7 @@ async function executeCopyExamSubmit() {
       thoiGian: Number(currentExamToCopy.thoiGian) || 45,
       trangThai: newStatus,
       lopChoPhep: currentExamToCopy.lopChoPhep || "ALL",
+      cheDoThi: cheDoThi,
       choXemLaiBai: choXemLaiBai,
       choXemDiem: choXemDiem,
       cauHinhDiemDungSai: cauHinhDiemDungSai,

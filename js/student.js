@@ -616,7 +616,9 @@ function renderExamList(availableExams) {
 
     const essayCount = getExamEssayCount(exam);
     const hasGoogleForm = !!(exam.tuLuan && exam.tuLuan.linkForm);
-    const isAllowReview = (exam.choXemLaiBai !== false);
+    const cheDoThi = exam.cheDoThi || exam.duLieuDe?.cheDoThi || (exam.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+    const isChinhThuc = (cheDoThi === "chinh_thuc");
+    const isAllowReview = (exam.choXemLaiBai !== false && exam.duLieuDe?.choXemLaiBai !== false);
     const isAllowScore = (exam.choXemDiem !== false);
     const hasDone = !!(exam.daLam || (exam.diemCu !== null && exam.diemCu !== undefined));
     const formattedSubmitTime = formatSubmitTimeDisplay(exam.thoiGianNopCu);
@@ -626,31 +628,57 @@ function renderExamList(availableExams) {
     let actionBtnHtml = "";
     let noticeAlertHtml = "";
 
-    if (!isAllowReview) {
-      // 1. THI / KIỂM TRA CHÍNH THỨC: CHỈ LÀM 1 LẦN
+    if (isChinhThuc) {
+      // 1. THI / KIỂM TRA CHÍNH THỨC: CHỈ ĐƯỢC LÀM 1 LẦN DUY NHẤT
       if (hasDone) {
-        statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; font-weight: 800;">🚫 ĐÃ THI (KHÓA LÀM LẠI)</span>`;
-        noticeAlertHtml = `
-          <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
-              <span style="font-weight: 700; color: #dc2626; display: flex; align-items: center; gap: 4px;">
-                ⚠️ Đã nộp bài (Khóa làm lại)
-              </span>
-              ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
-                <span style="font-weight: 800; color: #dc2626; font-size: 1rem;">${exam.diemCu} điểm</span>
-              ` : ''}
+        if (isAllowReview) {
+          // GIÁO VIÊN CẤU HÌNH CHO XEM LẠI BÀI (SAU KHI THI XONG)
+          statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #e0f2fe; color: #0369a1; border: 1.5px solid #bae6fd; font-weight: 800;">👁️ ĐÃ THI (ĐƯỢC XEM BÀI)</span>`;
+          noticeAlertHtml = `
+            <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; color: #0369a1; font-size: 0.82rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
+                <span style="font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 4px;">
+                  ✅ Đã nộp bài (Giáo viên đã mở xem lại)
+                </span>
+                ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
+                  <span style="font-weight: 800; color: #0284c7; font-size: 1rem;">${exam.diemCu} điểm</span>
+                ` : ''}
+              </div>
+              ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
             </div>
-            ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
-          </div>
-        `;
-        actionBtnHtml = `
-          <button type="button" class="btn-start-exam btn-exam-locked" data-index="${idx}" disabled style="background: #94a3b8; cursor: not-allowed; box-shadow: none; opacity: 0.85; pointer-events: none;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-            <span>Đã Nộp Bài (Chỉ thi 1 lần)</span>
-          </button>
-        `;
+          `;
+          actionBtnHtml = `
+            <button type="button" class="btn-start-exam btn-review-exam-dashboard" data-index="${idx}" data-made="${exam.maDe}" style="background: linear-gradient(135deg, #0284c7, #0369a1); box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>👁️ Xem Lại Bài Làm & Đáp Án</span>
+            </button>
+          `;
+        } else {
+          // GIÁO VIÊN CẤU HÌNH KHÔNG CHO XEM LẠI BÀI (ĐANG TRONG THỜI GIAN THI)
+          statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; font-weight: 800;">🚫 ĐÃ THI (KHÓA LÀM LẠI)</span>`;
+          noticeAlertHtml = `
+            <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; flex-wrap: wrap;">
+                <span style="font-weight: 700; color: #dc2626; display: flex; align-items: center; gap: 4px;">
+                  ⚠️ Đã nộp bài (Khóa làm lại & xem bài)
+                </span>
+                ${(exam.diemCu !== null && exam.diemCu !== undefined && isAllowScore) ? `
+                  <span style="font-weight: 800; color: #dc2626; font-size: 1rem;">${exam.diemCu} điểm</span>
+                ` : ''}
+              </div>
+              ${formattedSubmitTime ? `<div style="font-size: 0.75rem; color: #64748b; margin-top: 3px;">⏱ Nộp lúc: ${formattedSubmitTime}</div>` : ''}
+            </div>
+          `;
+          actionBtnHtml = `
+            <button type="button" class="btn-start-exam btn-exam-locked" data-index="${idx}" disabled style="background: #94a3b8; cursor: not-allowed; box-shadow: none; opacity: 0.85; pointer-events: none;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+              <span>Đã Nộp Bài (Chỉ thi 1 lần)</span>
+            </button>
+          `;
+        }
       } else {
-        statusBadgeHtml = `<span class="badge-review-tag locked" title="Khóa xem lại đề và đáp án để bảo mật kỳ thi">🔒 Thi chính thức (1 lần)</span>`;
+        const reviewNotice = isAllowReview ? " (Được xem sau thi)" : "";
+        statusBadgeHtml = `<span class="badge-review-tag locked" title="Khóa làm lại, thi chính thức 1 lần duy nhất">🔒 Thi chính thức${reviewNotice}</span>`;
         actionBtnHtml = `
           <button type="button" class="btn-start-exam" data-index="${idx}">
             <span>Bắt Đầu Làm Bài</span>
@@ -748,15 +776,24 @@ function renderExamList(availableExams) {
     grid.appendChild(card);
   });
 
-  // Bắt sự kiện bấm vào thi
+  // Bắt sự kiện bấm vào thi hoặc xem lại bài từ Bảng điều khiển
   grid.querySelectorAll(".btn-start-exam").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const idx = parseInt(e.currentTarget.dataset.index);
       const exam = availableExams[idx];
       if (!exam) return;
 
-      const isAllowReview = (exam.choXemLaiBai !== false);
-      if (!isAllowReview && exam.daLam) {
+      // Nút Xem lại bài làm từ màn hình chính
+      if (e.currentTarget.classList.contains("btn-review-exam-dashboard")) {
+        e.preventDefault();
+        e.stopPropagation();
+        openExamReviewFromDashboard(exam);
+        return;
+      }
+
+      const cheDoThi = exam.cheDoThi || exam.duLieuDe?.cheDoThi || (exam.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+      const isOfficial = (cheDoThi === "chinh_thuc");
+      if (isOfficial && exam.daLam) {
         showToast("Đã hoàn thành", "Bạn đã nộp bài kiểm tra chính thức này rồi! Kỳ thi chính thức chỉ được làm bài 1 lần duy nhất.", "error", 5000);
         alert(`⚠️ THÔNG BÁO:\n\nBạn đã hoàn thành bài kiểm tra chính thức: "${exam.tenKyThi}" rồi!\n\nKỳ thi chính thức chỉ cho phép làm bài 1 lần duy nhất để đảm bảo tính công bằng. Bạn không thể làm lại.`);
         return;
@@ -2314,15 +2351,39 @@ async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false,
     if (result && result.success) {
       lastExamResult = result;
 
-      // Lưu trạng thái đã hoàn thành bài thi vào máy khách ngay lập tức
+      // Lưu trạng thái đã hoàn thành bài thi vào máy khách ngay lập tức kèm toàn bộ câu hỏi và câu trả lời
       if (activeExam) {
         activeExam.daLam = true;
         activeExam.diemCu = (result.diemTracNghiem !== undefined && result.diemTracNghiem !== null)
           ? result.diemTracNghiem
           : result.diemTong;
+
+        const localGraded = gradeExamLocally(activeExam, studentAnswers);
+        const resolvedScore = activeExam.diemCu;
+        const maxScore = result.tongDiemTracNghiem || localGraded.tongDiemTracNghiem;
+        const correctCnt = result.soCauDung !== undefined ? result.soCauDung : localGraded.soCauDung;
+        const totalCnt = result.tongSoCau !== undefined ? result.tongSoCau : localGraded.tongSoCau;
+        const detailsList = (result.chiTietKetQua && result.chiTietKetQua.length > 0) ? result.chiTietKetQua : localGraded.detailedResults;
+
         saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
-          diemCu: activeExam.diemCu,
-          thoiGianNopCu: result.thoiGianNop || new Date().toLocaleString("vi-VN")
+          daLam: true,
+          diemCu: resolvedScore,
+          diemTong: resolvedScore,
+          diemTracNghiem: resolvedScore,
+          tongDiemTracNghiem: maxScore,
+          soCauDung: correctCnt,
+          tongSoCau: totalCnt,
+          soCauDungSai: result.soCauDungSai || localGraded.soCauDungSai,
+          thoiGianNopCu: result.thoiGianNop || new Date().toLocaleString("vi-VN"),
+          studentAnswers: { ...studentAnswers },
+          studentEssayAnswers: { ...studentEssayAnswers },
+          chiTietKetQua: detailsList,
+          cauHoi: activeExam.cauHoi || [],
+          tuLuan: activeExam.tuLuan || {},
+          tenKyThi: activeExam.tenKyThi,
+          thoiGian: activeExam.thoiGian,
+          choXemDiem: activeExam.choXemDiem,
+          cauHinhDiemDungSai: activeExam.cauHinhDiemDungSai
         });
       }
 
@@ -2363,8 +2424,24 @@ async function submitStudentExam(isAutoTimeout = false, isAutoViolation = false,
         activeExam.daLam = true;
         activeExam.diemCu = resolvedScore;
         saveLocalSubmittedExam(currentStudent.username, activeExam.maDe, {
+          daLam: true,
           diemCu: resolvedScore,
-          thoiGianNopCu: confirmedResult.thoiGianNop
+          diemTong: resolvedScore,
+          diemTracNghiem: resolvedScore,
+          tongDiemTracNghiem: confirmedResult.tongDiemTracNghiem,
+          soCauDung: confirmedResult.soCauDung,
+          tongSoCau: confirmedResult.tongSoCau,
+          soCauDungSai: confirmedResult.soCauDungSai,
+          thoiGianNopCu: confirmedResult.thoiGianNop,
+          studentAnswers: { ...studentAnswers },
+          studentEssayAnswers: { ...studentEssayAnswers },
+          chiTietKetQua: localGraded.detailedResults,
+          cauHoi: activeExam.cauHoi || [],
+          tuLuan: activeExam.tuLuan || {},
+          tenKyThi: activeExam.tenKyThi,
+          thoiGian: activeExam.thoiGian,
+          choXemDiem: activeExam.choXemDiem,
+          cauHinhDiemDungSai: activeExam.cauHinhDiemDungSai
         });
       }
 
@@ -2657,19 +2734,49 @@ function showExamResultScreen(result) {
 
   // ==========================================================================
   // XỬ LÝ CHẾ ĐỘ XEM LẠI BÀI & ĐÁP ÁN THEO CẤU HÌNH CỦA GIÁO VIÊN
-  // - Ôn tập (choXemLaiBai === true): Học sinh được bấm nút xem lại câu hỏi và đáp án chi tiết.
-  // - Thi chính thức (choXemLaiBai === false): Khóa nút xem lại, hiển thị thông báo bảo mật.
+  // - Ôn tập (choXemLaiBai === true): Học sinh được bấm nút xem lại câu hỏi và đáp án chi tiết ngay khi nộp.
+  // - Thi chính thức (cheDoThi === "chinh_thuc"):
+  //   + Khi vừa nộp bài: LUÔN KHÓA xem lại bài tại màn hình này để bảo mật đề thi trong phòng thi.
+  //   + Nếu GV cấu hình "Cho xem lại bài sau thi", học sinh có thể quay lại Màn hình chính (Bảng điều khiển) để xem chi tiết.
+  //   + Nếu GV cấu hình "Không cho xem lại bài", học sinh không được xem lại bài ở cả màn hình kết quả lẫn màn hình chính.
   // ==========================================================================
-  const isAllowReview = (activeExam?.choXemLaiBai !== false && result?.choXemLaiBai !== false);
+  const cheDoThi = activeExam?.cheDoThi || activeExam?.duLieuDe?.cheDoThi || (activeExam?.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+  const isOfficialExam = (cheDoThi === "chinh_thuc");
   const btnReview = document.getElementById("btnReviewExamDetail");
   const lockedNotice = document.getElementById("resultReviewLockedNotice");
 
-  if (isAllowReview) {
-    if (btnReview) btnReview.style.display = "inline-flex";
-    if (lockedNotice) lockedNotice.style.display = "none";
-  } else {
+  if (isOfficialExam) {
     if (btnReview) btnReview.style.display = "none";
-    if (lockedNotice) lockedNotice.style.display = "block";
+    if (lockedNotice) {
+      lockedNotice.style.display = "block";
+      const isReviewAllowedLater = (activeExam?.choXemLaiBai !== false && activeExam?.duLieuDe?.choXemLaiBai !== false);
+      if (isReviewAllowedLater) {
+        lockedNotice.innerHTML = `ℹ️ <strong>Bài thi chính thức đã được ghi nhận an toàn!</strong><br>Để bảo mật phòng thi, bài làm và đáp án chưa hiển thị tại đây. Thầy/Cô đã mở quyền xem lại, bạn có thể quay lại <strong>Màn hình chính (Bảng điều khiển)</strong> để xem chi tiết bài làm & đáp án.`;
+        lockedNotice.style.borderColor = "#bae6fd";
+        lockedNotice.style.background = "#f0f9ff";
+        lockedNotice.style.color = "#0369a1";
+      } else {
+        lockedNotice.innerHTML = `🔒 <strong>Bài thi chính thức đã được khóa bảo mật.</strong><br>Hệ thống không cho phép xem lại bài làm và đáp án sau khi nộp.`;
+        lockedNotice.style.borderColor = "#fed7aa";
+        lockedNotice.style.background = "#fff7ed";
+        lockedNotice.style.color = "#c2410c";
+      }
+    }
+  } else {
+    const isAllowReview = (activeExam?.choXemLaiBai !== false && result?.choXemLaiBai !== false);
+    if (isAllowReview) {
+      if (btnReview) btnReview.style.display = "inline-flex";
+      if (lockedNotice) lockedNotice.style.display = "none";
+    } else {
+      if (btnReview) btnReview.style.display = "none";
+      if (lockedNotice) {
+        lockedNotice.style.display = "block";
+        lockedNotice.innerHTML = `🔒 <strong>Bài ôn tập đã khóa xem bài.</strong><br>Giáo viên tạm thời không mở xem đáp án chi tiết.`;
+        lockedNotice.style.borderColor = "#fed7aa";
+        lockedNotice.style.background = "#fff7ed";
+        lockedNotice.style.color = "#c2410c";
+      }
+    }
   }
 
   // ==========================================================================
@@ -2932,7 +3039,54 @@ class ConfettiCelebration {
 }
 
 // ============================================================================
-// 7. MODAL XEM LẠI CHI TIẾT BÀI LÀM & ĐÁP ÁN (DÀNH CHO CHẾ ĐỘ ÔN TẬP)
+// HÀM MỞ XEM LẠI BÀI THI TỪ MÀN HÌNH CHÍNH (DÀNH CHO ĐỀ THI CHÍNH THỨC ĐƯỢC MỞ XEM BÀI)
+// ============================================================================
+function openExamReviewFromDashboard(exam) {
+  if (!exam) return;
+  const usernameHS = currentStudent?.username || "";
+  const localMap = getLocalSubmittedExams(usernameHS);
+  const localData = localMap[exam.maDe] || {};
+
+  activeExam = { ...exam };
+
+  // Khôi phục câu hỏi từ local snapshot nếu có đáp án đầy đủ
+  if (localData.cauHoi && Array.isArray(localData.cauHoi) && localData.cauHoi.length > 0) {
+    activeExam.cauHoi = localData.cauHoi;
+  }
+  if (localData.tuLuan) {
+    activeExam.tuLuan = localData.tuLuan;
+  }
+
+  studentAnswers = localData.studentAnswers || {};
+  studentEssayAnswers = localData.studentEssayAnswers || {};
+
+  const localGraded = gradeExamLocally(activeExam, studentAnswers);
+  const resolvedScore = (exam.diemCu !== null && exam.diemCu !== undefined)
+    ? exam.diemCu
+    : (localData.diemTracNghiem !== undefined ? localData.diemTracNghiem : localGraded.diemTracNghiem);
+
+  lastExamResult = {
+    ...localData,
+    ...localGraded,
+    success: true,
+    diemTong: resolvedScore,
+    diemTracNghiem: resolvedScore,
+    tongDiemTracNghiem: localData.tongDiemTracNghiem || localGraded.tongDiemTracNghiem,
+    soCauDung: localData.soCauDung !== undefined ? localData.soCauDung : localGraded.soCauDung,
+    tongSoCau: (activeExam.cauHoi && activeExam.cauHoi.length > 0) ? activeExam.cauHoi.length : (localData.tongSoCau || localGraded.tongSoCau),
+    soCauDungSai: exam.soCauDungSaiCu || localData.soCauDungSai || localGraded.soCauDungSai,
+    thoiGianNop: exam.thoiGianNopCu || localData.thoiGianNopCu || new Date().toLocaleString("vi-VN"),
+    chiTietKetQua: (localData.chiTietKetQua && localData.chiTietKetQua.length > 0) ? localData.chiTietKetQua : localGraded.detailedResults,
+    baiLamTuLuan: localData.studentEssayAnswers || studentEssayAnswers,
+    choXemLaiBai: true,
+    choXemDiem: (exam.choXemDiem !== false)
+  };
+
+  openExamReviewModal();
+}
+
+// ============================================================================
+// 7. MODAL XEM LẠI CHI TIẾT BÀI LÀM & ĐÁP ÁN (DÀNH CHO CHẾ ĐỘ ÔN TẬP VÀ THI CHÍNH THỨC ĐÃ MỞ)
 // ============================================================================
 function openExamReviewModal() {
   if (!lastExamResult || !activeExam) {
@@ -2962,11 +3116,16 @@ function openExamReviewModal() {
 
   if (modalTitle) modalTitle.textContent = `Chi Tiết Bài Làm: ${activeExam.tenKyThi || activeExam.maDe}`;
   const isAllowScore = (activeExam?.choXemDiem !== false && lastExamResult?.choXemDiem !== false);
+  const cheDoThiModal = activeExam?.cheDoThi || activeExam?.duLieuDe?.cheDoThi || (activeExam?.choXemLaiBai === false ? "chinh_thuc" : "on_tap");
+  const cheDoBadgeHtml = (cheDoThiModal === "chinh_thuc")
+    ? `<strong style="color: #0284c7;">🔒 Thi chính thức (Xem lại sau thi)</strong>`
+    : `<strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
+
   if (modalScoreStats) {
     if (isAllowScore) {
-      modalScoreStats.innerHTML = `Điểm phần trắc nghiệm: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} điểm</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: <strong style="color: #059669;">📖 Ôn tập có đáp án</strong>`;
+      modalScoreStats.innerHTML = `Điểm phần trắc nghiệm: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} điểm</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: ${cheDoBadgeHtml}`;
     } else {
-      modalScoreStats.innerHTML = `Điểm số: <strong style="color: #b45309;">🔒 Giáo viên đã khóa xem điểm</strong> | Đúng: <strong style="color: #16a34a;">Đã bảo mật</strong> | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: <strong style="color: #059669;">📖 Ôn tập xem bài làm</strong>`;
+      modalScoreStats.innerHTML = `Điểm số: <strong style="color: #b45309;">🔒 Giáo viên đã khóa xem điểm</strong> | Đúng: <strong style="color: #16a34a;">Đã bảo mật</strong> | Tự luận: <strong style="color: #059669;">Chờ GV chấm</strong> | Chế độ: ${cheDoBadgeHtml}`;
     }
   }
 
