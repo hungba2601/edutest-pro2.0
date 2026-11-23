@@ -387,6 +387,17 @@ function removeLocalSubmittedExam(usernameHS, maDe) {
 }
 
 /**
+ * So sánh 2 mã tài khoản học sinh (chuẩn hóa trim, lowercase, bỏ số 0 ở đầu nếu có)
+ */
+function isSameStudentAccount(acc1, acc2) {
+  if (!acc1 || !acc2) return false;
+  const s1 = String(acc1).trim().toLowerCase();
+  const s2 = String(acc2).trim().toLowerCase();
+  if (s1 === s2) return true;
+  return s1.replace(/^0+/, "") === s2.replace(/^0+/, "");
+}
+
+/**
  * Kiểm tra xem một đề thi là "Thi / Kiểm tra chính thức" hay "Ôn tập / Luyện tập"
  * Đảm bảo nhận diện chính xác 100% trong mọi trường hợp, ngay cả khi Google Sheets chưa cập nhật Apps Script.
  */
@@ -539,10 +550,10 @@ async function loadAvailableExams() {
 
   // Tự động đồng bộ điểm tự luận (TL) và trắc nghiệm (TN) chuẩn từ DATA_KETQUA cho các đề đã nộp
   if (Array.isArray(exams) && currentStudent?.username) {
-    const hasSubmitted = exams.some(e => e.daLam);
+    const hasSubmitted = exams.some(e => e.daLam || (e.diemCu !== null && e.diemCu !== undefined));
     if (hasSubmitted) {
       try {
-        const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&lop=${encodeURIComponent(currentStudent.lop || "")}&_t=${Date.now()}`);
+        const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&_t=${Date.now()}`);
         const textKq = await resKq.text();
         if (textKq && !textKq.trim().startsWith("<")) {
           const jsonKq = JSON.parse(textKq);
@@ -551,13 +562,15 @@ async function loadAvailableExams() {
             studentResults.forEach(r => {
               const matchedExam = exams.find(e => e.maDe === r.maDe);
               if (matchedExam) {
-                if (r.diemTracNghiem !== undefined && r.diemTracNghiem !== null && r.diemTracNghiem !== "") {
+                if (r.diemTracNghiem !== undefined && r.diemTracNghiem !== null && String(r.diemTracNghiem).trim() !== "") {
                   matchedExam.diemTN = Number(r.diemTracNghiem);
                 }
-                if (r.diemTuLuan !== undefined && r.diemTuLuan !== null && r.diemTuLuan !== "") {
+                if (r.diemTuLuan !== undefined && r.diemTuLuan !== null && String(r.diemTuLuan).trim() !== "") {
                   matchedExam.diemTL = Number(r.diemTuLuan);
+                } else {
+                  matchedExam.diemTL = null;
                 }
-                if (r.tongDiem !== undefined && r.tongDiem !== null && r.tongDiem !== "") {
+                if (r.tongDiem !== undefined && r.tongDiem !== null && String(r.tongDiem).trim() !== "") {
                   matchedExam.tongDiem = Number(r.tongDiem);
                   matchedExam.diemCu = Number(r.tongDiem);
                 }
@@ -3271,8 +3284,10 @@ async function openExamReviewFromDashboard(exam) {
           if (json.diemTN !== undefined && json.diemTN !== null) {
             exam.diemTN = json.diemTN;
           }
-          if (json.diemTL !== undefined && json.diemTL !== null) {
-            exam.diemTL = json.diemTL;
+          if (json.diemTL !== undefined && json.diemTL !== null && String(json.diemTL).trim() !== "") {
+            exam.diemTL = Number(json.diemTL);
+          } else {
+            exam.diemTL = null;
           }
           if (json.soCauDungSai) {
             exam.soCauDungSaiCu = json.soCauDungSai;
@@ -3290,20 +3305,22 @@ async function openExamReviewFromDashboard(exam) {
   // 2b. Đồng bộ điểm chuẩn (diemTN, diemTL, tongDiem) từ getTeacherResults trên Google Sheets nếu chưa có
   if ((exam.diemTL === undefined || exam.diemTL === null || exam.diemTN === undefined || exam.tongDiem === undefined) && usernameHS && exam.maDe) {
     try {
-      const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&maDe=${encodeURIComponent(exam.maDe)}&lop=${encodeURIComponent(currentStudent?.lop || "all")}&_t=${Date.now()}`);
+      const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&maDe=${encodeURIComponent(exam.maDe)}&_t=${Date.now()}`);
       const textKq = await resKq.text();
       if (textKq && !textKq.trim().startsWith("<")) {
         const jsonKq = JSON.parse(textKq);
         if (jsonKq && Array.isArray(jsonKq.results)) {
           const studentRow = jsonKq.results.find(r => isSameStudentAccount(r.usernameHS, usernameHS) && r.maDe === exam.maDe);
           if (studentRow) {
-            if (studentRow.diemTracNghiem !== undefined && studentRow.diemTracNghiem !== null && studentRow.diemTracNghiem !== "") {
+            if (studentRow.diemTracNghiem !== undefined && studentRow.diemTracNghiem !== null && String(studentRow.diemTracNghiem).trim() !== "") {
               exam.diemTN = Number(studentRow.diemTracNghiem);
             }
-            if (studentRow.diemTuLuan !== undefined && studentRow.diemTuLuan !== null && studentRow.diemTuLuan !== "") {
+            if (studentRow.diemTuLuan !== undefined && studentRow.diemTuLuan !== null && String(studentRow.diemTuLuan).trim() !== "") {
               exam.diemTL = Number(studentRow.diemTuLuan);
+            } else {
+              exam.diemTL = null;
             }
-            if (studentRow.tongDiem !== undefined && studentRow.tongDiem !== null && studentRow.tongDiem !== "") {
+            if (studentRow.tongDiem !== undefined && studentRow.tongDiem !== null && String(studentRow.tongDiem).trim() !== "") {
               exam.tongDiem = Number(studentRow.tongDiem);
               exam.diemCu = Number(studentRow.tongDiem);
             }
@@ -3380,12 +3397,10 @@ async function openExamReviewFromDashboard(exam) {
 
   let rawScoreTL = null;
   if (hasEssayPart) {
-    if (exam.diemTL !== undefined && exam.diemTL !== null && exam.diemTL !== "" && !isNaN(Number(exam.diemTL))) {
+    if (exam.diemTL !== undefined && exam.diemTL !== null && String(exam.diemTL).trim() !== "" && !isNaN(Number(exam.diemTL))) {
       rawScoreTL = Number(exam.diemTL);
-    } else if (localData.diemTL !== undefined && localData.diemTL !== null && localData.diemTL !== "" && !isNaN(Number(localData.diemTL))) {
+    } else if (localData.diemTL !== undefined && localData.diemTL !== null && String(localData.diemTL).trim() !== "" && !isNaN(Number(localData.diemTL))) {
       rawScoreTL = Number(localData.diemTL);
-    } else if (exam.diemCu !== undefined && exam.diemCu !== null && rawScoreTN !== null && Number(exam.diemCu) > rawScoreTN) {
-      rawScoreTL = Math.round((Number(exam.diemCu) - rawScoreTN) * 100) / 100;
     }
   }
 
@@ -3486,11 +3501,11 @@ function openExamReviewModal() {
 
   let rawTL = null;
   if (hasEssayPart) {
-    rawTL = (lastExamResult.diemTL !== undefined && lastExamResult.diemTL !== null && lastExamResult.diemTL !== "" && !isNaN(Number(lastExamResult.diemTL)))
+    rawTL = (lastExamResult.diemTL !== undefined && lastExamResult.diemTL !== null && String(lastExamResult.diemTL).trim() !== "" && !isNaN(Number(lastExamResult.diemTL)))
       ? Number(lastExamResult.diemTL)
-      : ((lastExamResult.diemTuLuan !== undefined && lastExamResult.diemTuLuan !== null && lastExamResult.diemTuLuan !== "" && !isNaN(Number(lastExamResult.diemTuLuan)))
+      : ((lastExamResult.diemTuLuan !== undefined && lastExamResult.diemTuLuan !== null && String(lastExamResult.diemTuLuan).trim() !== "" && !isNaN(Number(lastExamResult.diemTuLuan)))
           ? Number(lastExamResult.diemTuLuan)
-          : (activeExam.diemTL !== undefined && activeExam.diemTL !== null && activeExam.diemTL !== "" && !isNaN(Number(activeExam.diemTL)) ? Number(activeExam.diemTL) : null));
+          : (activeExam.diemTL !== undefined && activeExam.diemTL !== null && String(activeExam.diemTL).trim() !== "" && !isNaN(Number(activeExam.diemTL)) ? Number(activeExam.diemTL) : null));
   }
   const hasGradedEssay = (rawTL !== null && rawTL !== undefined && !isNaN(rawTL));
   const displayTL = hasGradedEssay ? (Math.round(rawTL * 100) / 100) : null;

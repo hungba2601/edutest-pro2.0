@@ -8466,59 +8466,62 @@ function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
     let rawName = "";
     let rawClass = "";
     let rawMaDe = "";
-    let rawScore = "";
+    let essayColKey = null;
 
+    // 1. Quét tìm các cột thông tin học sinh và cột điểm tự luận
     Object.keys(row).forEach(key => {
       const k = key.trim().toLowerCase();
       const val = row[key];
 
       if (k.match(/^(mã\s*(học\s*sinh|hs)|tài\s*khoản|username|mahs)/i)) {
-        rawHS = String(val).trim();
+        rawHS = String(val !== undefined && val !== null ? val : "").trim();
       } else if (k.match(/^(họ\s*(và\s*)?tên|hoten|tên\s*học\s*sinh)/i)) {
-        rawName = String(val).trim();
+        rawName = String(val !== undefined && val !== null ? val : "").trim();
       } else if (k.match(/^(lớp|lop|class)/i)) {
         rawClass = normalizeClassName(val);
       } else if (k.match(/^(mã\s*đề|made)/i)) {
-        rawMaDe = String(val).trim();
-      } else if (k.includes("tự luận") || k.includes("điểm tl") || k.includes("gv chấm") || k.match(/^(điểm\s*tự\s*luận|điểm\s*tl|diem\s*tu\s*luan|diem\s*tl)/i)) {
-        rawScore = val;
-      } else if (!rawScore && k.match(/^(điểm|diem|score|points)/i)) {
-        rawScore = val;
+        rawMaDe = String(val !== undefined && val !== null ? val : "").trim();
+      }
+
+      if (k.includes("tự luận") || k.includes("tu luan") || k.includes("điểm tl") || k.includes("diem tl") || k.includes("gv chấm") || k.match(/^(điểm\s*tự\s*luận|điểm\s*tl|diem\s*tu\s*luan|diem\s*tl)/i)) {
+        essayColKey = key;
       }
     });
 
+    // 2. Nếu file không có chữ "tự luận", fallback tìm cột điểm duy nhất (nhưng không chọn cột trắc nghiệm)
+    if (!essayColKey) {
+      Object.keys(row).forEach(key => {
+        const k = key.trim().toLowerCase();
+        if (!k.includes("trắc nghiệm") && !k.includes("trac nghiem") && !k.includes("tn") && k.match(/^(điểm|diem|score|points)/i)) {
+          essayColKey = key;
+        }
+      });
+    }
+
+    const rawScore = essayColKey ? row[essayColKey] : undefined;
+    const isBlankScore = (rawScore === "" || rawScore === null || rawScore === undefined || String(rawScore).trim() === "");
+
     const parsedMaDe = rawMaDe || selectedMaDe;
 
-    if (rawScore === "" || rawScore === null || rawScore === undefined) {
-      unmatchedList.push({
-        stt: idx + 1,
-        lop: rawClass || "--",
-        hoTen: rawName || rawHS || "Chưa rõ",
-        usernameHS: rawHS || "--",
-        diemTN: "--",
-        diemTL: "--",
-        tongDiem: "--",
-        statusText: "Bỏ qua (chưa nhập điểm)"
-      });
-      return;
+    let scoreTL = null;
+    if (!isBlankScore) {
+      const pScore = parseFloat(String(rawScore).replace(",", "."));
+      if (isNaN(pScore) || pScore < 0) {
+        unmatchedList.push({
+          stt: idx + 1,
+          lop: rawClass || "--",
+          hoTen: rawName || rawHS || "Chưa rõ",
+          usernameHS: rawHS || "--",
+          diemTN: "--",
+          diemTL: String(rawScore),
+          displayTL: String(rawScore),
+          tongDiem: "--",
+          statusText: "Điểm không hợp lệ"
+        });
+        return;
+      }
+      scoreTL = Math.round(pScore * 100) / 100;
     }
-
-    const pScore = parseFloat(String(rawScore).replace(",", "."));
-    if (isNaN(pScore) || pScore < 0) {
-      unmatchedList.push({
-        stt: idx + 1,
-        lop: rawClass || "--",
-        hoTen: rawName || rawHS || "Chưa rõ",
-        usernameHS: rawHS || "--",
-        diemTN: "--",
-        diemTL: String(rawScore),
-        tongDiem: "--",
-        statusText: "Điểm không hợp lệ"
-      });
-      return;
-    }
-
-    const scoreTL = Math.round(pScore * 100) / 100;
 
     const targetUser = rawHS.toLowerCase();
     const targetName = rawName.toLowerCase();
@@ -8546,8 +8549,8 @@ function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
         }
         const stName = String(st.hoTen || "").trim().toLowerCase();
         const stClass = normalizeClassName(st.lop).toUpperCase();
-        if (targetName && stName && targetName === stName) {
-          if (!targetClass || !stClass || targetClass === stClass) return true;
+        if (targetName && stName && targetName === sName) {
+          if (!targetClass || !stClass || targetClass === sClass) return true;
         }
         return false;
       });
@@ -8555,7 +8558,7 @@ function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
 
     if (foundSub) {
       const diemTN = Number(foundSub.diemTN) || 0;
-      const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+      const tongDiem = (scoreTL !== null) ? Math.round((diemTN + scoreTL) * 100) / 100 : diemTN;
 
       matchedList.push({
         stt: idx + 1,
@@ -8564,9 +8567,10 @@ function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
         usernameHS: foundSub.usernameHS || rawHS,
         maDe: foundSub.maDe || parsedMaDe,
         diemTN: diemTN,
-        diemTL: scoreTL,
+        diemTL: (scoreTL !== null ? scoreTL : ""),
+        displayTL: (scoreTL !== null ? scoreTL : '<span style="color: #64748b; font-style: italic;">(Để trống)</span>'),
         tongDiem: tongDiem,
-        statusText: "Khớp thành công"
+        statusText: (scoreTL !== null ? "Khớp thành công" : "Khớp (Để trống điểm TL)")
       });
     } else if (foundStudentBase) {
       matchedList.push({
@@ -8576,8 +8580,9 @@ function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
         usernameHS: foundStudentBase.username || rawHS,
         maDe: parsedMaDe,
         diemTN: 0,
-        diemTL: scoreTL,
-        tongDiem: scoreTL,
+        diemTL: (scoreTL !== null ? scoreTL : ""),
+        displayTL: (scoreTL !== null ? scoreTL : '<span style="color: #64748b; font-style: italic;">(Để trống)</span>'),
+        tongDiem: (scoreTL !== null ? scoreTL : 0),
         statusText: "Khớp theo CSDL lớp (Chưa nộp TN)"
       });
     } else {
@@ -8587,7 +8592,8 @@ function processParsedEssayScores(rows, fileName, selectedMaDe, examTitle) {
         hoTen: rawName || "--",
         usernameHS: rawHS || "--",
         diemTN: "--",
-        diemTL: scoreTL,
+        diemTL: (scoreTL !== null ? scoreTL : ""),
+        displayTL: (scoreTL !== null ? scoreTL : '<span style="color: #64748b; font-style: italic;">(Để trống)</span>'),
         tongDiem: "--",
         statusText: "Không tìm thấy học sinh trong kỳ thi này"
       });
@@ -8639,7 +8645,7 @@ function openConfirmEssayScoresModal(fileName, examTitle, matchedList, unmatched
         <td><strong>${r.hoTen}</strong></td>
         <td style="font-size: 0.82rem; color: #64748b;">${r.usernameHS}</td>
         <td style="text-align: center; font-weight: 700; color: #1e40af;">${r.diemTN}</td>
-        <td style="text-align: center; font-weight: 800; color: #0f766e;">${r.diemTL}</td>
+        <td style="text-align: center; font-weight: 800; color: #0f766e;">${r.displayTL !== undefined ? r.displayTL : r.diemTL}</td>
         <td style="text-align: center; font-weight: 900; color: #854d0e;">${r.tongDiem}</td>
         <td style="text-align: center;">${statusBadge}</td>
       </tr>
@@ -8699,7 +8705,7 @@ function setupConfirmEssayScoresModalEvents() {
             hoTen: s.hoTen,
             lop: s.lop,
             maDe: s.maDe,
-            diemTuLuan: s.diemTL
+            diemTuLuan: (s.diemTL !== undefined && s.diemTL !== null) ? s.diemTL : ""
           }))
         };
 

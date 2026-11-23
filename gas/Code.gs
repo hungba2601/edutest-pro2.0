@@ -2751,13 +2751,19 @@ function handleImportEssayScores(payload) {
   const updatedRecords = [];
 
   scoresList.forEach(item => {
-    const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null && item.diemTuLuan !== "") ? item.diemTuLuan : item.diem;
-    if (rawScore === undefined || rawScore === null || String(rawScore).trim() === "") return;
+    const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null) ? item.diemTuLuan : item.diem;
+    const isBlank = (rawScore === "" || rawScore === null || rawScore === undefined || String(rawScore).trim() === "");
 
-    const parsedScore = parseFloat(String(rawScore).replace(",", "."));
-    if (isNaN(parsedScore)) return;
+    let scoreTL = null;
+    if (!isBlank) {
+      const parsedScore = parseFloat(String(rawScore).replace(",", "."));
+      if (!isNaN(parsedScore)) {
+        scoreTL = Math.round(parsedScore * 100) / 100;
+      } else {
+        return; // Bỏ qua nếu điểm không hợp lệ
+      }
+    }
 
-    const scoreTL = Math.round(parsedScore * 100) / 100;
     const itemHS = String(item.usernameHS || item.taiKhoanHS || item.maHS || item.username || "").trim().toLowerCase();
     const itemName = String(item.hoTen || item.name || "").trim().toLowerCase();
     const itemClass = String(item.lop || "").trim().toUpperCase();
@@ -2800,17 +2806,28 @@ function handleImportEssayScores(payload) {
           if (!isNaN(parsedTN)) diemTN = parsedTN;
         }
 
-        const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+        if (scoreTL !== null) {
+          // Có ghi điểm (kể cả số 0): ghi số điểm vào Sheet
+          const tongDiem = Math.round((diemTN + scoreTL) * 100) / 100;
+          sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue(scoreTL);
+          sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(tongDiem);
 
-        // Ghi điểm tự luận vào cột K và tổng điểm vào cột L
-        sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue(scoreTL);
-        sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(tongDiem);
+          data[i][colMap.colDiemTL] = scoreTL;
+          data[i][colMap.colTongDiem] = tongDiem;
 
-        data[i][colMap.colDiemTL] = scoreTL;
-        data[i][colMap.colTongDiem] = tongDiem;
+          updatedCount++;
+          updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: scoreTL, tongDiem: tongDiem });
+        } else {
+          // Trong file cột điểm tự luận KHÔNG CÓ (ô trống): KHÔNG ghi 0 vào Sheet mà ĐỂ TRỐNG ô ("")
+          sheetKetQua.getRange(rowIdx, colMap.colDiemTL + 1).setValue("");
+          sheetKetQua.getRange(rowIdx, colMap.colTongDiem + 1).setValue(diemTN);
 
-        updatedCount++;
-        updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: scoreTL, tongDiem: tongDiem });
+          data[i][colMap.colDiemTL] = "";
+          data[i][colMap.colTongDiem] = diemTN;
+
+          updatedCount++;
+          updatedRecords.push({ usernameHS: rowHS, hoTen: rowName, diemTL: "", tongDiem: diemTN });
+        }
         break;
       }
     }
@@ -2837,11 +2854,14 @@ function handleImportEssayScores(payload) {
 
       if (colDiemTL_InTuLuan !== -1) {
         scoresList.forEach(item => {
-          const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null && item.diemTuLuan !== "") ? item.diemTuLuan : item.diem;
-          if (rawScore === undefined || rawScore === null || String(rawScore).trim() === "") return;
-          const parsedScore = parseFloat(String(rawScore).replace(",", "."));
-          if (isNaN(parsedScore)) return;
-          const scoreTL = Math.round(parsedScore * 100) / 100;
+          const rawScore = (item.diemTuLuan !== undefined && item.diemTuLuan !== null) ? item.diemTuLuan : item.diem;
+          const isBlank = (rawScore === "" || rawScore === null || rawScore === undefined || String(rawScore).trim() === "");
+          let scoreTL = null;
+          if (!isBlank) {
+            const parsedScore = parseFloat(String(rawScore).replace(",", "."));
+            if (!isNaN(parsedScore)) scoreTL = Math.round(parsedScore * 100) / 100;
+          }
+
           const itemHS = String(item.usernameHS || item.taiKhoanHS || item.maHS || "").trim().toLowerCase();
           const itemMaDe = String(item.maDe || maDeFilter || "").trim().toLowerCase();
           const itemNhanXet = String(item.nhanXet || "").trim();
@@ -2851,7 +2871,11 @@ function handleImportEssayScores(payload) {
             const rHS = String(row[colHS_TL] || "").trim().toLowerCase();
             const rMaDe = String(row[colMaDe_TL] || "").trim().toLowerCase();
             if (rHS === itemHS && (!itemMaDe || itemMaDe === "all" || rMaDe === itemMaDe)) {
-              sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue(scoreTL);
+              if (scoreTL !== null) {
+                sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue(scoreTL);
+              } else {
+                sheetTuLuan.getRange(i + 1, colDiemTL_InTuLuan + 1).setValue("");
+              }
               if (colNhanXet_InTuLuan !== -1 && itemNhanXet) {
                 sheetTuLuan.getRange(i + 1, colNhanXet_InTuLuan + 1).setValue(itemNhanXet);
               }
