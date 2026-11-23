@@ -723,7 +723,14 @@ function isOfficialExamCheck(exam) {
 function isReviewAllowedCheck(exam) {
   if (!exam) return false;
 
-  // 1. Tra cứu cấu hình đã lưu trong localStorage (đồng bộ từ Bảng điều khiển Giáo viên)
+  // 1. Ưu tiên giá trị choXemLaiBai trực tiếp từ đối tượng đề thi / máy chủ
+  if (exam.choXemLaiBai === true) return true;
+  if (exam.choXemLaiBai === false) return false;
+  if (exam.duLieuDe && exam.duLieuDe.choXemLaiBai !== undefined) {
+    return exam.duLieuDe.choXemLaiBai !== false;
+  }
+
+  // 2. Tra cứu cấu hình đã lưu trong localStorage (đồng bộ từ Bảng điều khiển Giáo viên)
   try {
     const examConfigMap = JSON.parse(localStorage.getItem("EduTest_AllExamsConfig") || "{}");
     const mCode = exam.maDe || exam.code;
@@ -731,10 +738,6 @@ function isReviewAllowedCheck(exam) {
       return examConfigMap[mCode].choXemLaiBai !== false;
     }
   } catch (e) {}
-
-  if (exam.choXemLaiBai === false || exam.duLieuDe?.choXemLaiBai === false) {
-    return false;
-  }
 
   return true;
 }
@@ -5384,9 +5387,9 @@ function renderTeacherExamsTable(examsList, isFromCache) {
     if (isPractice) {
       reviewBadgeHtml = '<span class="badge-table-review allowed" title="Chế độ Ôn tập (Làm nhiều lần, cho học sinh xem lại bài & đáp án sau khi nộp)">📖 Ôn tập (Xem bài)</span>';
     } else if (isReviewAllowed) {
-      reviewBadgeHtml = '<span class="badge-table-review" style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;" title="Chế độ Thi chính thức 1 lần (Cho học sinh xem lại bài ở màn hình chính sau khi thi xong)">👁️ Thi (Xem lại sau thi)</span>';
+      reviewBadgeHtml = `<button type="button" class="btn-table-toggle-review" data-made="${exam.maDe}" data-status="allowed" title="Đang CHO XEM LẠI sau thi. Bấm vào đây để KHÓA lại!" style="cursor: pointer; background: #e0f2fe; color: #0369a1; border: 1.5px solid #bae6fd; border-radius: 6px; padding: 3px 8px; font-weight: 700; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;">👁️ Thi (Xem sau thi) ⇄</button>`;
     } else {
-      reviewBadgeHtml = '<span class="badge-table-review locked" title="Chế độ Thi chính thức 1 lần (Khóa xem bài cả lúc nộp và ở màn hình chính)">🔒 Thi (Khóa xem bài)</span>';
+      reviewBadgeHtml = `<button type="button" class="btn-table-toggle-review" data-made="${exam.maDe}" data-status="locked" title="Đang KHÓA XEM BÀI. Bấm vào đây để MỞ CHO HỌC SINH XEM LẠI!" style="cursor: pointer; background: #fff1f2; color: #dc2626; border: 1.5px solid #fecdd3; border-radius: 6px; padding: 3px 8px; font-weight: 700; font-size: 0.76rem; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s;">🔒 Thi (Khóa xem bài) ⇄</button>`;
     }
 
     let tuLuanBadge = '<span style="color: #94a3b8; font-weight: 500;">Không</span>';
@@ -5485,6 +5488,53 @@ function attachExamTableEvents(tbody) {
     btn.addEventListener("click", (e) => {
       const maDe = e.currentTarget.dataset.made;
       openExamForEditing(maDe);
+    });
+  });
+
+  // 1.2. Gắn sự kiện chuyển đổi nhanh quyền xem lại bài thi của học sinh
+  tbody.querySelectorAll(".btn-table-toggle-review").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const maDe = btn.dataset.made;
+      const status = btn.dataset.status;
+      const nextAllowed = (status === "locked");
+      const exam = (currentExamsList || []).find(ex => ex.maDe === maDe);
+      if (!exam) return;
+
+      const actionText = nextAllowed ? "MỞ quyền cho học sinh xem lại bài làm & đáp án" : "KHÓA học sinh không được xem bài";
+      if (!confirm(`Bạn có chắc chắn muốn ${actionText} của bài kiểm tra:\n"${exam.tenKyThi || maDe}"?`)) {
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "⏳...";
+      showToast("Đang xử lý", `Đang cập nhật quyền xem lại bài cho đề thi "${maDe}"...`, "info", 2000);
+
+      const res = await toggleExamReviewPermissionApi(maDe, nextAllowed);
+      if (res && res.success) {
+        exam.choXemLaiBai = nextAllowed;
+        if (exam.duLieuDe) exam.duLieuDe.choXemLaiBai = nextAllowed;
+
+        try {
+          const examConfigMap = JSON.parse(localStorage.getItem("EduTest_AllExamsConfig") || "{}");
+          examConfigMap[maDe] = {
+            cheDoThi: isOfficialExamCheck(exam) ? "chinh_thuc" : "on_tap",
+            choXemLaiBai: nextAllowed
+          };
+          localStorage.setItem("EduTest_AllExamsConfig", JSON.stringify(examConfigMap));
+        } catch (eLocal) {}
+
+        renderTeacherExamsTable(currentExamsList, true);
+        const selExam = document.getElementById("selectFilterExam");
+        if (selExam && selExam.value === maDe) {
+          updateQuickReviewToggleInResultsUI(maDe);
+        }
+        showToast("Thành công", res.message || `Đã cập nhật quyền xem lại bài cho đề thi "${maDe}"!`, "success", 3000);
+      } else {
+        btn.disabled = false;
+        showToast("Lỗi", res?.message || "Không thể cập nhật quyền xem lại bài trên Google Sheets!", "error", 4000);
+      }
     });
   });
 
@@ -5653,6 +5703,46 @@ async function toggleExamStatusApi(maDe, newStatus) {
   return { success: true };
 }
 
+async function toggleExamReviewPermissionApi(maDe, choXemLaiBai) {
+  const targetServer = getTeacherPersonalServerUrl() || API_URL;
+  const usernameGV = currentTeacher?.username || "";
+
+  // 1. Thử gửi POST
+  try {
+    const res = await fetch(targetServer, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        action: "toggleExamReviewPermission",
+        maDe: maDe,
+        choXemLaiBai: choXemLaiBai,
+        usernameGV: usernameGV
+      })
+    });
+    const text = await res.text();
+    if (text && !text.trim().startsWith("<")) {
+      const data = JSON.parse(text);
+      if (data) return data;
+    }
+  } catch (err) {
+    console.warn("POST toggleExamReviewPermission thất bại, thử sang GET fallback:", err.message);
+  }
+
+  // 2. Fallback GET
+  try {
+    const getUrl = `${targetServer}?action=toggleExamReviewPermission&maDe=${encodeURIComponent(maDe)}&choXemLaiBai=${choXemLaiBai}&usernameGV=${encodeURIComponent(usernameGV)}&_t=${Date.now()}`;
+    const getRes = await fetch(getUrl);
+    const getText = await getRes.text();
+    if (getText && !getText.trim().startsWith("<")) {
+      return JSON.parse(getText);
+    }
+  } catch (getErr) {
+    return { success: false, message: getErr.message };
+  }
+
+  return { success: true };
+}
+
 async function deleteExamApi(maDe) {
   const targetServer = getTeacherPersonalServerUrl() || API_URL;
   const usernameGV = currentTeacher?.username || "";
@@ -5695,11 +5785,44 @@ async function deleteExamApi(maDe) {
 // ============================================================================
 // 8. TAB 2: XEM KẾT QUẢ VÀ THỐNG KÊ (DASHBOARD)
 // ============================================================================
-// ============================================================================
-// 8. TAB 2: XEM KẾT QUẢ VÀ THỐNG KÊ (DASHBOARD)
-// ============================================================================
 let currentRawResultsList = [];        // Dữ liệu bài nộp lấy trực tiếp từ DATA_KETQUA
 let currentDisplayedResultsList = [];  // Dữ liệu đã ghép với CSDL gốc của lớp (đúng thứ tự sổ điểm)
+
+function updateQuickReviewToggleInResultsUI(selectedMaDe) {
+  const btn = document.getElementById("btnQuickToggleReviewInResults");
+  if (!btn) return;
+  if (!selectedMaDe || selectedMaDe === "ALL") {
+    btn.style.display = "none";
+    return;
+  }
+  const exam = (currentExamsList || []).find(e => e.maDe === selectedMaDe);
+  if (!exam) {
+    btn.style.display = "none";
+    return;
+  }
+  btn.style.display = "inline-flex";
+  btn.dataset.made = selectedMaDe;
+
+  const isAllowed = isReviewAllowedCheck(exam);
+  const iconSpan = document.getElementById("quickToggleReviewIcon");
+  const textSpan = document.getElementById("quickToggleReviewText");
+
+  if (isAllowed) {
+    btn.style.background = "#f0fdf4";
+    btn.style.borderColor = "#86efac";
+    btn.style.color = "#15803d";
+    btn.title = `Học sinh đang ĐƯỢC XEM LẠI bài làm & đáp án của đề "${exam.tenKyThi || selectedMaDe}". Bấm vào đây để KHÓA lại!`;
+    if (iconSpan) iconSpan.textContent = "👁️";
+    if (textSpan) textSpan.innerHTML = `Quyền xem lại: <span style="color: #15803d; font-weight: 800;">ĐANG MỞ</span> (Bấm để Khóa)`;
+  } else {
+    btn.style.background = "#fff1f2";
+    btn.style.borderColor = "#fecdd3";
+    btn.style.color = "#b91c1c";
+    btn.title = `Học sinh đang BỊ KHÓA xem lại bài làm của đề "${exam.tenKyThi || selectedMaDe}". Bấm vào đây để MỞ CHO HỌC SINH XEM LẠI!`;
+    if (iconSpan) iconSpan.textContent = "🔒";
+    if (textSpan) textSpan.innerHTML = `Quyền xem lại: <span style="color: #b91c1c; font-weight: 800;">ĐANG KHÓA</span> (Bấm để Mở)`;
+  }
+}
 
 function updateFilterExamDropdown(exams) {
   const selectExam = document.getElementById("selectFilterExam");
@@ -5720,6 +5843,7 @@ function updateFilterExamDropdown(exams) {
 
   // Cập nhật luôn danh sách lớp vào dropdown chọn lớp của Tab 2 theo đề đang chọn
   populateResultClassDropdown(selectExam.value);
+  updateQuickReviewToggleInResultsUI(selectExam.value);
 }
 
 function populateResultClassDropdown(specificMaDe) {
@@ -5888,7 +6012,55 @@ if (selectFilterExamElem) {
     if (bClear) bClear.style.display = "none";
     const selectedMaDe = selectFilterExamElem.value || "ALL";
     populateResultClassDropdown(selectedMaDe);
+    updateQuickReviewToggleInResultsUI(selectedMaDe);
     loadTeacherResults(selectedMaDe);
+  });
+}
+
+// Bắt sự kiện bấm nút Cấu hình nhanh quyền xem lại bài trong Tab 2
+const btnQuickToggleReviewInResults = document.getElementById("btnQuickToggleReviewInResults");
+if (btnQuickToggleReviewInResults) {
+  btnQuickToggleReviewInResults.addEventListener("click", async () => {
+    const maDe = btnQuickToggleReviewInResults.dataset.made;
+    if (!maDe) return;
+    const exam = (currentExamsList || []).find(e => e.maDe === maDe);
+    if (!exam) return;
+    const currentAllowed = isReviewAllowedCheck(exam);
+    const nextAllowed = !currentAllowed;
+
+    const actionText = nextAllowed ? "MỞ quyền cho học sinh xem lại bài làm & đáp án" : "KHÓA học sinh không được xem bài";
+    if (!confirm(`Bạn có chắc chắn muốn ${actionText} của bài kiểm tra:\n"${exam.tenKyThi || maDe}"?`)) {
+      return;
+    }
+
+    btnQuickToggleReviewInResults.disabled = true;
+    showToast("Đang cập nhật", "Đang cập nhật quyền xem lại bài trên Google Sheets...", "info", 2000);
+
+    const res = await toggleExamReviewPermissionApi(maDe, nextAllowed);
+    btnQuickToggleReviewInResults.disabled = false;
+
+    if (res && res.success) {
+      exam.choXemLaiBai = nextAllowed;
+      if (exam.duLieuDe) exam.duLieuDe.choXemLaiBai = nextAllowed;
+
+      try {
+        const examConfigMap = JSON.parse(localStorage.getItem("EduTest_AllExamsConfig") || "{}");
+        examConfigMap[maDe] = {
+          cheDoThi: isOfficialExamCheck(exam) ? "chinh_thuc" : "on_tap",
+          choXemLaiBai: nextAllowed
+        };
+        localStorage.setItem("EduTest_AllExamsConfig", JSON.stringify(examConfigMap));
+      } catch (e) {}
+
+      updateQuickReviewToggleInResultsUI(maDe);
+      if (typeof renderTeacherExamsTable === "function") {
+        renderTeacherExamsTable(currentExamsList, true);
+      }
+
+      showToast("Cập nhật thành công", res.message || `Đã cập nhật quyền xem lại bài cho đề thi "${maDe}"!`, "success", 3000);
+    } else {
+      showToast("Lỗi cập nhật", res?.message || "Không thể cập nhật quyền xem bài trên Google Sheets!", "error", 4000);
+    }
   });
 }
 
@@ -5929,6 +6101,7 @@ async function loadTeacherResults(filterMaDe) {
   if (selectExamElem && actualMaDe && Array.from(selectExamElem.options).some(o => o.value === actualMaDe)) {
     selectExamElem.value = actualMaDe;
   }
+  updateQuickReviewToggleInResultsUI(actualMaDe);
 
   // Đảm bảo danh sách học sinh CSDL gốc đã được tải
   if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
@@ -7506,6 +7679,7 @@ async function loadSummaryScores(filterMaDe) {
   if (selectExamElem && actualMaDe && Array.from(selectExamElem.options).some(o => o.value === actualMaDe)) {
     selectExamElem.value = actualMaDe;
   }
+  updateQuickReviewToggleInResultsUI(actualMaDe);
 
   if (!currentTeacherStudents || currentTeacherStudents.length === 0) {
     const cached = getCachedTeacherStudents();

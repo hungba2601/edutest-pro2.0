@@ -464,8 +464,12 @@ function doGet(e) {
           return createJsonResponse({ success: true, message: "Đã nâng cấp Sheet DATA_DETHI đầy đủ cột Chế độ xem bài và Chế độ xem điểm!" });
         case "toggleExamStatus":
           return handleToggleExamStatus(payload);
+        case "toggleExamReviewPermission":
+          return handleToggleExamReviewPermission(payload);
         case "deleteExam":
           return handleDeleteExam(payload);
+        case "getStudentSubmissionDetail":
+          return handleGetStudentSubmissionDetail(payload);
         case "verifyAdminPassword":
           return handleVerifyAdminPassword(payload);
       }
@@ -519,8 +523,14 @@ function doPost(e) {
       case "toggleExamStatus":
         return handleToggleExamStatus(payload);
 
+      case "toggleExamReviewPermission":
+        return handleToggleExamReviewPermission(payload);
+
       case "deleteExam":
         return handleDeleteExam(payload);
+
+      case "getStudentSubmissionDetail":
+        return handleGetStudentSubmissionDetail(payload);
 
       case "getTeacherResults":
         return handleGetTeacherResults(payload);
@@ -1254,6 +1264,69 @@ function handleDeleteExam(payload) {
 }
 
 /**
+ * Cập nhật nhanh quyền xem lại bài thi & đáp án của học sinh
+ */
+function handleToggleExamReviewPermission(payload) {
+  const ss = getSpreadsheet();
+  const sheetDeThi = ss.getSheetByName(SHEETS.DETHI);
+  if (!sheetDeThi) {
+    return createJsonResponse({ success: false, message: "Không tìm thấy sheet DATA_DETHI!" });
+  }
+
+  ensureDeThiSheetColumns(sheetDeThi);
+  const cols = getDeThiColumnIndexes(sheetDeThi);
+
+  const maDe = String(payload.maDe || "").trim();
+  const choXemLaiBai = (payload.choXemLaiBai === true || payload.choXemLaiBai === "true" || payload.choXemLaiBai === 1 || payload.choXemLaiBai === "1");
+
+  if (!maDe) {
+    return createJsonResponse({ success: false, message: "Mã đề thi không được để trống!" });
+  }
+
+  const data = sheetDeThi.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === maDe) {
+      const rowNum = i + 1;
+      let jsonRaw = data[i][cols.jsonCol];
+      let duLieuDeObj = {};
+      try {
+        duLieuDeObj = typeof jsonRaw === "string" ? JSON.parse(jsonRaw) : (jsonRaw || {});
+      } catch (e) {
+        duLieuDeObj = {};
+      }
+
+      duLieuDeObj.choXemLaiBai = choXemLaiBai;
+      const currentReviewColText = String(data[i][cols.reviewCol] || "");
+      const cheDoThi = duLieuDeObj.cheDoThi || ((currentReviewColText.includes("Thi") || currentReviewColText.includes("chính thức")) ? "chinh_thuc" : "on_tap");
+      duLieuDeObj.cheDoThi = cheDoThi;
+
+      let cheDoXemText = "";
+      if (cheDoThi === "chinh_thuc") {
+        cheDoXemText = choXemLaiBai ? "Thi chính thức (Cho xem sau thi)" : "Thi chính thức (Khóa xem bài)";
+      } else {
+        cheDoXemText = choXemLaiBai ? "Ôn tập (Cho xem lại bài)" : "Ôn tập (Khóa xem lại bài)";
+      }
+
+      sheetDeThi.getRange(rowNum, cols.reviewCol + 1).setValue(cheDoXemText);
+      sheetDeThi.getRange(rowNum, cols.jsonCol + 1).setValue(JSON.stringify(duLieuDeObj));
+
+      return createJsonResponse({
+        success: true,
+        message: choXemLaiBai 
+          ? "Đã MỞ quyền xem lại bài thi & đáp án cho học sinh!" 
+          : "Đã KHÓA quyền xem lại bài thi của học sinh!",
+        maDe: maDe,
+        choXemLaiBai: choXemLaiBai,
+        cheDoXemText: cheDoXemText,
+        cheDoThi: cheDoThi
+      });
+    }
+  }
+
+  return createJsonResponse({ success: false, message: "Không tìm thấy đề thi: " + maDe });
+}
+
+/**
  * Lấy kết quả làm bài của học sinh theo giáo viên và bài kiểm tra
  */
 function handleGetTeacherResults(payload) {
@@ -1846,11 +1919,31 @@ function handleGetStudentExams(payload) {
               parsedDiem = Math.round(numVal * 100) / 100;
             }
           }
+
+          let chiTietParsed = [];
+          let baiLamTuLuan = [];
+          if (colMap.colChiTiet !== -1 && kqData[r][colMap.colChiTiet]) {
+            try {
+              const rawDetail = JSON.parse(kqData[r][colMap.colChiTiet]);
+              if (rawDetail && typeof rawDetail === "object" && !Array.isArray(rawDetail)) {
+                chiTietParsed = rawDetail.tracNghiem || [];
+                baiLamTuLuan = rawDetail.tuLuan || [];
+              } else if (Array.isArray(rawDetail)) {
+                chiTietParsed = rawDetail;
+              }
+            } catch (eDetail) {
+              chiTietParsed = [];
+              baiLamTuLuan = [];
+            }
+          }
+
           submittedExamsMap[rMaDe] = {
             daLam: true,
             diemTong: parsedDiem,
             soCauDungSai: String(kqData[r][colMap.colSoCau] || ""),
-            thoiGianNop: formatDateValue(kqData[r][colMap.colThoiGianNop])
+            thoiGianNop: formatDateValue(kqData[r][colMap.colThoiGianNop]),
+            chiTietKetQua: chiTietParsed,
+            baiLamTuLuan: baiLamTuLuan
           };
         }
       }
@@ -2040,7 +2133,9 @@ function handleGetStudentExams(payload) {
           daLam: daLam,
           diemCu: submittedInfo ? submittedInfo.diemTong : null,
           soCauDungSaiCu: submittedInfo ? submittedInfo.soCauDungSai : null,
-          thoiGianNopCu: submittedInfo ? submittedInfo.thoiGianNop : null
+          thoiGianNopCu: submittedInfo ? submittedInfo.thoiGianNop : null,
+          chiTietKetQua: (daLam && choXemLaiBai && submittedInfo) ? (submittedInfo.chiTietKetQua || []) : [],
+          baiLamTuLuan: (daLam && choXemLaiBai && submittedInfo) ? (submittedInfo.baiLamTuLuan || []) : []
         });
       }
     }
@@ -2049,6 +2144,82 @@ function handleGetStudentExams(payload) {
   return createJsonResponse({
     success: true,
     exams: availableExams
+  });
+}
+
+/**
+ * Lấy chi tiết bài làm đã nộp của học sinh (đáp án đã chọn, đúng/sai từng câu, bài tự luận)
+ */
+function handleGetStudentSubmissionDetail(payload) {
+  const ss = getSpreadsheet();
+  const usernameHS = String(payload.usernameHS || "").trim();
+  const maDe = String(payload.maDe || "").trim();
+
+  if (!usernameHS || !maDe) {
+    return createJsonResponse({ success: false, message: "Thiếu mã học sinh hoặc mã đề thi!" });
+  }
+
+  const sheetKetQua = ss.getSheetByName(SHEETS.KETQUA);
+  if (!sheetKetQua) {
+    return createJsonResponse({ success: false, message: "Không tìm thấy sheet DATA_KETQUA!" });
+  }
+
+  ensureKetQuaSheetColumns(sheetKetQua);
+  const colMap = getKetQuaColMap(sheetKetQua);
+  const kqData = sheetKetQua.getDataRange().getValues();
+
+  let foundRow = null;
+  // Tìm từ dòng cuối cùng lên trên để lấy kết quả nộp mới nhất
+  for (let r = kqData.length - 1; r >= 1; r--) {
+    const rHs = String(kqData[r][colMap.colHS] || "").trim();
+    const rMaDe = String(kqData[r][colMap.colMaDe] || "").trim();
+    if (rMaDe === maDe && isSameStudentAccount(rHs, usernameHS)) {
+      foundRow = kqData[r];
+      break;
+    }
+  }
+
+  if (!foundRow) {
+    return createJsonResponse({ success: false, message: "Chưa tìm thấy bài thi đã nộp của học sinh!" });
+  }
+
+  let chiTietParsed = [];
+  let baiLamTuLuan = [];
+  if (colMap.colChiTiet !== -1 && foundRow[colMap.colChiTiet]) {
+    try {
+      const rawDetail = JSON.parse(foundRow[colMap.colChiTiet]);
+      if (rawDetail && typeof rawDetail === "object" && !Array.isArray(rawDetail)) {
+        chiTietParsed = rawDetail.tracNghiem || [];
+        baiLamTuLuan = rawDetail.tuLuan || [];
+      } else if (Array.isArray(rawDetail)) {
+        chiTietParsed = rawDetail;
+      }
+    } catch (eDetail) {
+      chiTietParsed = [];
+      baiLamTuLuan = [];
+    }
+  }
+
+  let rawDiem = foundRow[colMap.colDiemTN];
+  if (colMap.colTongDiem !== -1 && foundRow[colMap.colTongDiem] !== "" && foundRow[colMap.colTongDiem] !== null && foundRow[colMap.colTongDiem] !== undefined) {
+    rawDiem = foundRow[colMap.colTongDiem];
+  }
+  let numDiem = null;
+  if (rawDiem !== "" && rawDiem !== null && rawDiem !== undefined) {
+    const parsed = parseFloat(String(rawDiem).replace(",", "."));
+    if (!isNaN(parsed)) numDiem = Math.round(parsed * 100) / 100;
+  }
+
+  return createJsonResponse({
+    success: true,
+    maDe: maDe,
+    usernameHS: usernameHS,
+    diemTong: numDiem !== null ? numDiem : rawDiem,
+    diemTracNghiem: numDiem !== null ? numDiem : rawDiem,
+    soCauDungSai: String(foundRow[colMap.colSoCau] || ""),
+    thoiGianNop: formatDateValue(foundRow[colMap.colThoiGianNop]),
+    chiTietKetQua: chiTietParsed,
+    baiLamTuLuan: baiLamTuLuan
   });
 }
 
