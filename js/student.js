@@ -978,7 +978,7 @@ function renderExamList(availableExams) {
       if (e.currentTarget.classList.contains("btn-review-exam-dashboard")) {
         e.preventDefault();
         e.stopPropagation();
-        openExamReviewFromDashboard(exam);
+        openExamReviewFromDashboard(exam, e.currentTarget);
         return;
       }
 
@@ -3233,237 +3233,276 @@ class ConfettiCelebration {
 // ============================================================================
 // HÀM MỞ XEM LẠI BÀI THI TỪ MÀN HÌNH CHÍNH (DÀNH CHO ĐỀ THI CHÍNH THỨC ĐƯỢC MỞ XEM BÀI)
 // ============================================================================
-async function openExamReviewFromDashboard(exam) {
+async function openExamReviewFromDashboard(exam, buttonElem) {
   if (!exam) return;
-  const usernameHS = currentStudent?.username || "";
-  const localMap = getLocalSubmittedExams(usernameHS);
-  const localData = localMap[exam.maDe] || {};
 
-  activeExam = { ...exam };
-
-  // Khôi phục câu hỏi từ local snapshot nếu có đáp án đầy đủ
-  if (localData.cauHoi && Array.isArray(localData.cauHoi) && localData.cauHoi.length > 0) {
-    activeExam.cauHoi = localData.cauHoi;
-  }
-  if (localData.tuLuan) {
-    activeExam.tuLuan = localData.tuLuan;
+  // Tránh việc học sinh bấm liên tiếp nhiều lần khi đang tải dữ liệu
+  if (buttonElem) {
+    if (buttonElem.dataset.isLoading === "true") return;
+    buttonElem.dataset.isLoading = "true";
   }
 
-  // 1. Lấy chi tiết bài làm đã nộp từ exam (nạp từ DATA_KETQUA qua getStudentExams) hoặc localData
-  let chiTietKetQua = (exam.chiTietKetQua && Array.isArray(exam.chiTietKetQua) && exam.chiTietKetQua.length > 0)
-    ? exam.chiTietKetQua
-    : ((localData.chiTietKetQua && Array.isArray(localData.chiTietKetQua) && localData.chiTietKetQua.length > 0) ? localData.chiTietKetQua : []);
-  let baiLamTuLuan = (exam.baiLamTuLuan && Array.isArray(exam.baiLamTuLuan) && exam.baiLamTuLuan.length > 0)
-    ? exam.baiLamTuLuan
-    : (localData.baiLamTuLuan || localData.studentEssayAnswers || []);
+  let originalBtnHtml = "";
+  if (buttonElem) {
+    originalBtnHtml = buttonElem.innerHTML;
+    buttonElem.disabled = true;
+    buttonElem.style.pointerEvents = "none";
+    buttonElem.style.opacity = "0.85";
+    buttonElem.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation: spin 0.8s linear infinite; flex-shrink: 0; display: inline-block;">
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+        <path d="M3 3v5h5"/>
+        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+        <path d="M16 21h5v-5"/>
+      </svg>
+      <span>Đang tải bài làm...</span>
+    `;
+  }
 
-  // 2. Nếu cả exam và localData đều chưa có chi tiết câu trả lời, gọi API lấy từ DATA_KETQUA trên Google Sheets
-  if ((!chiTietKetQua || chiTietKetQua.length === 0) && usernameHS && exam.maDe) {
-    try {
-      showToast("Đang tải dữ liệu", "Đang đồng bộ chi tiết bài làm của bạn từ máy chủ...", "info", 2000);
-      const res = await fetch(`${API_URL}?action=getStudentSubmissionDetail&usernameHS=${encodeURIComponent(usernameHS)}&maDe=${encodeURIComponent(exam.maDe)}&_t=${Date.now()}`);
-      const text = await res.text();
-      if (text && !text.trim().startsWith("<")) {
-        const json = JSON.parse(text);
-        if (json && json.success) {
-          if (Array.isArray(json.chiTietKetQua) && json.chiTietKetQua.length > 0) {
-            chiTietKetQua = json.chiTietKetQua;
-            exam.chiTietKetQua = chiTietKetQua;
-          }
-          if (Array.isArray(json.baiLamTuLuan) && json.baiLamTuLuan.length > 0) {
-            baiLamTuLuan = json.baiLamTuLuan;
-            exam.baiLamTuLuan = baiLamTuLuan;
-          }
-          if (json.diemTong !== undefined && json.diemTong !== null) {
-            exam.diemCu = json.diemTong;
-          }
-          if (json.tongDiem !== undefined && json.tongDiem !== null) {
-            exam.tongDiem = json.tongDiem;
-            exam.diemCu = json.tongDiem;
-          }
-          if (json.diemTN !== undefined && json.diemTN !== null) {
-            exam.diemTN = json.diemTN;
-          }
-          if (json.diemTL !== undefined && json.diemTL !== null && String(json.diemTL).trim() !== "") {
-            exam.diemTL = Number(json.diemTL);
-          } else {
-            exam.diemTL = null;
-          }
-          if (json.soCauDungSai) {
-            exam.soCauDungSaiCu = json.soCauDungSai;
-          }
-          if (json.thoiGianNop) {
-            exam.thoiGianNopCu = json.thoiGianNop;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn("Không thể tải chi tiết bài làm từ máy chủ:", err);
+  try {
+    const usernameHS = currentStudent?.username || "";
+    const localMap = getLocalSubmittedExams(usernameHS);
+    const localData = localMap[exam.maDe] || {};
+
+    activeExam = { ...exam };
+
+    // Khôi phục câu hỏi từ local snapshot nếu có đáp án đầy đủ
+    if (localData.cauHoi && Array.isArray(localData.cauHoi) && localData.cauHoi.length > 0) {
+      activeExam.cauHoi = localData.cauHoi;
     }
-  }
+    if (localData.tuLuan) {
+      activeExam.tuLuan = localData.tuLuan;
+    }
 
-  // 2b. Đồng bộ điểm chuẩn (diemTN, diemTL, tongDiem) từ getTeacherResults trên Google Sheets nếu chưa có
-  if ((exam.diemTL === undefined || exam.diemTL === null || exam.diemTN === undefined || exam.tongDiem === undefined) && usernameHS && exam.maDe) {
-    try {
-      const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&maDe=${encodeURIComponent(exam.maDe)}&_t=${Date.now()}`);
-      const textKq = await resKq.text();
-      if (textKq && !textKq.trim().startsWith("<")) {
-        const jsonKq = JSON.parse(textKq);
-        if (jsonKq && Array.isArray(jsonKq.results)) {
-          const studentRow = jsonKq.results.find(r => isSameStudentAccount(r.usernameHS, usernameHS) && r.maDe === exam.maDe);
-          if (studentRow) {
-            if (studentRow.diemTracNghiem !== undefined && studentRow.diemTracNghiem !== null && String(studentRow.diemTracNghiem).trim() !== "") {
-              exam.diemTN = Number(studentRow.diemTracNghiem);
+    // 1. Lấy chi tiết bài làm đã nộp từ exam (nạp từ DATA_KETQUA qua getStudentExams) hoặc localData
+    let chiTietKetQua = (exam.chiTietKetQua && Array.isArray(exam.chiTietKetQua) && exam.chiTietKetQua.length > 0)
+      ? exam.chiTietKetQua
+      : ((localData.chiTietKetQua && Array.isArray(localData.chiTietKetQua) && localData.chiTietKetQua.length > 0) ? localData.chiTietKetQua : []);
+    let baiLamTuLuan = (exam.baiLamTuLuan && Array.isArray(exam.baiLamTuLuan) && exam.baiLamTuLuan.length > 0)
+      ? exam.baiLamTuLuan
+      : (localData.baiLamTuLuan || localData.studentEssayAnswers || []);
+
+    let detailLoadedFromDetailApi = false;
+
+    // 2. Nếu cả exam và localData đều chưa có chi tiết câu trả lời, gọi API lấy từ DATA_KETQUA trên Google Sheets
+    if ((!chiTietKetQua || chiTietKetQua.length === 0) && usernameHS && exam.maDe) {
+      try {
+        const res = await fetch(`${API_URL}?action=getStudentSubmissionDetail&usernameHS=${encodeURIComponent(usernameHS)}&maDe=${encodeURIComponent(exam.maDe)}&_t=${Date.now()}`);
+        const text = await res.text();
+        if (text && !text.trim().startsWith("<")) {
+          const json = JSON.parse(text);
+          if (json && json.success) {
+            detailLoadedFromDetailApi = true;
+            if (Array.isArray(json.chiTietKetQua) && json.chiTietKetQua.length > 0) {
+              chiTietKetQua = json.chiTietKetQua;
+              exam.chiTietKetQua = chiTietKetQua;
             }
-            if (studentRow.diemTuLuan !== undefined && studentRow.diemTuLuan !== null && String(studentRow.diemTuLuan).trim() !== "") {
-              exam.diemTL = Number(studentRow.diemTuLuan);
+            if (Array.isArray(json.baiLamTuLuan) && json.baiLamTuLuan.length > 0) {
+              baiLamTuLuan = json.baiLamTuLuan;
+              exam.baiLamTuLuan = baiLamTuLuan;
+            }
+            if (json.diemTong !== undefined && json.diemTong !== null) {
+              exam.diemCu = json.diemTong;
+            }
+            if (json.tongDiem !== undefined && json.tongDiem !== null) {
+              exam.tongDiem = json.tongDiem;
+              exam.diemCu = json.tongDiem;
+            }
+            if (json.diemTN !== undefined && json.diemTN !== null) {
+              exam.diemTN = json.diemTN;
+            }
+            if (json.diemTL !== undefined && json.diemTL !== null && String(json.diemTL).trim() !== "") {
+              exam.diemTL = Number(json.diemTL);
             } else {
               exam.diemTL = null;
             }
-            if (studentRow.tongDiem !== undefined && studentRow.tongDiem !== null && String(studentRow.tongDiem).trim() !== "") {
-              exam.tongDiem = Number(studentRow.tongDiem);
-              exam.diemCu = Number(studentRow.tongDiem);
+            if (json.soCauDungSai) {
+              exam.soCauDungSaiCu = json.soCauDungSai;
+            }
+            if (json.thoiGianNop) {
+              exam.thoiGianNopCu = json.thoiGianNop;
             }
           }
         }
+      } catch (err) {
+        console.warn("Không thể tải chi tiết bài làm từ máy chủ:", err);
       }
-    } catch (eKq) {
-      console.warn("Không thể tải điểm từ getTeacherResults:", eKq);
+    }
+
+    // 2b. Chỉ gọi thêm getTeacherResults nếu bước trên CHƯA lấy được dữ liệu chi tiết và điểm vẫn còn thiếu
+    if (!detailLoadedFromDetailApi && (exam.diemTL === undefined || exam.diemTL === null || exam.diemTN === undefined || exam.tongDiem === undefined) && usernameHS && exam.maDe) {
+      try {
+        const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&maDe=${encodeURIComponent(exam.maDe)}&_t=${Date.now()}`);
+        const textKq = await resKq.text();
+        if (textKq && !textKq.trim().startsWith("<")) {
+          const jsonKq = JSON.parse(textKq);
+          if (jsonKq && Array.isArray(jsonKq.results)) {
+            const studentRow = jsonKq.results.find(r => isSameStudentAccount(r.usernameHS, usernameHS) && r.maDe === exam.maDe);
+            if (studentRow) {
+              if (studentRow.diemTracNghiem !== undefined && studentRow.diemTracNghiem !== null && String(studentRow.diemTracNghiem).trim() !== "") {
+                exam.diemTN = Number(studentRow.diemTracNghiem);
+              }
+              if (studentRow.diemTuLuan !== undefined && studentRow.diemTuLuan !== null && String(studentRow.diemTuLuan).trim() !== "") {
+                exam.diemTL = Number(studentRow.diemTuLuan);
+              } else {
+                exam.diemTL = null;
+              }
+              if (studentRow.tongDiem !== undefined && studentRow.tongDiem !== null && String(studentRow.tongDiem).trim() !== "") {
+                exam.tongDiem = Number(studentRow.tongDiem);
+                exam.diemCu = Number(studentRow.tongDiem);
+              }
+            }
+          }
+        }
+      } catch (eKq) {
+        console.warn("Không thể tải điểm từ getTeacherResults:", eKq);
+      }
+    }
+
+    // 3. Tái tạo lại câu trả lời học sinh đã chọn (studentAnswers & studentEssayAnswers) từ chiTietKetQua
+    studentAnswers = localData.studentAnswers || {};
+    if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
+      chiTietKetQua.forEach(item => {
+        const qId = item.qId;
+        if (!qId) return;
+        if (item.loai === "true_false" || (Array.isArray(item.chiTietY) && item.chiTietY.length > 0)) {
+          if (!studentAnswers[qId] || typeof studentAnswers[qId] !== "object") {
+            studentAnswers[qId] = {};
+          }
+          if (Array.isArray(item.chiTietY)) {
+            item.chiTietY.forEach(y => {
+              if (y.key) studentAnswers[qId][y.key] = y.traLoi;
+            });
+          }
+        } else {
+          if (item.traLoi !== undefined && item.traLoi !== null && item.traLoi !== "Chưa chọn") {
+            studentAnswers[qId] = item.traLoi;
+          }
+        }
+      });
+    }
+
+    studentEssayAnswers = localData.studentEssayAnswers || {};
+    if (Array.isArray(baiLamTuLuan) && baiLamTuLuan.length > 0) {
+      baiLamTuLuan.forEach(eq => {
+        const eqId = eq.id || eq.qId;
+        if (eqId) {
+          studentEssayAnswers[eqId] = eq.traLoi || eq.baiLam || eq.noiDungTraLoi || "";
+        }
+      });
+    }
+
+    // 4. Tính toán số câu đúng và điểm số từ chiTietKetQua máy chủ trả về
+    let calculatedSoCauDung = 0;
+    if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
+      calculatedSoCauDung = chiTietKetQua.filter(it => it.dung === true).length;
+    }
+
+    let sumTNFromDetails = null;
+    if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
+      const hasDiemDat = chiTietKetQua.some(it => it.diemDat !== undefined && it.diemDat !== null);
+      if (hasDiemDat) {
+        sumTNFromDetails = Math.round(chiTietKetQua.reduce((s, it) => s + (Number(it.diemDat) || 0), 0) * 100) / 100;
+      }
+    }
+
+    const essayList = getExamEssayQuestions(activeExam.tuLuan || exam.tuLuan);
+    const hasEssayPart = (essayList.length > 0) || (Number(activeExam.soCauTuLuan) > 0) || (Number(exam.soCauTuLuan) > 0) || (Array.isArray(baiLamTuLuan) && baiLamTuLuan.length > 0) || !!((activeExam.tuLuan || exam.tuLuan) && ((activeExam.tuLuan || exam.tuLuan).noiDung || (activeExam.tuLuan || exam.tuLuan).linkForm));
+
+    let rawScoreTN = null;
+    if (exam.diemTN !== undefined && exam.diemTN !== null && exam.diemTN !== "") {
+      rawScoreTN = Number(exam.diemTN);
+    } else if (localData.diemTN !== undefined && localData.diemTN !== null && localData.diemTN !== "") {
+      rawScoreTN = Number(localData.diemTN);
+    } else if (sumTNFromDetails !== null) {
+      rawScoreTN = sumTNFromDetails;
+    } else if (!hasEssayPart) {
+      rawScoreTN = (exam.diemCu !== null && exam.diemCu !== undefined) ? Number(exam.diemCu) : 0;
+    } else {
+      rawScoreTN = (exam.diemCu !== null && exam.diemCu !== undefined) ? Number(exam.diemCu) : 0;
+    }
+
+    let rawScoreTL = null;
+    if (hasEssayPart) {
+      if (exam.diemTL !== undefined && exam.diemTL !== null && String(exam.diemTL).trim() !== "" && !isNaN(Number(exam.diemTL))) {
+        rawScoreTL = Number(exam.diemTL);
+      } else if (localData.diemTL !== undefined && localData.diemTL !== null && String(localData.diemTL).trim() !== "" && !isNaN(Number(localData.diemTL))) {
+        rawScoreTL = Number(localData.diemTL);
+      }
+    }
+
+    let resolvedScoreTong = null;
+    if (!hasEssayPart) {
+      resolvedScoreTong = rawScoreTN;
+    } else if (exam.tongDiem !== undefined && exam.tongDiem !== null && exam.tongDiem !== "" && !isNaN(Number(exam.tongDiem))) {
+      resolvedScoreTong = Number(exam.tongDiem);
+    } else if (localData.tongDiem !== undefined && localData.tongDiem !== null && localData.tongDiem !== "" && !isNaN(Number(localData.tongDiem))) {
+      resolvedScoreTong = Number(localData.tongDiem);
+    } else if (rawScoreTL !== null && rawScoreTN !== null) {
+      resolvedScoreTong = Math.round((rawScoreTN + rawScoreTL) * 100) / 100;
+    } else if (exam.diemCu !== undefined && exam.diemCu !== null) {
+      resolvedScoreTong = Number(exam.diemCu);
+    } else {
+      resolvedScoreTong = rawScoreTN;
+    }
+
+    let resolvedSoCauDung = calculatedSoCauDung;
+    if (exam.soCauDungSaiCu && typeof exam.soCauDungSaiCu === "string" && exam.soCauDungSaiCu.includes("câu đúng")) {
+      const parsedCount = parseInt(exam.soCauDungSaiCu, 10);
+      if (!isNaN(parsedCount)) resolvedSoCauDung = parsedCount;
+    } else if (!resolvedSoCauDung && localData.soCauDung !== undefined) {
+      resolvedSoCauDung = localData.soCauDung;
+    }
+
+    const totalQuestions = (activeExam.cauHoi && activeExam.cauHoi.length > 0)
+      ? activeExam.cauHoi.length
+      : (localData.tongSoCau || (Array.isArray(chiTietKetQua) ? chiTietKetQua.length : 0));
+
+    lastExamResult = {
+      ...localData,
+      success: true,
+      diemTong: resolvedScoreTong,
+      tongDiem: resolvedScoreTong,
+      diemTracNghiem: rawScoreTN,
+      diemTN: rawScoreTN,
+      diemTuLuan: rawScoreTL,
+      diemTL: rawScoreTL,
+      hasEssayPart: hasEssayPart,
+      tongDiemTracNghiem: localData.tongDiemTracNghiem || (activeExam.cauHoi ? activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0) : (hasEssayPart ? 7 : 10)),
+      soCauDung: resolvedSoCauDung,
+      tongSoCau: totalQuestions,
+      soCauDungSai: exam.soCauDungSaiCu || localData.soCauDungSai || `${resolvedSoCauDung}/${totalQuestions} câu đúng`,
+      thoiGianNop: exam.thoiGianNopCu || localData.thoiGianNopCu || new Date().toLocaleString("vi-VN"),
+      chiTietKetQua: chiTietKetQua,
+      baiLamTuLuan: baiLamTuLuan,
+      studentAnswers: studentAnswers,
+      studentEssayAnswers: studentEssayAnswers,
+      choXemLaiBai: true,
+      choXemDiem: (exam.choXemDiem !== false)
+    };
+
+    // Lưu snapshot vào local để những lần mở sau tức thì
+    try {
+      saveLocalSubmittedExam(usernameHS, exam.maDe, {
+        ...lastExamResult,
+        cauHoi: activeExam.cauHoi,
+        tuLuan: activeExam.tuLuan
+      });
+    } catch (eSave) {}
+
+    openExamReviewModal();
+  } catch (err) {
+    console.error("Lỗi mở bài thi xem lại:", err);
+    showToast("Lỗi", "Không thể mở xem lại bài thi: " + (err.message || err), "error", 4000);
+  } finally {
+    if (buttonElem) {
+      buttonElem.dataset.isLoading = "false";
+      buttonElem.disabled = false;
+      buttonElem.style.pointerEvents = "";
+      buttonElem.style.opacity = "";
+      buttonElem.innerHTML = originalBtnHtml;
     }
   }
-
-  // 3. Tái tạo lại câu trả lời học sinh đã chọn (studentAnswers & studentEssayAnswers) từ chiTietKetQua
-  studentAnswers = localData.studentAnswers || {};
-  if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
-    chiTietKetQua.forEach(item => {
-      const qId = item.qId;
-      if (!qId) return;
-      if (item.loai === "true_false" || (Array.isArray(item.chiTietY) && item.chiTietY.length > 0)) {
-        if (!studentAnswers[qId] || typeof studentAnswers[qId] !== "object") {
-          studentAnswers[qId] = {};
-        }
-        if (Array.isArray(item.chiTietY)) {
-          item.chiTietY.forEach(y => {
-            if (y.key) studentAnswers[qId][y.key] = y.traLoi;
-          });
-        }
-      } else {
-        if (item.traLoi !== undefined && item.traLoi !== null && item.traLoi !== "Chưa chọn") {
-          studentAnswers[qId] = item.traLoi;
-        }
-      }
-    });
-  }
-
-  studentEssayAnswers = localData.studentEssayAnswers || {};
-  if (Array.isArray(baiLamTuLuan) && baiLamTuLuan.length > 0) {
-    baiLamTuLuan.forEach(eq => {
-      const eqId = eq.id || eq.qId;
-      if (eqId) {
-        studentEssayAnswers[eqId] = eq.traLoi || eq.baiLam || eq.noiDungTraLoi || "";
-      }
-    });
-  }
-
-  // 4. Tính toán số câu đúng và điểm số từ chiTietKetQua máy chủ trả về
-  let calculatedSoCauDung = 0;
-  if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
-    calculatedSoCauDung = chiTietKetQua.filter(it => it.dung === true).length;
-  }
-
-  let sumTNFromDetails = null;
-  if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
-    const hasDiemDat = chiTietKetQua.some(it => it.diemDat !== undefined && it.diemDat !== null);
-    if (hasDiemDat) {
-      sumTNFromDetails = Math.round(chiTietKetQua.reduce((s, it) => s + (Number(it.diemDat) || 0), 0) * 100) / 100;
-    }
-  }
-
-  const essayList = getExamEssayQuestions(activeExam.tuLuan || exam.tuLuan);
-  const hasEssayPart = (essayList.length > 0) || (Number(activeExam.soCauTuLuan) > 0) || (Number(exam.soCauTuLuan) > 0) || (Array.isArray(baiLamTuLuan) && baiLamTuLuan.length > 0) || !!((activeExam.tuLuan || exam.tuLuan) && ((activeExam.tuLuan || exam.tuLuan).noiDung || (activeExam.tuLuan || exam.tuLuan).linkForm));
-
-  let rawScoreTN = null;
-  if (exam.diemTN !== undefined && exam.diemTN !== null && exam.diemTN !== "") {
-    rawScoreTN = Number(exam.diemTN);
-  } else if (localData.diemTN !== undefined && localData.diemTN !== null && localData.diemTN !== "") {
-    rawScoreTN = Number(localData.diemTN);
-  } else if (sumTNFromDetails !== null) {
-    rawScoreTN = sumTNFromDetails;
-  } else if (!hasEssayPart) {
-    rawScoreTN = (exam.diemCu !== null && exam.diemCu !== undefined) ? Number(exam.diemCu) : 0;
-  } else {
-    rawScoreTN = (exam.diemCu !== null && exam.diemCu !== undefined) ? Number(exam.diemCu) : 0;
-  }
-
-  let rawScoreTL = null;
-  if (hasEssayPart) {
-    if (exam.diemTL !== undefined && exam.diemTL !== null && String(exam.diemTL).trim() !== "" && !isNaN(Number(exam.diemTL))) {
-      rawScoreTL = Number(exam.diemTL);
-    } else if (localData.diemTL !== undefined && localData.diemTL !== null && String(localData.diemTL).trim() !== "" && !isNaN(Number(localData.diemTL))) {
-      rawScoreTL = Number(localData.diemTL);
-    }
-  }
-
-  let resolvedScoreTong = null;
-  if (!hasEssayPart) {
-    resolvedScoreTong = rawScoreTN;
-  } else if (exam.tongDiem !== undefined && exam.tongDiem !== null && exam.tongDiem !== "" && !isNaN(Number(exam.tongDiem))) {
-    resolvedScoreTong = Number(exam.tongDiem);
-  } else if (localData.tongDiem !== undefined && localData.tongDiem !== null && localData.tongDiem !== "" && !isNaN(Number(localData.tongDiem))) {
-    resolvedScoreTong = Number(localData.tongDiem);
-  } else if (rawScoreTL !== null && rawScoreTN !== null) {
-    resolvedScoreTong = Math.round((rawScoreTN + rawScoreTL) * 100) / 100;
-  } else if (exam.diemCu !== undefined && exam.diemCu !== null) {
-    resolvedScoreTong = Number(exam.diemCu);
-  } else {
-    resolvedScoreTong = rawScoreTN;
-  }
-
-  let resolvedSoCauDung = calculatedSoCauDung;
-  if (exam.soCauDungSaiCu && typeof exam.soCauDungSaiCu === "string" && exam.soCauDungSaiCu.includes("câu đúng")) {
-    const parsedCount = parseInt(exam.soCauDungSaiCu, 10);
-    if (!isNaN(parsedCount)) resolvedSoCauDung = parsedCount;
-  } else if (!resolvedSoCauDung && localData.soCauDung !== undefined) {
-    resolvedSoCauDung = localData.soCauDung;
-  }
-
-  const totalQuestions = (activeExam.cauHoi && activeExam.cauHoi.length > 0)
-    ? activeExam.cauHoi.length
-    : (localData.tongSoCau || (Array.isArray(chiTietKetQua) ? chiTietKetQua.length : 0));
-
-  lastExamResult = {
-    ...localData,
-    success: true,
-    diemTong: resolvedScoreTong,
-    tongDiem: resolvedScoreTong,
-    diemTracNghiem: rawScoreTN,
-    diemTN: rawScoreTN,
-    diemTuLuan: rawScoreTL,
-    diemTL: rawScoreTL,
-    hasEssayPart: hasEssayPart,
-    tongDiemTracNghiem: localData.tongDiemTracNghiem || (activeExam.cauHoi ? activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0) : (hasEssayPart ? 7 : 10)),
-    soCauDung: resolvedSoCauDung,
-    tongSoCau: totalQuestions,
-    soCauDungSai: exam.soCauDungSaiCu || localData.soCauDungSai || `${resolvedSoCauDung}/${totalQuestions} câu đúng`,
-    thoiGianNop: exam.thoiGianNopCu || localData.thoiGianNopCu || new Date().toLocaleString("vi-VN"),
-    chiTietKetQua: chiTietKetQua,
-    baiLamTuLuan: baiLamTuLuan,
-    studentAnswers: studentAnswers,
-    studentEssayAnswers: studentEssayAnswers,
-    choXemLaiBai: true,
-    choXemDiem: (exam.choXemDiem !== false)
-  };
-
-  // Lưu snapshot vào local để những lần mở sau tức thì
-  try {
-    saveLocalSubmittedExam(usernameHS, exam.maDe, {
-      ...lastExamResult,
-      cauHoi: activeExam.cauHoi,
-      tuLuan: activeExam.tuLuan
-    });
-  } catch (eSave) {}
-
-  openExamReviewModal();
 }
 
 // ============================================================================
