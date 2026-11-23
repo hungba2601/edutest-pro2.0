@@ -537,6 +537,57 @@ async function loadAvailableExams() {
     console.warn("Không thể tải danh sách bài kiểm tra từ máy chủ:", err);
   }
 
+  // Tự động đồng bộ điểm tự luận (TL) và trắc nghiệm (TN) chuẩn từ DATA_KETQUA cho các đề đã nộp
+  if (Array.isArray(exams) && currentStudent?.username) {
+    const hasSubmitted = exams.some(e => e.daLam);
+    if (hasSubmitted) {
+      try {
+        const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&lop=${encodeURIComponent(currentStudent.lop || "")}&_t=${Date.now()}`);
+        const textKq = await resKq.text();
+        if (textKq && !textKq.trim().startsWith("<")) {
+          const jsonKq = JSON.parse(textKq);
+          if (jsonKq && Array.isArray(jsonKq.results)) {
+            const studentResults = jsonKq.results.filter(r => isSameStudentAccount(r.usernameHS, currentStudent.username));
+            studentResults.forEach(r => {
+              const matchedExam = exams.find(e => e.maDe === r.maDe);
+              if (matchedExam) {
+                if (r.diemTracNghiem !== undefined && r.diemTracNghiem !== null && r.diemTracNghiem !== "") {
+                  matchedExam.diemTN = Number(r.diemTracNghiem);
+                }
+                if (r.diemTuLuan !== undefined && r.diemTuLuan !== null && r.diemTuLuan !== "") {
+                  matchedExam.diemTL = Number(r.diemTuLuan);
+                }
+                if (r.tongDiem !== undefined && r.tongDiem !== null && r.tongDiem !== "") {
+                  matchedExam.tongDiem = Number(r.tongDiem);
+                  matchedExam.diemCu = Number(r.tongDiem);
+                }
+              }
+            });
+          }
+        }
+      } catch (eKq) {
+        console.warn("Không thể đồng bộ điểm tự luận từ getTeacherResults:", eKq);
+      }
+    }
+
+    // Dự phòng tính điểm trắc nghiệm từ chi tiết câu hỏi nếu máy chủ chưa trả về diemTN riêng
+    exams.forEach(exam => {
+      if (exam.daLam) {
+        if (exam.diemTN === undefined && Array.isArray(exam.chiTietKetQua) && exam.chiTietKetQua.length > 0) {
+          const hasDiemDat = exam.chiTietKetQua.some(it => it.diemDat !== undefined && it.diemDat !== null);
+          if (hasDiemDat) {
+            exam.diemTN = Math.round(exam.chiTietKetQua.reduce((s, it) => s + (Number(it.diemDat) || 0), 0) * 100) / 100;
+          }
+        }
+        if (exam.diemTL === undefined && exam.diemCu !== undefined && exam.diemCu !== null && exam.diemTN !== undefined) {
+          if (Number(exam.diemCu) > Number(exam.diemTN)) {
+            exam.diemTL = Math.round((Number(exam.diemCu) - Number(exam.diemTN)) * 100) / 100;
+          }
+        }
+      }
+    });
+  }
+
   // NGUYÊN TẮC: DỮ LIỆU TỪ MÁY CHỦ GOOGLE SHEETS LÀ NGUỒN CHUẨN XÁC NHẤT (SOURCE OF TRUTH)
   // Nếu máy chủ báo học sinh CHƯA làm (hoặc Thầy/Cô vừa xóa điểm trên Sheets để cho học sinh làm lại):
   // -> BẮT BUỘC phải xóa sạch cache cũ trên trình duyệt để mở khóa cho học sinh làm bài ngay lập tức!
@@ -548,6 +599,9 @@ async function loadAvailableExams() {
         saveLocalSubmittedExam(currentStudent.username, exam.maDe, {
           cheDoThi: isOfficialExamCheck(exam) ? "chinh_thuc" : "on_tap",
           diemCu: exam.diemCu,
+          diemTN: exam.diemTN,
+          diemTL: exam.diemTL,
+          tongDiem: exam.tongDiem,
           thoiGianNopCu: exam.thoiGianNopCu
         });
         return exam;
@@ -718,13 +772,22 @@ function renderExamList(availableExams) {
         if (isAllowReview) {
           // GIÁO VIÊN CẤU HÌNH CHO XEM LẠI BÀI (SAU KHI THI XONG)
           statusBadgeHtml = `<span class="badge-review-tag allowed" style="background: #e0f2fe; color: #0369a1; border: 1.5px solid #bae6fd; font-weight: 800;">👁️ ĐÃ THI (ĐƯỢC XEM BÀI)</span>`;
-          const hasTLScore = (exam.diemTL !== null && exam.diemTL !== undefined && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)));
+          const essayList = getExamEssayQuestions(exam.tuLuan);
+          const hasCardEssay = (essayCount > 0) || (essayList.length > 0) || !!(exam.tuLuan && (exam.tuLuan.noiDung || exam.tuLuan.linkForm));
+          const hasTLScore = hasCardEssay && (exam.diemTL !== null && exam.diemTL !== undefined && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)));
           const cardDisplayScore = (exam.tongDiem !== null && exam.tongDiem !== undefined && exam.tongDiem !== "")
             ? exam.tongDiem
             : ((exam.diemCu !== null && exam.diemCu !== undefined) ? exam.diemCu : 0);
-          const scoreDetailSubText = hasTLScore
-            ? `<div style="font-size: 0.75rem; color: #0284c7; margin-top: 2px; font-weight: 600;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ + TL: ${exam.diemTL}đ)</div>`
-            : ((essayCount > 0) ? `<div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ - Chờ điểm TL)</div>` : '');
+          let scoreDetailSubText = '';
+          if (hasCardEssay) {
+            if (hasTLScore) {
+              const displayTN = (exam.diemTN !== undefined && exam.diemTN !== null) ? exam.diemTN : Math.round((Number(cardDisplayScore) - Number(exam.diemTL)) * 100) / 100;
+              scoreDetailSubText = `<div style="font-size: 0.75rem; color: #0284c7; margin-top: 2px; font-weight: 600;">(TN: ${displayTN}đ + TL: ${exam.diemTL}đ)</div>`;
+            } else {
+              const displayTN = (exam.diemTN !== undefined && exam.diemTN !== null) ? exam.diemTN : cardDisplayScore;
+              scoreDetailSubText = `<div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">(Điểm TN: ${displayTN}đ - Chờ điểm TL)</div>`;
+            }
+          }
 
           noticeAlertHtml = `
             <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; color: #0369a1; font-size: 0.82rem;">
@@ -751,13 +814,22 @@ function renderExamList(availableExams) {
         } else {
           // GIÁO VIÊN CẤU HÌNH KHÔNG CHO XEM LẠI BÀI (ĐANG TRONG THỜI GIAN THI)
           statusBadgeHtml = `<span class="badge-review-tag" style="background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; font-weight: 800;">🚫 ĐÃ THI (KHÓA LÀM LẠI)</span>`;
-          const hasTLScore = (exam.diemTL !== null && exam.diemTL !== undefined && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)));
+          const essayList = getExamEssayQuestions(exam.tuLuan);
+          const hasCardEssay = (essayCount > 0) || (essayList.length > 0) || !!(exam.tuLuan && (exam.tuLuan.noiDung || exam.tuLuan.linkForm));
+          const hasTLScore = hasCardEssay && (exam.diemTL !== null && exam.diemTL !== undefined && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)));
           const cardDisplayScore = (exam.tongDiem !== null && exam.tongDiem !== undefined && exam.tongDiem !== "")
             ? exam.tongDiem
             : ((exam.diemCu !== null && exam.diemCu !== undefined) ? exam.diemCu : 0);
-          const scoreDetailSubText = hasTLScore
-            ? `<div style="font-size: 0.75rem; color: #dc2626; margin-top: 2px; font-weight: 600;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ + TL: ${exam.diemTL}đ)</div>`
-            : ((essayCount > 0) ? `<div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">(TN: ${exam.diemTN !== undefined && exam.diemTN !== null ? exam.diemTN : cardDisplayScore}đ - Chờ điểm TL)</div>` : '');
+          let scoreDetailSubText = '';
+          if (hasCardEssay) {
+            if (hasTLScore) {
+              const displayTN = (exam.diemTN !== undefined && exam.diemTN !== null) ? exam.diemTN : Math.round((Number(cardDisplayScore) - Number(exam.diemTL)) * 100) / 100;
+              scoreDetailSubText = `<div style="font-size: 0.75rem; color: #dc2626; margin-top: 2px; font-weight: 600;">(TN: ${displayTN}đ + TL: ${exam.diemTL}đ)</div>`;
+            } else {
+              const displayTN = (exam.diemTN !== undefined && exam.diemTN !== null) ? exam.diemTN : cardDisplayScore;
+              scoreDetailSubText = `<div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">(Điểm TN: ${displayTN}đ - Chờ điểm TL)</div>`;
+            }
+          }
 
           noticeAlertHtml = `
             <div style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; color: #9f1239; font-size: 0.82rem;">
@@ -3215,6 +3287,34 @@ async function openExamReviewFromDashboard(exam) {
     }
   }
 
+  // 2b. Đồng bộ điểm chuẩn (diemTN, diemTL, tongDiem) từ getTeacherResults trên Google Sheets nếu chưa có
+  if ((exam.diemTL === undefined || exam.diemTL === null || exam.diemTN === undefined || exam.tongDiem === undefined) && usernameHS && exam.maDe) {
+    try {
+      const resKq = await fetch(`${API_URL}?action=getTeacherResults&usernameGV=all&maDe=${encodeURIComponent(exam.maDe)}&lop=${encodeURIComponent(currentStudent?.lop || "all")}&_t=${Date.now()}`);
+      const textKq = await resKq.text();
+      if (textKq && !textKq.trim().startsWith("<")) {
+        const jsonKq = JSON.parse(textKq);
+        if (jsonKq && Array.isArray(jsonKq.results)) {
+          const studentRow = jsonKq.results.find(r => isSameStudentAccount(r.usernameHS, usernameHS) && r.maDe === exam.maDe);
+          if (studentRow) {
+            if (studentRow.diemTracNghiem !== undefined && studentRow.diemTracNghiem !== null && studentRow.diemTracNghiem !== "") {
+              exam.diemTN = Number(studentRow.diemTracNghiem);
+            }
+            if (studentRow.diemTuLuan !== undefined && studentRow.diemTuLuan !== null && studentRow.diemTuLuan !== "") {
+              exam.diemTL = Number(studentRow.diemTuLuan);
+            }
+            if (studentRow.tongDiem !== undefined && studentRow.tongDiem !== null && studentRow.tongDiem !== "") {
+              exam.tongDiem = Number(studentRow.tongDiem);
+              exam.diemCu = Number(studentRow.tongDiem);
+            }
+          }
+        }
+      }
+    } catch (eKq) {
+      console.warn("Không thể tải điểm từ getTeacherResults:", eKq);
+    }
+  }
+
   // 3. Tái tạo lại câu trả lời học sinh đã chọn (studentAnswers & studentEssayAnswers) từ chiTietKetQua
   studentAnswers = localData.studentAnswers || {};
   if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
@@ -3254,25 +3354,52 @@ async function openExamReviewFromDashboard(exam) {
     calculatedSoCauDung = chiTietKetQua.filter(it => it.dung === true).length;
   }
 
-  const rawScoreTN = (exam.diemTN !== undefined && exam.diemTN !== null && exam.diemTN !== "")
-    ? Number(exam.diemTN)
-    : (localData.diemTN !== undefined && localData.diemTN !== null && localData.diemTN !== ""
-        ? Number(localData.diemTN)
-        : (localData.diemTracNghiem !== undefined && localData.diemTracNghiem !== null ? Number(localData.diemTracNghiem) : (exam.diemCu !== null && exam.diemCu !== undefined ? Number(exam.diemCu) : 0)));
+  let sumTNFromDetails = null;
+  if (Array.isArray(chiTietKetQua) && chiTietKetQua.length > 0) {
+    const hasDiemDat = chiTietKetQua.some(it => it.diemDat !== undefined && it.diemDat !== null);
+    if (hasDiemDat) {
+      sumTNFromDetails = Math.round(chiTietKetQua.reduce((s, it) => s + (Number(it.diemDat) || 0), 0) * 100) / 100;
+    }
+  }
 
-  const rawScoreTL = (exam.diemTL !== undefined && exam.diemTL !== null && exam.diemTL !== "" && !isNaN(Number(exam.diemTL)))
-    ? Number(exam.diemTL)
-    : ((localData.diemTL !== undefined && localData.diemTL !== null && localData.diemTL !== "" && !isNaN(Number(localData.diemTL)))
-        ? Number(localData.diemTL)
-        : ((localData.diemTuLuan !== undefined && localData.diemTuLuan !== null && localData.diemTuLuan !== "" && !isNaN(Number(localData.diemTuLuan))) ? Number(localData.diemTuLuan) : null));
+  const essayList = getExamEssayQuestions(activeExam.tuLuan || exam.tuLuan);
+  const hasEssayPart = (essayList.length > 0) || (Number(activeExam.soCauTuLuan) > 0) || (Number(exam.soCauTuLuan) > 0) || (Array.isArray(baiLamTuLuan) && baiLamTuLuan.length > 0) || !!((activeExam.tuLuan || exam.tuLuan) && ((activeExam.tuLuan || exam.tuLuan).noiDung || (activeExam.tuLuan || exam.tuLuan).linkForm));
+
+  let rawScoreTN = null;
+  if (exam.diemTN !== undefined && exam.diemTN !== null && exam.diemTN !== "") {
+    rawScoreTN = Number(exam.diemTN);
+  } else if (localData.diemTN !== undefined && localData.diemTN !== null && localData.diemTN !== "") {
+    rawScoreTN = Number(localData.diemTN);
+  } else if (sumTNFromDetails !== null) {
+    rawScoreTN = sumTNFromDetails;
+  } else if (!hasEssayPart) {
+    rawScoreTN = (exam.diemCu !== null && exam.diemCu !== undefined) ? Number(exam.diemCu) : 0;
+  } else {
+    rawScoreTN = (exam.diemCu !== null && exam.diemCu !== undefined) ? Number(exam.diemCu) : 0;
+  }
+
+  let rawScoreTL = null;
+  if (hasEssayPart) {
+    if (exam.diemTL !== undefined && exam.diemTL !== null && exam.diemTL !== "" && !isNaN(Number(exam.diemTL))) {
+      rawScoreTL = Number(exam.diemTL);
+    } else if (localData.diemTL !== undefined && localData.diemTL !== null && localData.diemTL !== "" && !isNaN(Number(localData.diemTL))) {
+      rawScoreTL = Number(localData.diemTL);
+    } else if (exam.diemCu !== undefined && exam.diemCu !== null && rawScoreTN !== null && Number(exam.diemCu) > rawScoreTN) {
+      rawScoreTL = Math.round((Number(exam.diemCu) - rawScoreTN) * 100) / 100;
+    }
+  }
 
   let resolvedScoreTong = null;
-  if (exam.tongDiem !== undefined && exam.tongDiem !== null && exam.tongDiem !== "" && !isNaN(Number(exam.tongDiem))) {
+  if (!hasEssayPart) {
+    resolvedScoreTong = rawScoreTN;
+  } else if (exam.tongDiem !== undefined && exam.tongDiem !== null && exam.tongDiem !== "" && !isNaN(Number(exam.tongDiem))) {
     resolvedScoreTong = Number(exam.tongDiem);
   } else if (localData.tongDiem !== undefined && localData.tongDiem !== null && localData.tongDiem !== "" && !isNaN(Number(localData.tongDiem))) {
     resolvedScoreTong = Number(localData.tongDiem);
   } else if (rawScoreTL !== null && rawScoreTN !== null) {
     resolvedScoreTong = Math.round((rawScoreTN + rawScoreTL) * 100) / 100;
+  } else if (exam.diemCu !== undefined && exam.diemCu !== null) {
+    resolvedScoreTong = Number(exam.diemCu);
   } else {
     resolvedScoreTong = rawScoreTN;
   }
@@ -3298,7 +3425,8 @@ async function openExamReviewFromDashboard(exam) {
     diemTN: rawScoreTN,
     diemTuLuan: rawScoreTL,
     diemTL: rawScoreTL,
-    tongDiemTracNghiem: localData.tongDiemTracNghiem || (activeExam.cauHoi ? activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0) : 10),
+    hasEssayPart: hasEssayPart,
+    tongDiemTracNghiem: localData.tongDiemTracNghiem || (activeExam.cauHoi ? activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0) : (hasEssayPart ? 7 : 10)),
     soCauDung: resolvedSoCauDung,
     tongSoCau: totalQuestions,
     soCauDungSai: exam.soCauDungSaiCu || localData.soCauDungSai || `${resolvedSoCauDung}/${totalQuestions} câu đúng`,
@@ -3344,12 +3472,26 @@ function openExamReviewModal() {
         : Number(lastExamResult.diemTong || 0));
   const displayReviewScore = Math.round(rawReviewScore * 100) / 100;
 
-  const rawTL = (lastExamResult.diemTL !== undefined && lastExamResult.diemTL !== null && lastExamResult.diemTL !== "" && !isNaN(Number(lastExamResult.diemTL)))
-    ? Number(lastExamResult.diemTL)
-    : ((lastExamResult.diemTuLuan !== undefined && lastExamResult.diemTuLuan !== null && lastExamResult.diemTuLuan !== "" && !isNaN(Number(lastExamResult.diemTuLuan)))
-        ? Number(lastExamResult.diemTuLuan)
-        : (activeExam.diemTL !== undefined && activeExam.diemTL !== null && activeExam.diemTL !== "" && !isNaN(Number(activeExam.diemTL)) ? Number(activeExam.diemTL) : null));
+  const questions = activeExam.cauHoi || [];
+  const detailedList = lastExamResult.chiTietKetQua || [];
+  const part1Questions = questions.filter(q => q.loaiCauHoi !== "true_false");
+  const part2Questions = questions.filter(q => q.loaiCauHoi === "true_false");
+  let essayList = getExamEssayQuestions(activeExam.tuLuan);
+  if (essayList.length === 0 && Array.isArray(lastExamResult.baiLamTuLuan) && lastExamResult.baiLamTuLuan.length > 0) {
+    essayList = lastExamResult.baiLamTuLuan;
+  }
+  const hasEssayPart = (lastExamResult.hasEssayPart !== undefined)
+    ? lastExamResult.hasEssayPart
+    : (essayList.length > 0 || Number(activeExam.soCauTuLuan) > 0 || !!(activeExam?.tuLuan && (activeExam.tuLuan.noiDung || activeExam.tuLuan.linkForm)));
 
+  let rawTL = null;
+  if (hasEssayPart) {
+    rawTL = (lastExamResult.diemTL !== undefined && lastExamResult.diemTL !== null && lastExamResult.diemTL !== "" && !isNaN(Number(lastExamResult.diemTL)))
+      ? Number(lastExamResult.diemTL)
+      : ((lastExamResult.diemTuLuan !== undefined && lastExamResult.diemTuLuan !== null && lastExamResult.diemTuLuan !== "" && !isNaN(Number(lastExamResult.diemTuLuan)))
+          ? Number(lastExamResult.diemTuLuan)
+          : (activeExam.diemTL !== undefined && activeExam.diemTL !== null && activeExam.diemTL !== "" && !isNaN(Number(activeExam.diemTL)) ? Number(activeExam.diemTL) : null));
+  }
   const hasGradedEssay = (rawTL !== null && rawTL !== undefined && !isNaN(rawTL));
   const displayTL = hasGradedEssay ? (Math.round(rawTL * 100) / 100) : null;
 
@@ -3360,15 +3502,8 @@ function openExamReviewModal() {
     maxTracNghiemScore = activeExam.cauHoi.reduce((sum, q) => sum + (Number(q.diem) || 1), 0);
     maxTracNghiemScore = Math.round(maxTracNghiemScore * 100) / 100;
   } else {
-    maxTracNghiemScore = 10;
+    maxTracNghiemScore = hasEssayPart ? 7 : 10;
   }
-
-  const questions = activeExam.cauHoi || [];
-  const detailedList = lastExamResult.chiTietKetQua || [];
-  const part1Questions = questions.filter(q => q.loaiCauHoi !== "true_false");
-  const part2Questions = questions.filter(q => q.loaiCauHoi === "true_false");
-  const essayList = getExamEssayQuestions(activeExam.tuLuan);
-  const hasEssayPart = essayList.length > 0 || !!(activeExam?.tuLuan && activeExam.tuLuan.linkForm);
 
   let maxTuLuanScore = 0;
   if (essayList.length > 0) {
@@ -3382,7 +3517,9 @@ function openExamReviewModal() {
   const maxTotalScore = Math.round((maxTracNghiemScore + (hasEssayPart ? maxTuLuanScore : 0)) * 100) / 100 || 10;
 
   let displayTongDiem = 0;
-  if (lastExamResult.tongDiem !== undefined && lastExamResult.tongDiem !== null && lastExamResult.tongDiem !== "" && !isNaN(Number(lastExamResult.tongDiem))) {
+  if (!hasEssayPart) {
+    displayTongDiem = displayReviewScore;
+  } else if (lastExamResult.tongDiem !== undefined && lastExamResult.tongDiem !== null && lastExamResult.tongDiem !== "" && !isNaN(Number(lastExamResult.tongDiem))) {
     displayTongDiem = Math.round(Number(lastExamResult.tongDiem) * 100) / 100;
   } else if (hasGradedEssay) {
     displayTongDiem = Math.round((displayReviewScore + rawTL) * 100) / 100;
@@ -3407,7 +3544,7 @@ function openExamReviewModal() {
         modalScoreStats.innerHTML = `Điểm TN: <strong style="color: #2563eb;">${displayReviewScore} / ${maxTracNghiemScore} đ</strong> (<span style="color: #16a34a; font-weight: 600;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0} câu đúng</span>) | Điểm TL: <strong style="color: #d97706; background: #fffbeb; padding: 1px 6px; border-radius: 4px; border: 1px solid #fde68a;">⏳ Chờ GV chấm${maxTuLuanScore > 0 ? ` (Tối đa ${maxTuLuanScore} đ)` : ''}</strong> | Tổng điểm: <strong style="color: #2563eb;">${displayReviewScore} đ</strong> <span style="color: #d97706; font-size: 0.82rem;">(+ Chờ điểm TL)</span> | Chế độ: ${cheDoBadgeHtml}`;
       }
     } else {
-      modalScoreStats.innerHTML = `Tổng điểm: <strong style="color: #2563eb; font-size: 0.95rem;">🎯 ${displayReviewScore} / ${maxTracNghiemScore} đ</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Chế độ: ${cheDoBadgeHtml}`;
+      modalScoreStats.innerHTML = `Điểm số: <strong style="color: #2563eb; font-size: 0.95rem;">🎯 ${displayReviewScore} / ${maxTracNghiemScore} đ</strong> | Đúng: <strong style="color: #16a34a;">${lastExamResult.soCauDung || 0}/${lastExamResult.tongSoCau || 0}</strong> câu | Chế độ: ${cheDoBadgeHtml}`;
     }
   }
 
@@ -3446,8 +3583,8 @@ function openExamReviewModal() {
     part2Questions.forEach(q => renderReviewQuestionCard(q, detailedList, modalBody));
   }
 
-  // Render Phần III Tự luận trong modal
-  if (essayList.length > 0) {
+  // Render Phần III Tự luận trong modal (Chỉ hiển thị khi đề thi thực sự có phần tự luận)
+  if (hasEssayPart && essayList.length > 0) {
     const p3Hdr = document.createElement("div");
     p3Hdr.className = "student-section-header part-3";
     p3Hdr.style.margin = "1.25rem 0 0.75rem";
